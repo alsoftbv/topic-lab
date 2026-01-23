@@ -14,16 +14,16 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
-            args: --target aarch64-apple-darwin
+            target: aarch64-apple-darwin
             name: macos-arm64
           - platform: macos-latest
-            args: --target x86_64-apple-darwin
+            target: x86_64-apple-darwin
             name: macos-x64
           - platform: ubuntu-22.04
-            args: ''
+            target: ''
             name: linux-x64
           - platform: windows-latest
-            args: ''
+            target: ''
             name: windows-x64
 
     runs-on: ${{ matrix.platform }}
@@ -56,33 +56,31 @@ jobs:
         run: npm ci
 
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'MQTT Topic Lab ${{ github.ref_name }}'
-          releaseBody: 'See the assets below to download for your platform.'
-          releaseDraft: true
-          prerelease: false
-          includeRelease: false
-          args: ${{ matrix.args }}
+        run: |
+          if [ -n "${{ matrix.target }}" ]; then
+            npm run tauri build -- --target ${{ matrix.target }}
+          else
+            npm run tauri build
+          fi
+        shell: bash
 
       - name: Rename artifacts (macOS)
         if: matrix.platform == 'macos-latest'
         run: |
           VERSION="${{ github.ref_name }}"
-          cd src-tauri/target/*/release/bundle
-          mv dmg/*.dmg "$GITHUB_WORKSPACE/MQTT-Topic-Lab-${VERSION}-${{ matrix.name }}.dmg"
+          mv "src-tauri/target/${{ matrix.target }}/release/bundle/dmg/"*.dmg \
+             "MQTT-Topic-Lab-${VERSION}-${{ matrix.name }}.dmg"
 
       - name: Rename artifacts (Linux)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           VERSION="${{ github.ref_name }}"
-          cd src-tauri/target/release/bundle
-          mv appimage/*.AppImage "$GITHUB_WORKSPACE/MQTT-Topic-Lab-${VERSION}-${{ matrix.name }}.AppImage"
-          mv deb/*.deb "$GITHUB_WORKSPACE/MQTT-Topic-Lab-${VERSION}-${{ matrix.name }}.deb"
-          mv rpm/*.rpm "$GITHUB_WORKSPACE/MQTT-Topic-Lab-${VERSION}-${{ matrix.name }}.rpm"
+          mv src-tauri/target/release/bundle/appimage/*.AppImage \
+             "MQTT-Topic-Lab-${VERSION}-${{ matrix.name }}.AppImage"
+          mv src-tauri/target/release/bundle/deb/*.deb \
+             "MQTT-Topic-Lab-${VERSION}-${{ matrix.name }}.deb"
+          mv src-tauri/target/release/bundle/rpm/*.rpm \
+             "MQTT-Topic-Lab-${VERSION}-${{ matrix.name }}.rpm"
 
       - name: Rename artifacts (Windows)
         if: matrix.platform == 'windows-latest'
@@ -90,16 +88,11 @@ jobs:
         run: |
           $version = "${{ github.ref_name }}"
           $name = "${{ matrix.name }}"
-          Get-ChildItem "src-tauri/target/release/bundle/msi/*.msi" | ForEach-Object {
-            Move-Item $_.FullName "MQTT-Topic-Lab-${version}-${name}.msi"
-          }
-          Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe" | ForEach-Object {
-            Move-Item $_.FullName "MQTT-Topic-Lab-${version}-${name}-setup.exe"
-          }
+          Move-Item "src-tauri/target/release/bundle/msi/*.msi" "MQTT-Topic-Lab-${version}-${name}.msi"
+          Move-Item "src-tauri/target/release/bundle/nsis/*.exe" "MQTT-Topic-Lab-${version}-${name}-setup.exe"
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          files: |
-            MQTT-Topic-Lab-*
+          files: MQTT-Topic-Lab-*
