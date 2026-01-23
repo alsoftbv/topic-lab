@@ -124,6 +124,9 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
                             value={brokerUrl}
                             onChange={(e) => setBrokerUrl(e.target.value)}
                             placeholder="mqtt.example.com"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
                         />
                     </div>
 
@@ -138,13 +141,27 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
                         </div>
                         <div className="form-group">
                             <label>Client ID</label>
-                            <input type="text" value={clientId} onChange={(e) => setClientId(e.target.value)} />
+                            <input
+                                type="text"
+                                value={clientId}
+                                onChange={(e) => setClientId(e.target.value)}
+                                autoCorrect="off"
+                                autoCapitalize="off"
+                                spellCheck={false}
+                            />
                         </div>
                     </div>
 
                     <div className="form-group">
                         <label>Username (Optional)</label>
-                        <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} />
+                        <input
+                            type="text"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
+                        />
                     </div>
 
                     <div className="form-group">

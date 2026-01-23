@@ -126,43 +126,48 @@ export function MessageViewer() {
 
             {expanded && (
                 <div className="message-viewer-content">
-                    <form className="subscribe-form" onSubmit={handleSubscribe}>
-                        <input
-                            type="text"
-                            placeholder="Topic to subscribe..."
-                            value={topic}
-                            onChange={(e) => setTopic(e.target.value)}
-                            disabled={!isConnected}
-                        />
-                        <button type="submit" className="btn btn-small" disabled={!isConnected || !topic.trim()}>
-                            <Plus size={14} />
-                        </button>
-                    </form>
+                    <div className="message-viewer-left">
+                        <form className="subscribe-form" onSubmit={handleSubscribe}>
+                            <input
+                                type="text"
+                                placeholder="Topic to subscribe..."
+                                value={topic}
+                                onChange={(e) => setTopic(e.target.value)}
+                                disabled={!isConnected}
+                                autoCorrect="off"
+                                autoCapitalize="off"
+                                spellCheck={false}
+                            />
+                            <button type="submit" className="btn btn-small" disabled={!isConnected || !topic.trim()}>
+                                <Plus size={14} />
+                            </button>
+                        </form>
 
-                    {subscriptions.length > 0 && (
-                        <div className="subscriptions-list">
-                            {subscriptions.map((sub) => (
-                                <div key={sub} className="subscription-item">
-                                    <code>{sub}</code>
-                                    <button className="btn-icon" onClick={() => handleUnsubscribe(sub)} title="Unsubscribe">
-                                        <X size={14} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                        {subscriptions.length > 0 && (
+                            <div className="subscriptions-list">
+                                {subscriptions.map((sub) => (
+                                    <div key={sub} className="subscription-item">
+                                        <code>{sub}</code>
+                                        <button className="btn-icon" onClick={() => handleUnsubscribe(sub)} title="Unsubscribe">
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
 
                     <div className="messages-area">
                         {messages.length === 0 ? (
                             <div className="empty-messages">
                                 {subscriptions.length === 0
-                                    ? 'Subscribe to a topic to see messages'
-                                    : 'Waiting for messages...'}
+                                    ? 'Subscribe to topics'
+                                    : 'Waiting...'}
                             </div>
                         ) : (
                             <>
                                 <div className="messages-header">
-                                    <span>{messages.length} message{messages.length !== 1 && 's'}</span>
+                                    <span>{messages.length} msg</span>
                                     <button className="btn-icon" onClick={handleClear} title="Clear messages">
                                         <Trash2 size={14} />
                                     </button>

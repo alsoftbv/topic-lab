@@ -65,6 +65,9 @@ export function VariablesPanel() {
                                         if (e.key === 'Escape') setEditingKey(null);
                                     }}
                                     autoFocus
+                                    autoCorrect="off"
+                                    autoCapitalize="off"
+                                    spellCheck={false}
                                 />
                                 <button className="btn-icon" onClick={() => handleUpdate(key)} title="Save">
                                     <Check size={16} />
@@ -100,12 +103,18 @@ export function VariablesPanel() {
                     onChange={(e) => setNewKey(e.target.value)}
                     pattern="[a-zA-Z_][a-zA-Z0-9_]*"
                     title="Start with letter or underscore, followed by letters, numbers, or underscores"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                 />
                 <input
                     type="text"
                     placeholder="Value"
                     value={newValue}
                     onChange={(e) => setNewValue(e.target.value)}
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                 />
                 <button type="submit" className="btn btn-small">
                     Add

@@ -115,6 +115,9 @@ export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
                             onChange={(e) => setTopic(e.target.value)}
                             placeholder="devices/{device_id}/TOL"
                             required
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
                         />
                         {topic && (
                             <div className="preview">
@@ -131,6 +134,9 @@ export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
                             onChange={(e) => setPayload(e.target.value)}
                             placeholder='{"action": "ON"}'
                             rows={3}
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
                         />
                         {payload && (
                             <div className="preview">
