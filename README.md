@@ -52,22 +52,6 @@ npm run tauri build
 3. **Create Buttons**: Add buttons with topics like `devices/{device_id}/CMD`
 4. **Send Commands**: Click buttons to publish messages to your MQTT broker
 
-## Future Roadmap
-
-This project follows an **open core** model:
-
-### Free & Open Source (Current)
-- Local project storage
-- MQTT button commands
-- Variable substitution
-- TLS/Auth support
-
-### Planned Paid Extensions
-- **Cloud Sync**: Sync projects across devices
-- **Team Sharing**: Share projects with team members
-- **Enterprise**: SSO, audit logs, role-based access
-- **Advanced Features**: Message history, analytics, bulk operations
-
 ## License
 
 MIT
