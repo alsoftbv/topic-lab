@@ -370,6 +370,7 @@ textarea {
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1rem;
   padding: 0.25rem;
+  padding-left: 12px;
   padding-bottom: 1rem;
   flex: 1;
   overflow-y: auto;
@@ -420,19 +421,79 @@ textarea {
   box-shadow: 0 0 0 2px var(--error);
 }
 
+.button-card.dragging {
+  opacity: 0.4;
+  transform: scale(0.98);
+  pointer-events: none;
+}
+
+body:has(.button-card.dragging) {
+  cursor: grabbing;
+  user-select: none;
+}
+
+body:has(.button-card.dragging) .button-card {
+  pointer-events: auto;
+}
+
+.button-card.drag-over {
+  position: relative;
+}
+
+.button-card.drag-over::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -8px;
+  width: 4px;
+  background: var(--primary);
+  border-radius: 2px;
+}
+
+.drag-ghost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 0.85;
+  width: 280px;
+}
+
+.drag-ghost .button-card {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
 .button-card-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: var(--text-secondary);
+  opacity: 0.5;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.drag-handle:hover {
+  opacity: 1;
+}
+
+.button-card.dragging .drag-handle {
+  cursor: grabbing;
 }
 
 .button-card-header h3 {
   font-size: 1rem;
+  flex: 1;
 }
 
 .button-card-actions {
   display: flex;
   gap: 0.25rem;
+  flex-shrink: 0;
 }
 
 .button-card-details {

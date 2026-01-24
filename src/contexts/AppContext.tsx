@@ -16,6 +16,7 @@ interface AppContextType {
     addButton: (button: Button) => Promise<void>;
     updateButton: (button: Button) => Promise<void>;
     deleteButton: (id: string) => Promise<void>;
+    reorderButtons: (buttons: Button[]) => Promise<void>;
     updateVariables: (variables: Record<string, string>) => Promise<void>;
     updateSubscriptions: (subscriptions: string[]) => Promise<void>;
     connect: () => Promise<void>;
@@ -189,6 +190,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         [activeConnection, updateConnection]
     );
 
+    const reorderButtons = useCallback(
+        async (buttons: Button[]) => {
+            if (!activeConnection) return;
+            await updateConnection({
+                ...activeConnection,
+                buttons,
+            });
+        },
+        [activeConnection, updateConnection]
+    );
+
     const updateVariables = useCallback(
         async (variables: Record<string, string>) => {
             if (!activeConnection) return;
@@ -270,6 +282,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 addButton,
                 updateButton,
                 deleteButton,
+                reorderButtons,
                 updateVariables,
                 updateSubscriptions,
                 connect,

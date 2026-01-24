@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { Settings, Plus, X } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
@@ -12,15 +12,87 @@ import { ConnectionEditor } from './ConnectionEditor';
 import type { Button } from '../types';
 
 export function Dashboard() {
-    const { activeConnection, error, deleteConnection, resetAll } = useApp();
+    const { activeConnection, error, deleteConnection, resetAll, reorderButtons } = useApp();
     const [showEditor, setShowEditor] = useState(false);
     const [editingButton, setEditingButton] = useState<Button | undefined>();
     const [showVariables, setShowVariables] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [showConnectionEditor, setShowConnectionEditor] = useState(false);
     const [isAddingConnection, setIsAddingConnection] = useState(false);
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+    const dragOverIndexRef = useRef<number | null>(null);
+    const dragIndexRef = useRef<number | null>(null);
+    const ghostRef = useRef<HTMLElement | null>(null);
+
+    useEffect(() => {
+        if (dragIndex === null) return;
+
+        const handleGlobalMouseMove = (e: MouseEvent) => {
+            if (ghostRef.current) {
+                ghostRef.current.style.left = `${e.clientX + 5}px`;
+                ghostRef.current.style.top = `${e.clientY + 5}px`;
+            }
+        };
+
+        const handleGlobalMouseUp = () => {
+            const fromIndex = dragIndexRef.current;
+            const toIndex = dragOverIndexRef.current;
+
+            if (fromIndex !== null && toIndex !== null && fromIndex !== toIndex && activeConnection) {
+                const buttons = [...activeConnection.buttons];
+                const [dragged] = buttons.splice(fromIndex, 1);
+                buttons.splice(toIndex, 0, dragged);
+                reorderButtons(buttons);
+            }
+
+            if (ghostRef.current) {
+                ghostRef.current.remove();
+                ghostRef.current = null;
+            }
+
+            setDragIndex(null);
+            setDragOverIndex(null);
+            dragOverIndexRef.current = null;
+            dragIndexRef.current = null;
+        };
+
+        window.addEventListener('mousemove', handleGlobalMouseMove);
+        window.addEventListener('mouseup', handleGlobalMouseUp);
+        return () => {
+            window.removeEventListener('mousemove', handleGlobalMouseMove);
+            window.removeEventListener('mouseup', handleGlobalMouseUp);
+        };
+    }, [dragIndex, activeConnection, reorderButtons]);
 
     if (!activeConnection) return null;
+
+    const handleDragStart = (index: number, x: number, y: number, element: HTMLElement) => {
+        setDragIndex(index);
+        setDragOverIndex(index);
+        dragIndexRef.current = index;
+        dragOverIndexRef.current = index;
+
+        const clone = element.cloneNode(true) as HTMLElement;
+        clone.classList.add('drag-ghost');
+        clone.classList.remove('dragging');
+        clone.style.position = 'fixed';
+        clone.style.left = `${x + 5}px`;
+        clone.style.top = `${y + 5}px`;
+        clone.style.width = `${element.offsetWidth}px`;
+        clone.style.pointerEvents = 'none';
+        clone.style.zIndex = '1000';
+        clone.style.opacity = '0.85';
+        clone.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.3)';
+        document.body.appendChild(clone);
+        ghostRef.current = clone;
+    };
+
+    const handleDragEnter = (index: number) => {
+        if (dragIndex === null) return;
+        setDragOverIndex(index);
+        dragOverIndexRef.current = index;
+    };
 
     const handleNewButton = () => {
         setEditingButton(undefined);
@@ -114,11 +186,16 @@ export function Dashboard() {
                         </div>
                     ) : (
                         <div className="buttons-grid">
-                            {activeConnection.buttons.map((button) => (
+                            {activeConnection.buttons.map((button, index) => (
                                 <ButtonCard
                                     key={button.id}
                                     button={button}
+                                    index={index}
                                     onEdit={() => handleEditButton(button)}
+                                    onDragStart={handleDragStart}
+                                    onDragEnter={handleDragEnter}
+                                    isDragging={dragIndex === index}
+                                    isDragOver={dragOverIndex === index}
                                 />
                             ))}
                         </div>

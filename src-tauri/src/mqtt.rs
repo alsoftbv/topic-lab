@@ -92,7 +92,9 @@ impl MqttClient {
         self.shutdown_tx = Some(shutdown_tx);
 
         tokio::spawn(async move {
-            let mut error_logged = false;
+            let mut consecutive_errors = 0;
+            const MAX_CONSECUTIVE_ERRORS: u32 = 5;
+
             loop {
                 tokio::select! {
                     _ = shutdown_rx.recv() => {
@@ -102,12 +104,13 @@ impl MqttClient {
                         match event {
                             Ok(Event::Incoming(Packet::ConnAck(_))) => {
                                 *status.write().await = ConnectionStatus::Connected;
-                                error_logged = false;
+                                consecutive_errors = 0;
                                 if let Some(ref handle) = app_handle {
                                     let _ = handle.emit("mqtt-status", "connected");
                                 }
                             }
                             Ok(Event::Incoming(Packet::Publish(publish))) => {
+                                consecutive_errors = 0;
                                 let payload = String::from_utf8_lossy(&publish.payload).to_string();
                                 let msg = Message {
                                     topic: publish.topic.clone(),
@@ -126,16 +129,25 @@ impl MqttClient {
                                     let _ = handle.emit("mqtt-message", msg);
                                 }
                             }
-                            Ok(_) => {}
+                            Ok(_) => {
+                                consecutive_errors = 0;
+                            }
                             Err(e) => {
-                                if !error_logged {
-                                    eprintln!("MQTT connection error: {}", e);
-                                    error_logged = true;
-                                    if let Some(ref handle) = app_handle {
-                                        let _ = handle.emit("mqtt-status", "error");
-                                    }
-                                }
+                                consecutive_errors += 1;
+                                eprintln!("MQTT connection error ({}/{}): {}", consecutive_errors, MAX_CONSECUTIVE_ERRORS, e);
+
                                 *status.write().await = ConnectionStatus::Error;
+                                if let Some(ref handle) = app_handle {
+                                    let _ = handle.emit("mqtt-status", "error");
+                                }
+
+                                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                                    eprintln!("MQTT: Too many consecutive errors, giving up");
+                                    break;
+                                }
+
+                                // Small delay before retry
+                                tokio::time::sleep(Duration::from_millis(500)).await;
                             }
                         }
                     }

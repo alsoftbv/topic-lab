@@ -1,19 +1,25 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { confirm } from '@tauri-apps/plugin-dialog';
-import { Pencil, Trash2 } from 'lucide-react';
+import { GripVertical, Pencil, Trash2 } from 'lucide-react';
 import type { Button } from '../types';
 import { useApp } from '../contexts/AppContext';
 import { substituteVariables } from '../utils/variables';
 
 interface ButtonCardProps {
     button: Button;
+    index: number;
     onEdit: () => void;
+    onDragStart: (index: number, x: number, y: number, element: HTMLElement) => void;
+    onDragEnter: (index: number) => void;
+    isDragging: boolean;
+    isDragOver: boolean;
 }
 
-export function ButtonCard({ button, onEdit }: ButtonCardProps) {
+export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, isDragging, isDragOver }: ButtonCardProps) {
     const { activeConnection, publishButton, deleteButton, connectionStatus } = useApp();
     const [publishing, setPublishing] = useState(false);
     const [lastResult, setLastResult] = useState<'success' | 'error' | null>(null);
+    const cardRef = useRef<HTMLDivElement>(null);
 
     const variables = activeConnection?.variables || {};
     const resolvedTopic = substituteVariables(button.topic, variables);
@@ -52,9 +58,31 @@ export function ButtonCard({ button, onEdit }: ButtonCardProps) {
         exactlyonce: 'QoS 2',
     };
 
+    const handleMouseDown = (e: React.MouseEvent) => {
+        e.preventDefault();
+        if (cardRef.current) {
+            onDragStart(index, e.clientX, e.clientY, cardRef.current);
+        }
+    };
+
+    const handleMouseEnter = () => {
+        onDragEnter(index);
+    };
+
     return (
-        <div className={`button-card ${lastResult || ''}`}>
+        <div
+            ref={cardRef}
+            className={`button-card ${lastResult || ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+            onMouseEnter={handleMouseEnter}
+        >
             <div className="button-card-header">
+                <div
+                    className="drag-handle"
+                    title="Drag to reorder"
+                    onMouseDown={handleMouseDown}
+                >
+                    <GripVertical size={16} />
+                </div>
                 <h3>{button.name}</h3>
                 <div className="button-card-actions">
                     <button className="btn-icon" onClick={onEdit} title="Edit">
