@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { AppData, Connection, Button, QoS, Message } from '../types';
+import { substituteVariables } from './variables';
 
 export async function getData(): Promise<AppData> {
     return invoke<AppData>('get_data');
@@ -21,20 +22,14 @@ export async function disconnect(): Promise<void> {
     return invoke('disconnect');
 }
 
-export async function publishButton(
-    button: Button,
-    variables: Record<string, string>
-): Promise<void> {
-    return invoke('publish_button', { button, variables });
+export async function publish(topic: string, payload: string, qos: QoS, retain: boolean): Promise<void> {
+    return invoke('publish', { topic, payload, qos, retain });
 }
 
-export async function publishRaw(
-    topic: string,
-    payload: string,
-    qos: QoS,
-    retain: boolean
-): Promise<void> {
-    return invoke('publish_raw', { topic, payload, qos, retain });
+export async function publishButton(button: Button, variables: Record<string, string>): Promise<void> {
+    const topic = substituteVariables(button.topic, variables);
+    const payload = button.payload ? substituteVariables(button.payload, variables) : '';
+    return publish(topic, payload, button.qos, button.retain);
 }
 
 export async function subscribe(topic: string, qos: QoS): Promise<void> {

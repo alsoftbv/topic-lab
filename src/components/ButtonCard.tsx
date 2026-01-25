@@ -43,8 +43,8 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
     };
 
     const handleDelete = async () => {
-        const confirmed = await confirm(`Delete button "${button.name}"?`, {
-            title: 'Delete Button',
+        const confirmed = await confirm('This action cannot be undone.', {
+            title: `Delete "${button.name}"?`,
             kind: 'warning',
         });
         if (confirmed) {

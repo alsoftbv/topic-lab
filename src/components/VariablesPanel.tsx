@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { message } from '@tauri-apps/plugin-dialog';
 import { Pencil, Trash2, Check, X } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
+import { isBuiltinVariable } from '../utils/builtins';
 
 export function VariablesPanel() {
     const { activeConnection, updateVariables } = useApp();
@@ -13,11 +15,17 @@ export function VariablesPanel() {
 
     const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newKey.trim()) return;
+        const key = newKey.trim();
+        if (!key) return;
+
+        if (isBuiltinVariable(key)) {
+            message(`"${key}" is a reserved built-in variable name`, { title: 'Reserved Name', kind: 'error' });
+            return;
+        }
 
         await updateVariables({
             ...variables,
-            [newKey.trim()]: newValue,
+            [key]: newValue,
         });
 
         setNewKey('');

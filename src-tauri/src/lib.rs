@@ -1,14 +1,13 @@
 mod mqtt;
 mod storage;
 mod types;
-mod variables;
 
 use mqtt::{Message, MqttClient};
 use std::sync::Arc;
 use storage::Storage;
 use tauri::State;
 use tokio::sync::RwLock;
-use types::{AppData, Button, Connection, QoS};
+use types::{AppData, Connection, QoS};
 
 struct AppState {
     storage: Storage,
@@ -57,27 +56,7 @@ async fn disconnect(state: State<'_, AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn publish_button(
-    state: State<'_, AppState>,
-    button: Button,
-    variables: std::collections::HashMap<String, String>,
-) -> Result<(), String> {
-    let topic = variables::substitute_variables(&button.topic, &variables);
-    let payload = button
-        .payload
-        .as_ref()
-        .map(|p| variables::substitute_variables(p, &variables))
-        .unwrap_or_default();
-
-    let client = state.mqtt_client.read().await;
-    client
-        .publish(&topic, &payload, button.qos, button.retain)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn publish_raw(
+async fn publish(
     state: State<'_, AppState>,
     topic: String,
     payload: String,
@@ -152,8 +131,7 @@ pub fn run() {
             delete_data,
             connect,
             disconnect,
-            publish_button,
-            publish_raw,
+            publish,
             subscribe,
             unsubscribe,
             get_messages,
