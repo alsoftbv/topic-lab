@@ -12,7 +12,7 @@ import { ConnectionEditor } from './ConnectionEditor';
 import type { Button } from '../types';
 
 export function Dashboard() {
-    const { activeConnection, error, deleteConnection, resetAll, reorderButtons } = useApp();
+    const { activeConnection, error, deleteConnection, reorderButtons } = useApp();
     const [showEditor, setShowEditor] = useState(false);
     const [editingButton, setEditingButton] = useState<Button | undefined>();
     const [showVariables, setShowVariables] = useState(false);
@@ -131,17 +131,6 @@ export function Dashboard() {
         }
     };
 
-    const handleResetAll = async () => {
-        const confirmed = await confirm(
-            'This will delete ALL connections, buttons, and settings. This action cannot be undone.',
-            { title: 'Reset Everything', kind: 'warning' }
-        );
-        if (confirmed) {
-            setShowSettings(false);
-            resetAll();
-        }
-    };
-
     return (
         <div className="dashboard">
             <header className="dashboard-header">
@@ -250,15 +239,10 @@ export function Dashboard() {
                                 </button>
                             </div>
                             <hr />
-                            <button type="button" className="btn btn-secondary" onClick={handleDeleteConnection}>
+                            <button type="button" className="btn btn-danger" onClick={handleDeleteConnection}>
                                 Delete Connection
                             </button>
-                            <p className="hint">This will delete this connection and its buttons</p>
-                            <hr />
-                            <button type="button" className="btn btn-danger" onClick={handleResetAll}>
-                                Reset Everything
-                            </button>
-                            <p className="hint">Delete all connections and start fresh</p>
+                            <p className="hint">This will delete this connection, including its variables and its buttons</p>
                         </div>
                     </div>
                 </div>
