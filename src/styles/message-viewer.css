@@ -1,0 +1,170 @@
+.message-viewer {
+    background: var(--bg-secondary);
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+}
+
+.message-viewer-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: none;
+    border: none;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    text-align: left;
+}
+
+.message-viewer-header:hover {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+}
+
+.message-viewer-header .badge {
+    margin-left: auto;
+}
+
+.message-viewer-header .badge+.badge {
+    margin-left: 0.5rem;
+}
+
+.message-viewer-content {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0 0.75rem 0.75rem;
+    height: 180px;
+}
+
+.message-viewer-left {
+    flex: 0 0 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.subscribe-form {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.subscribe-form input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.subscribe-form .btn {
+    padding: 0.375rem;
+}
+
+.subscriptions-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    overflow-y: auto;
+}
+
+.subscription-item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: var(--bg);
+    padding: 0.125rem 0.375rem;
+    border-radius: 3px;
+    font-size: 0.6875rem;
+}
+
+.subscription-item code {
+    color: var(--primary);
+}
+
+.subscription-item .btn-icon {
+    padding: 0.125rem;
+    opacity: 0.5;
+}
+
+.subscription-item .btn-icon:hover {
+    opacity: 1;
+}
+
+.messages-area {
+    flex: 1;
+    min-width: 0;
+    background: var(--bg);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+}
+
+.empty-messages {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.messages-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.6875rem;
+    color: var(--text-secondary);
+}
+
+.messages-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.message-item {
+    padding: 0.25rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.6875rem;
+}
+
+.message-item:last-child {
+    border-bottom: none;
+}
+
+.message-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.message-topic {
+    color: var(--primary);
+    font-size: 0.625rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.message-time {
+    color: var(--text-secondary);
+    font-size: 0.625rem;
+    flex-shrink: 0;
+}
+
+.message-payload {
+    margin: 0.125rem 0 0;
+    padding: 0.125rem 0.25rem;
+    background: var(--bg-card);
+    border-radius: 2px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 0.625rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 32px;
+    overflow-y: auto;
+}

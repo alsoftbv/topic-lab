@@ -1,0 +1,50 @@
+.variables-panel h3 {
+    margin-bottom: 0.5rem;
+}
+
+.variables-panel>.hint {
+    margin-bottom: 1rem;
+}
+
+.variables-list {
+    margin-bottom: 1rem;
+}
+
+.variable-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.variable-row:last-child {
+    border-bottom: none;
+}
+
+.variable-key {
+    background: var(--bg);
+    padding: 0.125rem 0.375rem;
+    border-radius: 4px;
+    font-size: 0.8125rem;
+}
+
+.variable-value {
+    flex: 1;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.variable-row input {
+    flex: 1;
+    padding: 0.375rem;
+}
+
+.add-variable-form {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.add-variable-form input {
+    flex: 1;
+}

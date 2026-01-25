@@ -1,0 +1,123 @@
+.button-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    transition: box-shadow 0.2s;
+}
+
+.button-card.success {
+    box-shadow: 0 0 0 2px var(--primary);
+}
+
+.button-card.error {
+    box-shadow: 0 0 0 2px var(--error);
+}
+
+.button-card.dragging {
+    opacity: 0.4;
+    transform: scale(0.98);
+    pointer-events: none;
+}
+
+.button-card.dragging.drag-over {
+    opacity: 1;
+}
+
+body:has(.button-card.dragging) {
+    cursor: grabbing;
+    user-select: none;
+}
+
+body:has(.button-card.dragging) .button-card {
+    pointer-events: auto;
+}
+
+.button-card.drag-over {
+    position: relative;
+}
+
+.button-card.drag-over::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -8px;
+    width: 4px;
+    background: var(--primary);
+    border-radius: 2px;
+}
+
+.drag-ghost {
+    position: fixed;
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.85;
+    width: 280px;
+}
+
+.drag-ghost .button-card {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.button-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.drag-handle {
+    cursor: grab;
+    color: var(--text-secondary);
+    opacity: 0.5;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+}
+
+.drag-handle:hover {
+    opacity: 1;
+}
+
+.button-card.dragging .drag-handle {
+    cursor: grabbing;
+}
+
+.button-card-header h3 {
+    font-size: 1rem;
+    flex: 1;
+}
+
+.button-card-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+.button-card-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+}
+
+.detail-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: baseline;
+}
+
+.detail-label {
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.detail-value {
+    background: var(--bg);
+    padding: 0.125rem 0.375rem;
+    border-radius: 4px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 0.75rem;
+    word-break: break-all;
+}

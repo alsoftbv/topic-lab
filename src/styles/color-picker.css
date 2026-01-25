@@ -1,0 +1,45 @@
+.color-picker {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.color-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.15s, border-color 0.15s;
+}
+
+.color-swatch:hover {
+    transform: scale(1.1);
+}
+
+.color-swatch.selected {
+    border-color: var(--text);
+}
+
+.color-orange {
+    background: #ff9100;
+}
+
+.color-green {
+    background: #16a34a;
+}
+
+.color-blue {
+    background: #3b82f6;
+}
+
+.color-purple {
+    background: #8b5cf6;
+}
+
+.color-red {
+    background: #dc2626;
+}
+
+.color-teal {
+    background: #14b8a6;
+}

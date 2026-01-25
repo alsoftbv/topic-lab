@@ -1,0 +1,30 @@
+.setup-wizard {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    overflow: hidden;
+}
+
+.setup-card {
+    background: var(--bg-secondary);
+    padding: 2rem;
+    border-radius: var(--radius);
+    width: 100%;
+    max-width: 480px;
+}
+
+.setup-card h1 {
+    margin-bottom: 0.5rem;
+}
+
+.setup-card .subtitle {
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+}
+
+.setup-card h2 {
+    font-size: 1.125rem;
+    margin-bottom: 1.5rem;
+}

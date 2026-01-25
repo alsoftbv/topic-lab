@@ -1,0 +1,131 @@
+.btn {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 0.625rem 1.25rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.btn:hover {
+    background: var(--primary-hover);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-secondary {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+    background: var(--border);
+}
+
+.btn-active {
+    background: var(--primary);
+}
+
+.btn-small {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+}
+
+.btn-danger {
+    background: var(--error);
+}
+
+.btn-danger:hover {
+    background: #b91c1c;
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem;
+    font-size: 1rem;
+    opacity: 0.7;
+    color: var(--text);
+    transition: opacity 0.2s;
+}
+
+.btn-icon:hover {
+    opacity: 1;
+}
+
+.btn-publish {
+    width: 100%;
+    margin-top: auto;
+}
+
+.btn-icon-only {
+    padding: 0.375rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn>svg {
+    margin-right: 0.375rem;
+    vertical-align: middle;
+}
+
+.btn>svg:only-child {
+    margin-right: 0;
+}
+
+/* Button Colors */
+.btn-color-orange {
+    background: #ff9100;
+}
+
+.btn-color-orange:hover {
+    background: #e68200;
+}
+
+.btn-color-green {
+    background: #16a34a;
+}
+
+.btn-color-green:hover {
+    background: #15803d;
+}
+
+.btn-color-blue {
+    background: #3b82f6;
+}
+
+.btn-color-blue:hover {
+    background: #2563eb;
+}
+
+.btn-color-purple {
+    background: #8b5cf6;
+}
+
+.btn-color-purple:hover {
+    background: #7c3aed;
+}
+
+.btn-color-red {
+    background: #dc2626;
+}
+
+.btn-color-red:hover {
+    background: #b91c1c;
+}
+
+.btn-color-teal {
+    background: #14b8a6;
+}
+
+.btn-color-teal:hover {
+    background: #0d9488;
+}

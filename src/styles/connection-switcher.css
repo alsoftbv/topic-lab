@@ -1,0 +1,120 @@
+.connection-switcher {
+    position: relative;
+}
+
+.connection-switcher-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.75rem;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: border-color 0.2s;
+}
+
+.connection-switcher-button:hover {
+    border-color: var(--primary);
+}
+
+.connection-switcher-button .connection-name {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.connection-switcher-button .chevron {
+    transition: transform 0.2s;
+    opacity: 0.7;
+}
+
+.connection-switcher-button .chevron.open {
+    transform: rotate(180deg);
+}
+
+.connection-switcher-button .status-icon {
+    flex-shrink: 0;
+}
+
+.connection-switcher-button .status-icon.connected {
+    color: var(--success);
+}
+
+.connection-switcher-button .status-icon.connecting {
+    color: var(--warning);
+    animation: spin 1s linear infinite;
+}
+
+.connection-switcher-button .status-icon.error {
+    color: var(--error);
+}
+
+.connection-switcher-button .status-icon.disconnected {
+    color: var(--text-secondary);
+}
+
+.connection-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 0.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    min-width: 240px;
+    max-width: 320px;
+    z-index: 50;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.connection-option {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.125rem;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: none;
+    border: none;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 0.15s;
+}
+
+.connection-option:hover {
+    background: var(--bg);
+}
+
+.connection-option.active {
+    background: rgba(255, 145, 0, 0.1);
+}
+
+.connection-option-name {
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+.connection-option-broker {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.connection-option.add-new {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--primary);
+    border-top: 1px solid var(--border);
+}
+
+.connection-dropdown-divider {
+    height: 1px;
+    background: var(--border);
+}
