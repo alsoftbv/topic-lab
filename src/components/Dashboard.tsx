@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { Settings, Plus, X } from 'lucide-react';
+import * as api from '../utils/api';
 import { useApp } from '../contexts/AppContext';
 import { ConnectionSwitcher } from './ConnectionSwitcher';
 import { ConnectionStatus } from './ConnectionStatus';
@@ -12,7 +13,7 @@ import { ConnectionEditor } from './ConnectionEditor';
 import type { Button } from '../types';
 
 export function Dashboard() {
-    const { activeConnection, error, deleteConnection, reorderButtons } = useApp();
+    const { activeConnection, error, deleteConnection, reorderButtons, importConnection } = useApp();
     const [showEditor, setShowEditor] = useState(false);
     const [editingButton, setEditingButton] = useState<Button | undefined>();
     const [showVariables, setShowVariables] = useState(false);
@@ -131,11 +132,22 @@ export function Dashboard() {
         }
     };
 
+    const handleExport = async () => {
+        await api.exportConnection(activeConnection);
+    };
+
+    const handleImport = async () => {
+        const connectionData = await api.importConnection();
+        if (connectionData) {
+            await importConnection(connectionData);
+        }
+    };
+
     return (
         <div className="dashboard">
             <header className="dashboard-header">
                 <div className="header-left">
-                    <ConnectionSwitcher onAddNew={handleAddConnection} />
+                    <ConnectionSwitcher onAddNew={handleAddConnection} onImport={handleImport} />
                     <ConnectionStatus />
                 </div>
                 <div className="header-right">
@@ -236,6 +248,9 @@ export function Dashboard() {
                             >
                                 <button type="button" className="btn" onClick={handleEditConnection}>
                                     Edit Connection
+                                </button>
+                                <button type="button" className="btn btn-secondary" onClick={handleExport}>
+                                    Export Connection
                                 </button>
                             </div>
                             <hr />

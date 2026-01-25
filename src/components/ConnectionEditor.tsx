@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import type { Connection } from '../types';
 import { useApp } from '../contexts/AppContext';
+import * as api from '../utils/api';
 
 interface ConnectionEditorProps {
     isNew?: boolean;
@@ -9,7 +10,7 @@ interface ConnectionEditorProps {
 }
 
 export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorProps) {
-    const { activeConnection, addConnection, updateConnection, disconnect, connect } = useApp();
+    const { activeConnection, addConnection, updateConnection, disconnect } = useApp();
 
     const [name, setName] = useState(isNew ? '' : activeConnection?.name || '');
     const [brokerUrl, setBrokerUrl] = useState(isNew ? '' : activeConnection?.broker_url || '');
@@ -83,7 +84,7 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
                 await updateConnection(updated);
 
                 if (autoConnect) {
-                    await connect();
+                    await api.connect(updated);
                 }
             }
 

@@ -1,4 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
+import { save, open } from '@tauri-apps/plugin-dialog';
+import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 import type { AppData, Connection, Button, QoS, Message } from '../types';
 import { substituteVariables } from './variables';
 
@@ -50,4 +52,28 @@ export async function clearMessages(): Promise<void> {
 
 export async function getSubscriptions(): Promise<string[]> {
     return invoke<string[]>('get_subscriptions');
+}
+
+export async function exportConnection(connection: Connection): Promise<boolean> {
+    const filePath = await save({
+        defaultPath: `${connection.name}.json`,
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+
+    if (!filePath) return false;
+
+    const { id, ...exportData } = connection;
+    await writeTextFile(filePath, JSON.stringify(exportData, null, 2));
+    return true;
+}
+
+export async function importConnection(): Promise<Omit<Connection, 'id'> | null> {
+    const filePath = await open({
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+
+    if (!filePath || typeof filePath !== 'string') return null;
+
+    const content = await readTextFile(filePath);
+    return JSON.parse(content);
 }

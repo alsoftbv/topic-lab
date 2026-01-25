@@ -2,7 +2,9 @@ mod mqtt;
 mod storage;
 mod types;
 
+use log::info;
 use mqtt::{Message, MqttClient};
+use std::io::Write;
 use std::sync::Arc;
 use storage::Storage;
 use tauri::State;
@@ -31,27 +33,14 @@ async fn delete_data(state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 async fn connect(state: State<'_, AppState>, connection: Connection) -> Result<(), String> {
-    eprintln!(
-        "Connecting to {} ({}:{})",
-        connection.name, connection.broker_url, connection.port
-    );
     let mut client = state.mqtt_client.write().await;
-    client.connect(&connection).await.map_err(|e| {
-        eprintln!("Connect error: {}", e);
-        e.to_string()
-    })
+    client.connect(&connection).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn disconnect(state: State<'_, AppState>) -> Result<(), String> {
     let mut client = state.mqtt_client.write().await;
-    let info = client.disconnect().await.map_err(|e| {
-        eprintln!("Disconnect error: {}", e);
-        e.to_string()
-    })?;
-    if let Some((name, url)) = info {
-        eprintln!("Disconnected from {} ({})", name, url);
-    }
+    client.disconnect().await.map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -104,14 +93,27 @@ async fn get_subscriptions(state: State<'_, AppState>) -> Result<Vec<String>, St
     Ok(client.get_subscriptions().await)
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "[{}] [{}] {}",
+                buf.timestamp(),
+                record.level(),
+                record.args()
+            )
+        })
+        .init();
+    info!("Starting MQTT Topic Lab");
+
     let storage = Storage::new().expect("Failed to initialize storage");
     let mqtt_client = Arc::new(RwLock::new(MqttClient::new()));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .manage(AppState {
             storage,

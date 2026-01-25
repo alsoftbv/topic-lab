@@ -1,4 +1,5 @@
 use crate::types::{Connection, ConnectionStatus, QoS};
+use log::{debug, error, info, warn};
 use rumqttc::{AsyncClient, Event, MqttOptions, Packet, Transport};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -56,9 +57,14 @@ impl MqttClient {
 
     pub async fn connect(&mut self, config: &Connection) -> Result<(), MqttError> {
         if self.client.is_some() {
+            debug!("Already connected, skipping connect");
             return Ok(());
         }
 
+        info!(
+            "Connecting to {} ({}:{})",
+            config.name, config.broker_url, config.port
+        );
         *self.status.write().await = ConnectionStatus::Connecting;
         if let Some(ref handle) = self.app_handle {
             let _ = handle.emit("mqtt-status", "connecting");
@@ -103,6 +109,7 @@ impl MqttClient {
                     event = eventloop.poll() => {
                         match event {
                             Ok(Event::Incoming(Packet::ConnAck(_))) => {
+                                info!("MQTT connected successfully");
                                 *status.write().await = ConnectionStatus::Connected;
                                 consecutive_errors = 0;
                                 if let Some(ref handle) = app_handle {
@@ -112,6 +119,11 @@ impl MqttClient {
                             Ok(Event::Incoming(Packet::Publish(publish))) => {
                                 consecutive_errors = 0;
                                 let payload = String::from_utf8_lossy(&publish.payload).to_string();
+                                debug!(
+                                    "Received message on '{}': {} bytes",
+                                    publish.topic,
+                                    publish.payload.len()
+                                );
                                 let msg = Message {
                                     topic: publish.topic.clone(),
                                     payload,
@@ -134,7 +146,10 @@ impl MqttClient {
                             }
                             Err(e) => {
                                 consecutive_errors += 1;
-                                eprintln!("MQTT connection error ({}/{}): {}", consecutive_errors, MAX_CONSECUTIVE_ERRORS, e);
+                                warn!(
+                                    "MQTT connection error ({}/{}): {}",
+                                    consecutive_errors, MAX_CONSECUTIVE_ERRORS, e
+                                );
 
                                 *status.write().await = ConnectionStatus::Error;
                                 if let Some(ref handle) = app_handle {
@@ -142,7 +157,7 @@ impl MqttClient {
                                 }
 
                                 if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
-                                    eprintln!("MQTT: Too many consecutive errors, giving up");
+                                    error!("MQTT: Too many consecutive errors, giving up");
                                     break;
                                 }
 
@@ -161,6 +176,10 @@ impl MqttClient {
     }
 
     pub async fn disconnect(&mut self) -> Result<Option<(String, String)>, MqttError> {
+        if let Some((name, url)) = &self.connection_info {
+            info!("Disconnecting from {} ({})", name, url);
+        }
+
         if let Some(tx) = self.shutdown_tx.take() {
             let _ = tx.send(()).await;
         }
@@ -175,23 +194,28 @@ impl MqttClient {
         if let Some(ref handle) = self.app_handle {
             let _ = handle.emit("mqtt-status", "disconnected");
         }
+        debug!("Disconnected successfully");
         Ok(info)
     }
 
     pub async fn subscribe(&self, topic: &str, qos: QoS) -> Result<(), MqttError> {
+        debug!("Subscribing to '{}' with QoS {:?}", topic, qos);
         let client = self.client.as_ref().ok_or(MqttError::NotConnected)?;
         client.subscribe(topic, qos.into()).await?;
         let mut subs = self.subscriptions.write().await;
         if !subs.contains(&topic.to_string()) {
             subs.push(topic.to_string());
         }
+        info!("Subscribed to '{}'", topic);
         Ok(())
     }
 
     pub async fn unsubscribe(&self, topic: &str) -> Result<(), MqttError> {
+        debug!("Unsubscribing from '{}'", topic);
         let client = self.client.as_ref().ok_or(MqttError::NotConnected)?;
         client.unsubscribe(topic).await?;
         self.subscriptions.write().await.retain(|t| t != topic);
+        info!("Unsubscribed from '{}'", topic);
         Ok(())
     }
 
@@ -202,10 +226,18 @@ impl MqttClient {
         qos: QoS,
         retain: bool,
     ) -> Result<(), MqttError> {
+        debug!(
+            "Publishing to '{}': {} bytes (QoS {:?}, retain: {})",
+            topic,
+            payload.len(),
+            qos,
+            retain
+        );
         let client = self.client.as_ref().ok_or(MqttError::NotConnected)?;
         client
             .publish(topic, qos.into(), retain, payload.as_bytes())
             .await?;
+        info!("Published to '{}'", topic);
         Ok(())
     }
 

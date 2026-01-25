@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Connection } from '../types';
 import { useApp } from '../contexts/AppContext';
+import { importConnection } from '../utils/api';
 
 export function SetupWizard() {
     const { addConnection } = useApp();
@@ -18,6 +19,28 @@ export function SetupWizard() {
     const [password, setPassword] = useState('');
     const [useTls, setUseTls] = useState(false);
     const [autoConnect, setAutoConnect] = useState(true);
+
+    const handleImport = async () => {
+        setError(null);
+        setSaving(true);
+        try {
+            const imported = await importConnection();
+            if (!imported) {
+                setSaving(false);
+                return;
+            }
+
+            const connection: Connection = {
+                ...imported,
+                id: crypto.randomUUID(),
+            };
+
+            await addConnection(connection);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Failed to import connection');
+            setSaving(false);
+        }
+    };
 
     const handleNextStep = () => {
         if (!name.trim()) {
@@ -189,6 +212,19 @@ export function SetupWizard() {
                         </div>
                     )}
                 </form>
+
+                <div className="divider">
+                    <span>or import existing</span>
+                </div>
+
+                <button
+                    type="button"
+                    className="btn btn-secondary import-btn"
+                    onClick={handleImport}
+                    disabled={saving}
+                >
+                    Import Connection
+                </button>
             </div>
         </div>
     );

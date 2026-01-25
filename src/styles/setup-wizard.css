@@ -21,7 +21,31 @@
 
 .setup-card .subtitle {
     color: var(--text-secondary);
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
+}
+
+.setup-card .import-btn {
+    width: 100%;
+}
+
+.setup-card .divider {
+    display: flex;
+    align-items: center;
+    margin: 1.5rem 0;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.setup-card .divider::before,
+.setup-card .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-color);
+}
+
+.setup-card .divider span {
+    padding: 0 1rem;
 }
 
 .setup-card h2 {

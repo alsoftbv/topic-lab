@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Plus, Wifi, WifiOff, Loader } from 'lucide-react';
+import { ChevronDown, Plus, Upload, Wifi, WifiOff, Loader } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 
 interface ConnectionSwitcherProps {
     onAddNew: () => void;
+    onImport: () => void;
 }
 
-export function ConnectionSwitcher({ onAddNew }: ConnectionSwitcherProps) {
+export function ConnectionSwitcher({ onAddNew, onImport }: ConnectionSwitcherProps) {
     const { data, activeConnection, connectionStatus, switchConnection } = useApp();
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -46,6 +47,11 @@ export function ConnectionSwitcher({ onAddNew }: ConnectionSwitcherProps) {
         onAddNew();
     };
 
+    const handleImport = () => {
+        setIsOpen(false);
+        onImport();
+    };
+
     if (!activeConnection) return null;
 
     return (
@@ -72,6 +78,10 @@ export function ConnectionSwitcher({ onAddNew }: ConnectionSwitcherProps) {
                     <button className="connection-option add-new" onClick={handleAddNew}>
                         <Plus size={16} />
                         <span>Add Connection</span>
+                    </button>
+                    <button className="connection-option add-new" onClick={handleImport}>
+                        <Upload size={16} />
+                        <span>Import Connection</span>
                     </button>
                 </div>
             )}

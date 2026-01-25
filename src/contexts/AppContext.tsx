@@ -10,6 +10,7 @@ interface AppContextType {
     loading: boolean;
     error: string | null;
     addConnection: (connection: Connection) => Promise<void>;
+    importConnection: (connection: Omit<Connection, 'id'>) => Promise<void>;
     updateConnection: (connection: Connection) => Promise<void>;
     deleteConnection: (id: string) => Promise<void>;
     switchConnection: (id: string) => Promise<void>;
@@ -42,6 +43,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setConnectionStatus('connecting');
             await api.connect(connection);
         } catch (e) {
+            setConnectionStatus('error');
             console.error('Auto-connect failed:', e);
         }
     }, []);
@@ -81,6 +83,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                         setConnectionStatus('connecting');
                         await api.connect(initialConnection);
                     } catch (e) {
+                        setConnectionStatus('error');
                         console.error('Auto-connect failed:', e);
                     }
                 }
@@ -106,6 +109,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const addConnection = useCallback(
         async (connection: Connection) => {
+            await tryDisconnect();
             await saveData({
                 ...data,
                 connections: [...data.connections, connection],
@@ -114,7 +118,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setActiveConnectionId(connection.id);
             await tryAutoConnect(connection);
         },
-        [data, saveData, tryAutoConnect]
+        [data, saveData, tryDisconnect, tryAutoConnect]
+    );
+
+    const importConnection = useCallback(
+        async (connectionData: Omit<Connection, 'id'>) => {
+            const connection: Connection = {
+                ...connectionData,
+                id: crypto.randomUUID(),
+            };
+            await addConnection(connection);
+        },
+        [addConnection]
     );
 
     const updateConnection = useCallback(
@@ -276,6 +291,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 loading,
                 error,
                 addConnection,
+                importConnection,
                 updateConnection,
                 deleteConnection,
                 switchConnection,
