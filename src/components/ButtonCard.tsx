@@ -1,9 +1,24 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { confirm } from '@tauri-apps/plugin-dialog';
-import { GripVertical, Pencil, Trash2 } from 'lucide-react';
+import { GripVertical, Pencil, Trash2, Repeat } from 'lucide-react';
 import type { Button } from '../types';
 import { useApp } from '../contexts/AppContext';
 import { substituteVariables } from '../utils/variables';
+
+function formatInterval(ms: number): string {
+    const parts: string[] = [];
+    const hours = Math.floor(ms / 3600000);
+    const minutes = Math.floor((ms % 3600000) / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    const millis = ms % 1000;
+
+    if (hours) parts.push(`${hours}h`);
+    if (minutes) parts.push(`${minutes}min`);
+    if (seconds) parts.push(`${seconds}s`);
+    if (millis) parts.push(`${millis}ms`);
+
+    return parts.join(' ') || '0ms';
+}
 
 interface ButtonCardProps {
     button: Button;
@@ -19,18 +34,41 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
     const { activeConnection, publishButton, deleteButton, connectionStatus } = useApp();
     const [publishing, setPublishing] = useState(false);
     const [lastResult, setLastResult] = useState<'success' | 'error' | null>(null);
+    const [isMultiSending, setIsMultiSending] = useState(false);
+    const [sendCount, setSendCount] = useState(0);
     const cardRef = useRef<HTMLDivElement>(null);
+    const intervalRef = useRef<number | null>(null);
 
     const variables = activeConnection?.variables || {};
     const resolvedTopic = substituteVariables(button.topic, variables);
     const resolvedPayload = button.payload ? substituteVariables(button.payload, variables) : '';
 
-    const handlePublish = async () => {
-        if (connectionStatus !== 'connected') return;
+    const stopMultiSend = useCallback(() => {
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+        }
+        setIsMultiSending(false);
+        setSendCount(0);
+    }, []);
 
+    useEffect(() => {
+        if (connectionStatus !== 'connected' && isMultiSending) {
+            stopMultiSend();
+        }
+    }, [connectionStatus, isMultiSending, stopMultiSend]);
+
+    useEffect(() => {
+        return () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+            }
+        };
+    }, []);
+
+    const singlePublish = async () => {
         setPublishing(true);
         setLastResult(null);
-
         try {
             await publishButton(button);
             setLastResult('success');
@@ -39,6 +77,38 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
             setLastResult('error');
         } finally {
             setPublishing(false);
+        }
+    };
+
+    const startMultiSend = async () => {
+        const publishOnce = async (): Promise<boolean> => {
+            try {
+                await publishButton(button);
+                setSendCount((c) => c + 1);
+                return true;
+            } catch {
+                stopMultiSend();
+                setLastResult('error');
+                return false;
+            }
+        };
+
+        setIsMultiSending(true);
+        setSendCount(0);
+
+        if (!(await publishOnce())) return;
+
+        const interval = Math.max(100, button.multiSendInterval || 1000);
+        intervalRef.current = window.setInterval(publishOnce, interval);
+    };
+
+    const handlePublish = async () => {
+        if (connectionStatus !== 'connected') return;
+
+        if (button.multiSendEnabled) {
+            isMultiSending ? stopMultiSend() : await startMultiSend();
+        } else {
+            await singlePublish();
         }
     };
 
@@ -72,7 +142,7 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
     return (
         <div
             ref={cardRef}
-            className={`button-card ${lastResult || ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+            className={`button-card ${lastResult || ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''} ${isMultiSending ? 'multi-send-active' : ''}`}
             onMouseEnter={handleMouseEnter}
         >
             <div className="button-card-header">
@@ -83,7 +153,10 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
                 >
                     <GripVertical size={16} />
                 </div>
-                <h3>{button.name}</h3>
+                <h3>
+                    {button.name}
+                    {button.multiSendEnabled && <span title="Multi-send enabled"><Repeat size={14} className="multi-send-icon" /></span>}
+                </h3>
                 <div className="button-card-actions">
                     <button className="btn-icon" onClick={onEdit} title="Edit">
                         <Pencil size={16} />
@@ -108,15 +181,16 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
                 <div className="detail-row">
                     <span className="badge">{qosLabels[button.qos]}</span>
                     {button.retain && <span className="badge">Retain</span>}
+                    {button.multiSendEnabled && <span className="badge">{formatInterval(button.multiSendInterval || 1000)}</span>}
                 </div>
             </div>
 
             <button
-                className={`btn btn-publish btn-color-${button.color || 'orange'}`}
+                className={`btn btn-publish btn-color-${button.color || 'orange'} ${isMultiSending ? 'multi-send-active' : ''}`}
                 onClick={handlePublish}
                 disabled={publishing || connectionStatus !== 'connected'}
             >
-                {publishing ? 'Sending...' : 'Send'}
+                {isMultiSending ? `Stop (${sendCount})` : publishing ? 'Sending...' : button.multiSendEnabled ? 'Start' : 'Send'}
             </button>
         </div>
     );

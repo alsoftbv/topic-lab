@@ -38,6 +38,7 @@ pub enum ButtonColor {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Button {
     pub id: String,
     pub name: String,
@@ -50,6 +51,10 @@ pub struct Button {
     pub retain: bool,
     #[serde(default)]
     pub color: Option<ButtonColor>,
+    #[serde(default)]
+    pub multi_send_enabled: Option<bool>,
+    #[serde(default)]
+    pub multi_send_interval: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -213,6 +218,8 @@ mod tests {
             qos: QoS::AtMostOnce,
             retain: false,
             color: Some(ButtonColor::Purple),
+            multi_send_enabled: None,
+            multi_send_interval: None,
         };
         let json = serde_json::to_string(&button).unwrap();
         assert!(json.contains("\"color\":\"purple\""));

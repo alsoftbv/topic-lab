@@ -13,6 +13,22 @@ const COLOR_OPTIONS: { value: ButtonColor; label: string }[] = [
     { value: 'teal', label: 'Teal' },
 ];
 
+type IntervalUnit = 'ms' | 's' | 'min' | 'hour';
+
+const UNIT_TO_MS: Record<IntervalUnit, number> = {
+    ms: 1,
+    s: 1000,
+    min: 60000,
+    hour: 3600000,
+};
+
+function msToUnit(ms: number): { value: number; unit: IntervalUnit } {
+    if (ms >= 3600000 && ms % 3600000 === 0) return { value: ms / 3600000, unit: 'hour' };
+    if (ms >= 60000 && ms % 60000 === 0) return { value: ms / 60000, unit: 'min' };
+    if (ms >= 1000 && ms % 1000 === 0) return { value: ms / 1000, unit: 's' };
+    return { value: ms, unit: 'ms' };
+}
+
 interface ButtonEditorProps {
     button?: Button;
     onClose: () => void;
@@ -28,6 +44,10 @@ export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
     const [qos, setQos] = useState<QoS>(button?.qos || 'atmostonce');
     const [retain, setRetain] = useState(button?.retain || false);
     const [color, setColor] = useState<ButtonColor>(button?.color || 'orange');
+    const [multiSendEnabled, setMultiSendEnabled] = useState(button?.multiSendEnabled || false);
+    const initialInterval = msToUnit(button?.multiSendInterval || 1000);
+    const [intervalValue, setIntervalValue] = useState(initialInterval.value);
+    const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>(initialInterval.unit);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -54,6 +74,8 @@ export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
                 qos,
                 retain,
                 color,
+                multiSendEnabled: multiSendEnabled || undefined,
+                multiSendInterval: multiSendEnabled ? intervalValue * UNIT_TO_MS[intervalUnit] : undefined,
             };
 
             if (isEditing) {
@@ -127,13 +149,13 @@ export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
                     </div>
 
                     <div className="form-group">
-                        <label htmlFor="payload">Payload (Optional)</label>
+                        <label htmlFor="payload">Payload</label>
                         <textarea
                             id="payload"
                             value={payload}
                             onChange={(e) => setPayload(e.target.value)}
                             placeholder='{"action": "ON"}'
-                            rows={3}
+                            rows={5}
                             autoCorrect="off"
                             autoCapitalize="off"
                             spellCheck={false}
@@ -153,25 +175,54 @@ export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
                         </div>
                     )}
 
-                    <div className="form-row">
-                        <div className="form-group">
-                            <label htmlFor="qos">QoS Level</label>
-                            <select id="qos" value={qos} onChange={(e) => setQos(e.target.value as QoS)}>
-                                <option value="atmostonce">0 - At Most Once</option>
-                                <option value="atleastonce">1 - At Least Once</option>
-                                <option value="exactlyonce">2 - Exactly Once</option>
-                            </select>
-                        </div>
+                    <div className="form-group-inline">
+                        <label>QoS Level</label>
+                        <select value={qos} onChange={(e) => setQos(e.target.value as QoS)}>
+                            <option value="atmostonce">0 - At Most Once</option>
+                            <option value="atleastonce">1 - At Least Once</option>
+                            <option value="exactlyonce">2 - Exactly Once</option>
+                        </select>
+                    </div>
 
-                        <div className="form-group checkbox-group">
-                            <label>
-                                <input
-                                    type="checkbox"
-                                    checked={retain}
-                                    onChange={(e) => setRetain(e.target.checked)}
-                                />
-                                Retain Message
-                            </label>
+                    <div className="form-group-inline">
+                        <div className="label-with-checkbox">
+                            <input
+                                type="checkbox"
+                                checked={retain}
+                                onChange={(e) => setRetain(e.target.checked)}
+                            />
+                            <label>Retain Message</label>
+                        </div>
+                    </div>
+
+                    <div className="form-group-inline">
+                        <div className="label-with-checkbox">
+                            <input
+                                type="checkbox"
+                                checked={multiSendEnabled}
+                                onChange={(e) => setMultiSendEnabled(e.target.checked)}
+                            />
+                            <label>Multi-send</label>
+                        </div>
+                        <div className="input-with-suffix">
+                            <input
+                                type="number"
+                                value={intervalValue}
+                                onChange={(e) => setIntervalValue(Math.max(1, parseInt(e.target.value) || 1))}
+                                min={1}
+                                disabled={!multiSendEnabled}
+                            />
+                            <select
+                                value={intervalUnit}
+                                onChange={(e) => setIntervalUnit(e.target.value as IntervalUnit)}
+                                disabled={!multiSendEnabled}
+                                className="unit-select"
+                            >
+                                <option value="ms">ms</option>
+                                <option value="s">s</option>
+                                <option value="min">min</option>
+                                <option value="hour">hour</option>
+                            </select>
                         </div>
                     </div>
 

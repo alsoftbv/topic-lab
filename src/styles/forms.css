@@ -1,25 +1,8 @@
-input,
-select,
-textarea {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 0.625rem;
-    border-radius: var(--radius);
-    font-size: 0.875rem;
+/* Form-specific width overrides */
+.form-group input,
+.form-group select,
+.form-group textarea {
     width: 100%;
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-    outline: none;
-    border-color: var(--primary);
-}
-
-textarea {
-    resize: vertical;
-    font-family: 'SF Mono', Monaco, Consolas, monospace;
 }
 
 .form-group {
@@ -106,4 +89,98 @@ textarea {
 
 .preview code {
     color: var(--primary);
+}
+
+.form-group-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.form-group-inline label {
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+.form-group-inline .label-with-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.form-group-inline input,
+.form-group-inline select {
+    width: auto;
+    height: 32px;
+    padding: 0 0.5rem;
+    font-size: 0.8125rem;
+}
+
+.form-group-inline select {
+    min-width: 150px;
+}
+
+.form-group-inline input[type='checkbox'] {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    cursor: pointer;
+    position: relative;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+}
+
+.form-group-inline input[type='checkbox']:checked {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+
+.form-group-inline input[type='checkbox']:checked::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 45%;
+    width: 5px;
+    height: 9px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.inline-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.input-with-suffix {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.input-with-suffix input,
+.input-with-suffix select {
+    height: 32px !important;
+    padding: 0 0.5rem !important;
+    font-size: 0.8125rem !important;
+}
+
+.input-with-suffix input {
+    width: 70px !important;
+}
+
+.input-with-suffix input:disabled,
+.input-with-suffix select:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.input-with-suffix .unit-select {
+    width: auto !important;
+    min-width: 60px;
 }

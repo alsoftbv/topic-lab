@@ -67,8 +67,21 @@
 }
 
 .sidebar {
-    width: 320px;
+    flex-shrink: 0;
     background: var(--bg-secondary);
     border-left: 1px solid var(--border);
     padding: 1.5rem;
+}
+
+@media (max-width: 900px) {
+    .dashboard-content {
+        position: relative;
+    }
+
+    .sidebar {
+        position: absolute;
+        inset: 0;
+        border-left: none;
+        z-index: 100;
+    }
 }

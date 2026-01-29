@@ -10,6 +10,8 @@ export interface Button {
     qos: QoS;
     retain: boolean;
     color?: ButtonColor;
+    multiSendEnabled?: boolean;
+    multiSendInterval?: number;
 }
 
 export interface Connection {

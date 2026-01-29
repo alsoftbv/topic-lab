@@ -138,6 +138,8 @@ mod tests {
                 qos: QoS::AtLeastOnce,
                 retain: false,
                 color: None,
+                multi_send_enabled: None,
+                multi_send_interval: None,
             }],
             subscriptions: vec![],
         }
@@ -164,6 +166,8 @@ mod tests {
                 qos: QoS::AtMostOnce,
                 retain: false,
                 color: None,
+                multi_send_enabled: None,
+                multi_send_interval: None,
             }],
         }
     }
