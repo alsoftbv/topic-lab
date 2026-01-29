@@ -165,13 +165,13 @@
 
 .input-with-suffix input,
 .input-with-suffix select {
-    height: 32px !important;
-    padding: 0 0.5rem !important;
-    font-size: 0.8125rem !important;
+    height: 32px;
+    padding: 0 0.5rem;
+    font-size: 0.8125rem;
 }
 
 .input-with-suffix input {
-    width: 70px !important;
+    width: 85px;
 }
 
 .input-with-suffix input:disabled,
@@ -181,6 +181,6 @@
 }
 
 .input-with-suffix .unit-select {
-    width: auto !important;
+    width: auto;
     min-width: 60px;
 }

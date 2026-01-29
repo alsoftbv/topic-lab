@@ -59,6 +59,29 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
     }, [connectionStatus, isMultiSending, stopMultiSend]);
 
     useEffect(() => {
+        if (!button.multiSendEnabled && isMultiSending) {
+            stopMultiSend();
+        }
+    }, [button.multiSendEnabled, isMultiSending, stopMultiSend]);
+
+    useEffect(() => {
+        if (!isMultiSending || !intervalRef.current) return;
+
+        clearInterval(intervalRef.current);
+        const newInterval = Math.max(100, button.multiSendInterval || 1000);
+        const publishOnce = async () => {
+            try {
+                await publishButton(button);
+                setSendCount((c) => c + 1);
+            } catch {
+                stopMultiSend();
+                setLastResult('error');
+            }
+        };
+        intervalRef.current = window.setInterval(publishOnce, newInterval);
+    }, [button.multiSendInterval]);
+
+    useEffect(() => {
         return () => {
             if (intervalRef.current) {
                 clearInterval(intervalRef.current);
@@ -153,10 +176,7 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
                 >
                     <GripVertical size={16} />
                 </div>
-                <h3>
-                    {button.name}
-                    {button.multiSendEnabled && <span title="Multi-send enabled"><Repeat size={14} className="multi-send-icon" /></span>}
-                </h3>
+                <h3>{button.name}</h3>
                 <div className="button-card-actions">
                     <button className="btn-icon" onClick={onEdit} title="Edit">
                         <Pencil size={16} />
@@ -181,7 +201,7 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
                 <div className="detail-row">
                     <span className="badge">{qosLabels[button.qos]}</span>
                     {button.retain && <span className="badge">Retain</span>}
-                    {button.multiSendEnabled && <span className="badge">{formatInterval(button.multiSendInterval || 1000)}</span>}
+                    {button.multiSendEnabled && <span className="badge"><Repeat size={12} /> {formatInterval(button.multiSendInterval || 1000)}</span>}
                 </div>
             </div>
 

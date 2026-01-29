@@ -147,10 +147,3 @@ body:has(.button-card.dragging) .button-card {
     }
 }
 
-.btn-publish.multi-send-active {
-    background: var(--error) !important;
-}
-
-.btn-publish.multi-send-active:hover {
-    filter: brightness(1.1);
-}
