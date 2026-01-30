@@ -51,7 +51,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const tryDisconnect = useCallback(async () => {
         try {
             await api.disconnect();
-        } catch { }
+        } catch (e) {
+            console.error('Disconnect failed:', e);
+        }
         setConnectionStatus('disconnected');
     }, []);
 
@@ -275,10 +277,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         (async () => {
             try {
                 await api.disconnect();
-            } catch { }
+            } catch (e) {
+                console.error('Disconnect during reset failed:', e);
+            }
             try {
                 await api.deleteData();
-            } catch { }
+            } catch (e) {
+                console.error('Delete data during reset failed:', e);
+            }
         })();
     }, []);
 

@@ -75,5 +75,9 @@ export async function importConnection(): Promise<Omit<Connection, 'id'> | null>
     if (!filePath || typeof filePath !== 'string') return null;
 
     const content = await readTextFile(filePath);
-    return JSON.parse(content);
+    try {
+        return JSON.parse(content);
+    } catch {
+        throw new Error('Invalid JSON file');
+    }
 }

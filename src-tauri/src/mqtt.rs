@@ -161,7 +161,6 @@ impl MqttClient {
                                     break;
                                 }
 
-                                // Small delay before retry
                                 tokio::time::sleep(Duration::from_millis(500)).await;
                             }
                         }
@@ -237,7 +236,11 @@ impl MqttClient {
         client
             .publish(topic, qos.into(), retain, payload.as_bytes())
             .await?;
-        info!("Published to '{}'", topic);
+        if payload.is_empty() {
+            info!("Published to '{}'", topic);
+        } else {
+            info!("Published '{}' to '{}'", payload.replace('\n', " "), topic);
+        }
         Ok(())
     }
 

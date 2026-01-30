@@ -15,7 +15,6 @@ pub enum StorageError {
 }
 
 pub struct Storage {
-    app_dir: PathBuf,
     data_path: PathBuf,
     legacy_path: PathBuf,
 }
@@ -32,7 +31,6 @@ impl Storage {
         Ok(Self {
             data_path: app_dir.join("data.json"),
             legacy_path: app_dir.join("project.json"),
-            app_dir,
         })
     }
 
@@ -95,11 +93,6 @@ impl Storage {
         }
         Ok(())
     }
-
-    #[allow(dead_code)]
-    pub fn get_app_dir(&self) -> &PathBuf {
-        &self.app_dir
-    }
 }
 
 #[cfg(test)]
@@ -114,7 +107,6 @@ mod tests {
         Storage {
             data_path: app_dir.join("data.json"),
             legacy_path: app_dir.join("project.json"),
-            app_dir,
         }
     }
 

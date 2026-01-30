@@ -38,6 +38,7 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
     const [sendCount, setSendCount] = useState(0);
     const cardRef = useRef<HTMLDivElement>(null);
     const intervalRef = useRef<number | null>(null);
+    const timeoutRef = useRef<number | null>(null);
 
     const variables = activeConnection?.variables || {};
     const resolvedTopic = substituteVariables(button.topic, variables);
@@ -79,12 +80,15 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
             }
         };
         intervalRef.current = window.setInterval(publishOnce, newInterval);
-    }, [button.multiSendInterval]);
+    }, [isMultiSending, button, publishButton, stopMultiSend]);
 
     useEffect(() => {
         return () => {
             if (intervalRef.current) {
                 clearInterval(intervalRef.current);
+            }
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
             }
         };
     }, []);
@@ -95,7 +99,7 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
         try {
             await publishButton(button);
             setLastResult('success');
-            setTimeout(() => setLastResult(null), 2000);
+            timeoutRef.current = window.setTimeout(() => setLastResult(null), 2000);
         } catch {
             setLastResult('error');
         } finally {
@@ -199,7 +203,7 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
                     </div>
                 )}
                 <div className="detail-row">
-                    <span className="badge">{qosLabels[button.qos]}</span>
+                    {button.qos !== 'atmostonce' && <span className="badge">{qosLabels[button.qos]}</span>}
                     {button.retain && <span className="badge">Retain</span>}
                     {button.multiSendEnabled && <span className="badge"><Repeat size={12} /> {formatInterval(button.multiSendInterval || 1000)}</span>}
                 </div>

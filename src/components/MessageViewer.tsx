@@ -5,6 +5,7 @@ import type { Message, QoS } from '../types';
 import * as api from '../utils/api';
 import { useApp } from '../contexts/AppContext';
 import { substituteVariables } from '../utils/variables';
+import { preferences } from '../utils/preferences';
 
 export function MessageViewer() {
     const { connectionStatus, activeConnection, updateSubscriptions } = useApp();
@@ -12,6 +13,7 @@ export function MessageViewer() {
     const [topic, setTopic] = useState('');
     const [subscriptions, setSubscriptions] = useState<string[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
+    const [height, setHeight] = useState(() => preferences.messageViewerHeight);
     const messagesListRef = useRef<HTMLDivElement>(null);
     const wasAtBottomRef = useRef(true);
 
@@ -103,12 +105,40 @@ export function MessageViewer() {
         try {
             await api.clearMessages();
             setMessages([]);
-        } catch { }
+        } catch (e) {
+            console.error('Clear messages failed:', e);
+        }
     };
 
     const formatTime = (timestamp: number) => {
         const date = new Date(timestamp);
         return date.toLocaleTimeString();
+    };
+
+    const handleResize = (e: React.MouseEvent) => {
+        e.preventDefault();
+        const startY = e.clientY;
+        const startHeight = height;
+        let newHeight = height;
+
+        document.body.style.cursor = 'row-resize';
+        document.body.style.userSelect = 'none';
+
+        const onMouseMove = (e: MouseEvent) => {
+            newHeight = Math.max(100, Math.min(600, startHeight + e.clientY - startY));
+            setHeight(newHeight);
+        };
+
+        const onMouseUp = () => {
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            preferences.messageViewerHeight = newHeight;
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
     };
 
     const isConnected = connectionStatus === 'connected';
@@ -121,11 +151,11 @@ export function MessageViewer() {
                 {subscriptions.length > 0 && (
                     <span className="badge">{subscriptions.length} sub{subscriptions.length !== 1 && 's'}</span>
                 )}
-                {messages.length > 0 && <span className="badge">{messages.length} msg</span>}
+                {messages.length > 0 && <span className="badge">{messages.length} msg{messages.length !== 1 && 's'}</span>}
             </button>
 
             {expanded && (
-                <div className="message-viewer-content">
+                <div className="message-viewer-content" style={{ height }}>
                     <div className="message-viewer-left">
                         <form className="subscribe-form" onSubmit={handleSubscribe}>
                             <input
@@ -167,7 +197,7 @@ export function MessageViewer() {
                         ) : (
                             <>
                                 <div className="messages-header">
-                                    <span>{messages.length} msg</span>
+                                    <span>{messages.length} msg{messages.length !== 1 && 's'}</span>
                                     <button className="btn-icon" onClick={handleClear} title="Clear messages">
                                         <Trash2 size={14} />
                                     </button>
@@ -188,6 +218,7 @@ export function MessageViewer() {
                     </div>
                 </div>
             )}
+            {expanded && <div className="resize-handle" onMouseDown={handleResize} />}
         </div>
     );
 }

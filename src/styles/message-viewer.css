@@ -35,8 +35,18 @@
 .message-viewer-content {
     display: flex;
     gap: 0.75rem;
-    padding: 0 0.75rem 0.75rem;
-    height: 180px;
+    padding: 0 0.75rem 0.5rem;
+}
+
+.resize-handle {
+    height: 6px;
+    cursor: row-resize;
+    background: transparent;
+    border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.resize-handle:hover {
+    background: var(--border);
 }
 
 .message-viewer-left {
@@ -131,10 +141,6 @@
     font-size: 0.6875rem;
 }
 
-.message-item:last-child {
-    border-bottom: none;
-}
-
 .message-meta {
     display: flex;
     justify-content: space-between;
@@ -163,8 +169,5 @@
     border-radius: 2px;
     font-family: 'SF Mono', Monaco, Consolas, monospace;
     font-size: 0.625rem;
-    white-space: pre-wrap;
-    word-break: break-all;
-    max-height: 32px;
-    overflow-y: auto;
+    white-space: pre;
 }
