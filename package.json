@@ -1,7 +1,7 @@
 {
     "name": "mqtt-topic-lab",
     "private": true,
-    "version": "0.1.7",
+    "version": "0.1.8",
     "type": "module",
     "scripts": {
         "dev": "vite",
@@ -31,6 +31,6 @@
         "prettier": "^3.8.1",
         "typescript": "~5.8.3",
         "vite": "^7.0.4",
-        "vitest": "^2.0.0"
+        "vitest": "^4.0.18"
     }
 }
