@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { ChevronDown, ChevronRight, Plus, X, Trash2 } from 'lucide-react';
 import type { Message, QoS } from '../types';
@@ -20,7 +20,7 @@ export function MessageViewer() {
     const savedSubscriptions = activeConnection?.subscriptions ?? [];
     const variables = activeConnection?.variables ?? {};
 
-    const resubscribeToSaved = useCallback(async (topics: string[]) => {
+    async function resubscribeToSaved(topics: string[]) {
         const activeSubs: string[] = [];
         for (const t of topics) {
             const resolved = substituteVariables(t, variables);
@@ -32,7 +32,7 @@ export function MessageViewer() {
             }
         }
         setSubscriptions(activeSubs);
-    }, [variables]);
+    }
 
     useEffect(() => {
         if (connectionStatus !== 'connected') {
@@ -60,7 +60,7 @@ export function MessageViewer() {
         return () => {
             unlisten.then((fn) => fn());
         };
-    }, [connectionStatus, resubscribeToSaved, savedSubscriptions]);
+    }, [connectionStatus, savedSubscriptions]);
 
     useEffect(() => {
         const list = messagesListRef.current;

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import type { AppData, Connection, Button, ConnectionStatus } from '../types';
 import * as api from '../utils/api';
@@ -37,7 +37,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const activeConnection = data.connections.find((c) => c.id === activeConnectionId) ?? null;
 
-    const tryAutoConnect = useCallback(async (connection: Connection | undefined) => {
+    async function tryAutoConnect(connection: Connection | undefined) {
         if (!connection?.auto_connect) return;
         try {
             setConnectionStatus('connecting');
@@ -46,16 +46,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setConnectionStatus('error');
             console.error('Auto-connect failed:', e);
         }
-    }, []);
+    }
 
-    const tryDisconnect = useCallback(async () => {
+    async function tryDisconnect() {
         try {
             await api.disconnect();
         } catch (e) {
             console.error('Disconnect failed:', e);
         }
         setConnectionStatus('disconnected');
-    }, []);
+    }
 
     useEffect(() => {
         loadData();
@@ -97,7 +97,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
     }
 
-    const saveData = useCallback(async (newData: AppData) => {
+    async function saveData(newData: AppData) {
         try {
             await api.saveData(newData);
             setData(newData);
@@ -107,134 +107,101 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setError(msg);
             throw new Error(msg);
         }
-    }, []);
+    }
 
-    const addConnection = useCallback(
-        async (connection: Connection) => {
+    async function addConnection(connection: Connection) {
+        await tryDisconnect();
+        await saveData({
+            ...data,
+            connections: [...data.connections, connection],
+            last_connection_id: connection.id,
+        });
+        setActiveConnectionId(connection.id);
+        await tryAutoConnect(connection);
+    }
+
+    async function importConnection(connectionData: Omit<Connection, 'id'>) {
+        const connection: Connection = {
+            ...connectionData,
+            id: crypto.randomUUID(),
+        };
+        await addConnection(connection);
+    }
+
+    async function updateConnection(connection: Connection) {
+        await saveData({
+            ...data,
+            connections: data.connections.map((c) => (c.id === connection.id ? connection : c)),
+        });
+    }
+
+    async function deleteConnection(id: string) {
+        const newConnections = data.connections.filter((c) => c.id !== id);
+        const newLastConnectionId =
+            data.last_connection_id === id ? newConnections[0]?.id : data.last_connection_id;
+
+        await saveData({ connections: newConnections, last_connection_id: newLastConnectionId });
+
+        if (activeConnectionId === id) {
             await tryDisconnect();
-            await saveData({
-                ...data,
-                connections: [...data.connections, connection],
-                last_connection_id: connection.id,
-            });
-            setActiveConnectionId(connection.id);
-            await tryAutoConnect(connection);
-        },
-        [data, saveData, tryDisconnect, tryAutoConnect]
-    );
+            const nextConnection = newConnections[0];
+            setActiveConnectionId(nextConnection?.id ?? null);
+            await tryAutoConnect(nextConnection);
+        }
+    }
 
-    const importConnection = useCallback(
-        async (connectionData: Omit<Connection, 'id'>) => {
-            const connection: Connection = {
-                ...connectionData,
-                id: crypto.randomUUID(),
-            };
-            await addConnection(connection);
-        },
-        [addConnection]
-    );
+    async function switchConnection(id: string) {
+        if (id === activeConnectionId) return;
 
-    const updateConnection = useCallback(
-        async (connection: Connection) => {
-            await saveData({
-                ...data,
-                connections: data.connections.map((c) => (c.id === connection.id ? connection : c)),
-            });
-        },
-        [data, saveData]
-    );
+        await tryDisconnect();
+        await saveData({ ...data, last_connection_id: id });
+        setActiveConnectionId(id);
+        await tryAutoConnect(data.connections.find((c) => c.id === id));
+    }
 
-    const deleteConnection = useCallback(
-        async (id: string) => {
-            const newConnections = data.connections.filter((c) => c.id !== id);
-            const newLastConnectionId =
-                data.last_connection_id === id ? newConnections[0]?.id : data.last_connection_id;
+    async function addButton(button: Button) {
+        if (!activeConnection) return;
+        await updateConnection({
+            ...activeConnection,
+            buttons: [...activeConnection.buttons, button],
+        });
+    }
 
-            await saveData({ connections: newConnections, last_connection_id: newLastConnectionId });
+    async function updateButton(button: Button) {
+        if (!activeConnection) return;
+        await updateConnection({
+            ...activeConnection,
+            buttons: activeConnection.buttons.map((b) => (b.id === button.id ? button : b)),
+        });
+    }
 
-            if (activeConnectionId === id) {
-                await tryDisconnect();
-                const nextConnection = newConnections[0];
-                setActiveConnectionId(nextConnection?.id ?? null);
-                await tryAutoConnect(nextConnection);
-            }
-        },
-        [data, saveData, activeConnectionId, tryDisconnect, tryAutoConnect]
-    );
+    async function deleteButton(id: string) {
+        if (!activeConnection) return;
+        await updateConnection({
+            ...activeConnection,
+            buttons: activeConnection.buttons.filter((b) => b.id !== id),
+        });
+    }
 
-    const switchConnection = useCallback(
-        async (id: string) => {
-            if (id === activeConnectionId) return;
+    async function reorderButtons(buttons: Button[]) {
+        if (!activeConnection) return;
+        await updateConnection({
+            ...activeConnection,
+            buttons,
+        });
+    }
 
-            await tryDisconnect();
-            await saveData({ ...data, last_connection_id: id });
-            setActiveConnectionId(id);
-            await tryAutoConnect(data.connections.find((c) => c.id === id));
-        },
-        [data, saveData, activeConnectionId, tryDisconnect, tryAutoConnect]
-    );
+    async function updateVariables(variables: Record<string, string>) {
+        if (!activeConnection) return;
+        await updateConnection({ ...activeConnection, variables });
+    }
 
-    const addButton = useCallback(
-        async (button: Button) => {
-            if (!activeConnection) return;
-            await updateConnection({
-                ...activeConnection,
-                buttons: [...activeConnection.buttons, button],
-            });
-        },
-        [activeConnection, updateConnection]
-    );
+    async function updateSubscriptions(subscriptions: string[]) {
+        if (!activeConnection) return;
+        await updateConnection({ ...activeConnection, subscriptions });
+    }
 
-    const updateButton = useCallback(
-        async (button: Button) => {
-            if (!activeConnection) return;
-            await updateConnection({
-                ...activeConnection,
-                buttons: activeConnection.buttons.map((b) => (b.id === button.id ? button : b)),
-            });
-        },
-        [activeConnection, updateConnection]
-    );
-
-    const deleteButton = useCallback(
-        async (id: string) => {
-            if (!activeConnection) return;
-            await updateConnection({
-                ...activeConnection,
-                buttons: activeConnection.buttons.filter((b) => b.id !== id),
-            });
-        },
-        [activeConnection, updateConnection]
-    );
-
-    const reorderButtons = useCallback(
-        async (buttons: Button[]) => {
-            if (!activeConnection) return;
-            await updateConnection({
-                ...activeConnection,
-                buttons,
-            });
-        },
-        [activeConnection, updateConnection]
-    );
-
-    const updateVariables = useCallback(
-        async (variables: Record<string, string>) => {
-            if (!activeConnection) return;
-            await updateConnection({ ...activeConnection, variables });
-        },
-        [activeConnection, updateConnection]
-    );
-
-    const updateSubscriptions = useCallback(
-        async (subscriptions: string[]) => {
-            if (!activeConnection) return;
-            await updateConnection({ ...activeConnection, subscriptions });
-        },
-        [activeConnection, updateConnection]
-    );
-
-    const connect = useCallback(async () => {
+    async function connect() {
         if (!activeConnection) return;
         if (connectionStatus === 'connecting' || connectionStatus === 'connected') return;
         try {
@@ -244,32 +211,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setConnectionStatus('error');
             console.error('Connection failed:', e);
         }
-    }, [activeConnection, connectionStatus]);
+    }
 
-    const disconnect = useCallback(async () => {
+    async function disconnect() {
         try {
             await api.disconnect();
             setConnectionStatus('disconnected');
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Failed to disconnect');
         }
-    }, []);
+    }
 
-    const publishButton = useCallback(
-        async (button: Button) => {
-            if (!activeConnection) return;
-            try {
-                await api.publishButton(button, activeConnection.variables);
-            } catch (e) {
-                const msg = e instanceof Error ? e.message : 'Failed to publish';
-                setError(msg);
-                throw new Error(msg);
-            }
-        },
-        [activeConnection]
-    );
+    async function publishButton(button: Button) {
+        if (!activeConnection) return;
+        try {
+            await api.publishButton(button, activeConnection.variables);
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : 'Failed to publish';
+            setError(msg);
+            throw new Error(msg);
+        }
+    }
 
-    const resetAll = useCallback(() => {
+    function resetAll() {
         setData({ connections: [] });
         setActiveConnectionId(null);
         setConnectionStatus('disconnected');
@@ -286,7 +250,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 console.error('Delete data during reset failed:', e);
             }
         })();
-    }, []);
+    }
 
     return (
         <AppContext.Provider

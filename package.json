@@ -1,7 +1,7 @@
 {
     "name": "mqtt-topic-lab",
     "private": true,
-    "version": "0.1.8",
+    "version": "0.1.9",
     "type": "module",
     "scripts": {
         "dev": "vite",
@@ -27,6 +27,7 @@
         "@types/react": "^19.1.8",
         "@types/react-dom": "^19.1.6",
         "@vitejs/plugin-react": "^4.6.0",
+        "babel-plugin-react-compiler": "^1.0.0",
         "jsdom": "^25.0.0",
         "prettier": "^3.8.1",
         "typescript": "~5.8.3",

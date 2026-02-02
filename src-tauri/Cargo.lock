@@ -2108,7 +2108,7 @@ dependencies = [
 
 [[package]]
 name = "mqtt-topic-lab"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "dirs 5.0.1",
  "env_logger",

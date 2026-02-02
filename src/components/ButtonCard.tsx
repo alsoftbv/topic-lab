@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { GripVertical, Pencil, Trash2, Repeat } from 'lucide-react';
 import type { Button } from '../types';
@@ -44,26 +44,26 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
     const resolvedTopic = substituteVariables(button.topic, variables);
     const resolvedPayload = button.payload ? substituteVariables(button.payload, variables) : '';
 
-    const stopMultiSend = useCallback(() => {
+    function stopMultiSend() {
         if (intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
         }
         setIsMultiSending(false);
         setSendCount(0);
-    }, []);
+    }
 
     useEffect(() => {
         if (connectionStatus !== 'connected' && isMultiSending) {
             stopMultiSend();
         }
-    }, [connectionStatus, isMultiSending, stopMultiSend]);
+    }, [connectionStatus, isMultiSending]);
 
     useEffect(() => {
         if (!button.multiSendEnabled && isMultiSending) {
             stopMultiSend();
         }
-    }, [button.multiSendEnabled, isMultiSending, stopMultiSend]);
+    }, [button.multiSendEnabled, isMultiSending]);
 
     useEffect(() => {
         if (!isMultiSending || !intervalRef.current) return;
@@ -80,7 +80,7 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
             }
         };
         intervalRef.current = window.setInterval(publishOnce, newInterval);
-    }, [isMultiSending, button, publishButton, stopMultiSend]);
+    }, [isMultiSending, button]);
 
     useEffect(() => {
         return () => {
