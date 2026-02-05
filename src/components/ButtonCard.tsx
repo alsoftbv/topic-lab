@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, memo } from 'react';
 import { confirm } from '@tauri-apps/plugin-dialog';
-import { GripVertical, Pencil, Trash2, Repeat } from 'lucide-react';
+import { GripVertical, Pencil, Trash2, Repeat, CopyPlus } from 'lucide-react';
 import type { Button } from '../types';
 import { useApp } from '../contexts/AppContext';
 import { substituteVariables } from '../utils/variables';
@@ -23,14 +23,28 @@ function formatInterval(ms: number): string {
 interface ButtonCardProps {
     button: Button;
     index: number;
-    onEdit: () => void;
+    onEdit: (buttonId: string) => void;
+    onDuplicate: (buttonId: string, index: number) => void;
+    onSelect: (index: number) => void;
     onDragStart: (index: number, x: number, y: number, element: HTMLElement) => void;
     onDragEnter: (index: number) => void;
     isDragging: boolean;
     isDragOver: boolean;
+    isSelected: boolean;
+    isAnimating: boolean;
+    keyboardSent: boolean;
 }
 
-export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, isDragging, isDragOver }: ButtonCardProps) {
+const propsAreEqual = (prev: ButtonCardProps, next: ButtonCardProps) =>
+    prev.button === next.button &&
+    prev.index === next.index &&
+    prev.isDragging === next.isDragging &&
+    prev.isDragOver === next.isDragOver &&
+    prev.isSelected === next.isSelected &&
+    prev.isAnimating === next.isAnimating &&
+    prev.keyboardSent === next.keyboardSent;
+
+export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDuplicate, onSelect, onDragStart, onDragEnter, isDragging, isDragOver, isSelected, isAnimating, keyboardSent }: ButtonCardProps) {
     const { activeConnection, publishButton, deleteButton, connectionStatus } = useApp();
     const [publishing, setPublishing] = useState(false);
     const [lastResult, setLastResult] = useState<'success' | 'error' | null>(null);
@@ -92,6 +106,14 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
             }
         };
     }, []);
+
+    const prevKeyboardSent = useRef(false);
+    useEffect(() => {
+        if (keyboardSent && !prevKeyboardSent.current) {
+            handlePublish();
+        }
+        prevKeyboardSent.current = keyboardSent;
+    }, [keyboardSent]);
 
     const singlePublish = async () => {
         setPublishing(true);
@@ -169,7 +191,8 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
     return (
         <div
             ref={cardRef}
-            className={`button-card ${lastResult || ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''} ${isMultiSending ? 'multi-send-active' : ''}`}
+            className={`button-card ${lastResult || ''} ${keyboardSent ? 'success' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''} ${isMultiSending ? 'multi-send-active' : ''} ${isSelected ? 'selected' : ''} ${isAnimating ? 'pop' : ''}`}
+            onClick={(e) => { e.stopPropagation(); onSelect(index); }}
             onMouseEnter={handleMouseEnter}
         >
             <div className="button-card-header">
@@ -180,9 +203,12 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
                 >
                     <GripVertical size={16} />
                 </div>
-                <h3>{button.name}</h3>
-                <div className="button-card-actions">
-                    <button className="btn-icon" onClick={onEdit} title="Edit">
+                                <h3>{button.name}</h3>
+                <div className="button-card-actions" onClick={(e) => e.stopPropagation()}>
+                    <button className="btn-icon" onClick={() => onDuplicate(button.id, index)} title="Duplicate">
+                        <CopyPlus size={16} />
+                    </button>
+                    <button className="btn-icon" onClick={() => onEdit(button.id)} title="Edit">
                         <Pencil size={16} />
                     </button>
                     <button className="btn-icon" onClick={handleDelete} title="Delete">
@@ -210,12 +236,12 @@ export function ButtonCard({ button, index, onEdit, onDragStart, onDragEnter, is
             </div>
 
             <button
-                className={`btn btn-publish btn-color-${button.color || 'orange'} ${isMultiSending ? 'multi-send-active' : ''}`}
-                onClick={handlePublish}
+                className={`btn btn-publish btn-color-${button.color || 'orange'} ${isMultiSending ? 'multi-send-active' : ''} ${keyboardSent ? 'keyboard-press' : ''}`}
+                onClick={(e) => { e.stopPropagation(); handlePublish(); }}
                 disabled={publishing || connectionStatus !== 'connected'}
             >
-                {isMultiSending ? `Stop (${sendCount})` : publishing ? 'Sending...' : button.multiSendEnabled ? 'Start' : 'Send'}
+                {isMultiSending ? `Stop (${sendCount})` : button.multiSendEnabled ? 'Start' : 'Send'}
             </button>
         </div>
     );
-}
+}, propsAreEqual);

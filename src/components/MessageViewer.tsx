@@ -7,9 +7,13 @@ import { useApp } from '../contexts/AppContext';
 import { substituteVariables } from '../utils/variables';
 import { preferences } from '../utils/preferences';
 
-export function MessageViewer() {
+interface MessageViewerProps {
+    expanded: boolean;
+    onToggle: (expanded: boolean) => void;
+}
+
+export function MessageViewer({ expanded, onToggle }: MessageViewerProps) {
     const { connectionStatus, activeConnection, updateSubscriptions } = useApp();
-    const [expanded, setExpanded] = useState(false);
     const [topic, setTopic] = useState('');
     const [subscriptions, setSubscriptions] = useState<string[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
@@ -145,7 +149,7 @@ export function MessageViewer() {
 
     return (
         <div className="message-viewer">
-            <button className="message-viewer-header" onClick={() => setExpanded(!expanded)}>
+            <button className="message-viewer-header" onClick={() => onToggle(!expanded)}>
                 {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 <span>Message Viewer</span>
                 {subscriptions.length > 0 && (

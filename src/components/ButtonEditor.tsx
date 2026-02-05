@@ -122,6 +122,7 @@ export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
                             onChange={(e) => setName(e.target.value)}
                             placeholder="Turn On Light"
                             required
+                            autoFocus
                         />
                     </div>
 
@@ -177,7 +178,13 @@ export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
 
                     <div className="form-group-inline">
                         <label>QoS Level</label>
-                        <select value={qos} onChange={(e) => setQos(e.target.value as QoS)}>
+                        <select
+                            value={qos}
+                            onChange={(e) => setQos(e.target.value as QoS)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') e.preventDefault();
+                            }}
+                        >
                             <option value="atmostonce">0 - At Most Once</option>
                             <option value="atleastonce">1 - At Least Once</option>
                             <option value="exactlyonce">2 - Exactly Once</option>
@@ -190,6 +197,12 @@ export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
                                 type="checkbox"
                                 checked={retain}
                                 onChange={(e) => setRetain(e.target.checked)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        setRetain(!retain);
+                                    }
+                                }}
                             />
                             <label>Retain Message</label>
                         </div>
@@ -201,6 +214,12 @@ export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
                                 type="checkbox"
                                 checked={multiSendEnabled}
                                 onChange={(e) => setMultiSendEnabled(e.target.checked)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        setMultiSendEnabled(!multiSendEnabled);
+                                    }
+                                }}
                             />
                             <label>Multi-send</label>
                         </div>
@@ -211,12 +230,18 @@ export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
                                 onChange={(e) => setIntervalValue(Math.max(1, parseInt(e.target.value) || 1))}
                                 min={1}
                                 disabled={!multiSendEnabled}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') e.preventDefault();
+                                }}
                             />
                             <select
                                 value={intervalUnit}
                                 onChange={(e) => setIntervalUnit(e.target.value as IntervalUnit)}
                                 disabled={!multiSendEnabled}
                                 className="unit-select"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') e.preventDefault();
+                                }}
                             >
                                 <option value="ms">ms</option>
                                 <option value="s">s</option>

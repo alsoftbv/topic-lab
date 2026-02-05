@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { Settings, Plus, X } from 'lucide-react';
 import * as api from '../utils/api';
 import { useApp } from '../contexts/AppContext';
+import { useDashboardKeyboard } from '../hooks/useDashboardKeyboard';
 import { ConnectionSwitcher } from './ConnectionSwitcher';
 import { ConnectionStatus } from './ConnectionStatus';
 import { MessageViewer } from './MessageViewer';
@@ -13,7 +14,7 @@ import { ConnectionEditor } from './ConnectionEditor';
 import type { Button } from '../types';
 
 export function Dashboard() {
-    const { activeConnection, error, deleteConnection, reorderButtons, importConnection } = useApp();
+    const { activeConnection, error, deleteConnection, deleteButton, reorderButtons, importConnection } = useApp();
     const [showEditor, setShowEditor] = useState(false);
     const [editingButton, setEditingButton] = useState<Button | undefined>();
     const [showVariables, setShowVariables] = useState(false);
@@ -22,9 +23,36 @@ export function Dashboard() {
     const [isAddingConnection, setIsAddingConnection] = useState(false);
     const [dragIndex, setDragIndex] = useState<number | null>(null);
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+    const [messageViewerExpanded, setMessageViewerExpanded] = useState(false);
     const dragOverIndexRef = useRef<number | null>(null);
     const dragIndexRef = useRef<number | null>(null);
     const ghostRef = useRef<HTMLElement | null>(null);
+    const gridRef = useRef<HTMLDivElement | null>(null);
+
+    const { selectedIndex, setSelectedIndex, keyboardSentId, animatingId, setAnimatingId } = useDashboardKeyboard({
+        activeConnection,
+        modalsOpen: showEditor || showSettings || showConnectionEditor,
+        gridRef,
+        reorderButtons,
+        onEdit: (button) => {
+            setEditingButton(button);
+            setShowEditor(true);
+        },
+        onDelete: async (button) => {
+            const confirmed = await confirm('This action cannot be undone.', {
+                title: `Delete "${button.name}"?`,
+                kind: 'warning',
+            });
+            if (confirmed) {
+                await deleteButton(button.id);
+            }
+        },
+        onNewButton: () => {
+            setEditingButton(undefined);
+            setShowEditor(true);
+        },
+        onToggleMessageViewer: () => setMessageViewerExpanded(prev => !prev),
+    });
 
     useEffect(() => {
         if (dragIndex === null) return;
@@ -68,7 +96,7 @@ export function Dashboard() {
 
     if (!activeConnection) return null;
 
-    const handleDragStart = (index: number, x: number, y: number, element: HTMLElement) => {
+    const handleDragStart = useCallback((index: number, x: number, y: number, element: HTMLElement) => {
         setDragIndex(index);
         setDragOverIndex(index);
         dragIndexRef.current = index;
@@ -87,23 +115,45 @@ export function Dashboard() {
         clone.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.3)';
         document.body.appendChild(clone);
         ghostRef.current = clone;
-    };
+    }, []);
 
-    const handleDragEnter = (index: number) => {
-        if (dragIndex === null) return;
+    const handleDragEnter = useCallback((index: number) => {
+        if (dragIndexRef.current === null) return;
         setDragOverIndex(index);
         dragOverIndexRef.current = index;
-    };
+    }, []);
 
     const handleNewButton = () => {
         setEditingButton(undefined);
         setShowEditor(true);
     };
 
-    const handleEditButton = (button: Button) => {
-        setEditingButton(button);
-        setShowEditor(true);
-    };
+    const handleEditButton = useCallback((buttonId: string) => {
+        const button = activeConnection?.buttons.find(b => b.id === buttonId);
+        if (button) {
+            setEditingButton(button);
+            setShowEditor(true);
+        }
+    }, [activeConnection?.buttons]);
+
+    const handleDuplicateButton = useCallback((buttonId: string, index: number) => {
+        const button = activeConnection?.buttons.find(b => b.id === buttonId);
+        if (!button || !activeConnection) return;
+        const newId = crypto.randomUUID();
+        const duplicate: Button = {
+            ...button,
+            id: newId,
+        };
+        const buttons = [...activeConnection.buttons];
+        buttons.splice(index + 1, 0, duplicate);
+        reorderButtons(buttons);
+        setAnimatingId(newId);
+        setTimeout(() => setAnimatingId(null), 300);
+    }, [activeConnection, reorderButtons]);
+
+    const handleSelectButton = useCallback((index: number) => {
+        setSelectedIndex(prev => prev === index ? null : index);
+    }, []);
 
     const handleCloseEditor = () => {
         setShowEditor(false);
@@ -169,9 +219,9 @@ export function Dashboard() {
 
             {error && <div className="error-banner">{error}</div>}
 
-            <div className="dashboard-content">
+            <div className="dashboard-content" onClick={() => setSelectedIndex(null)}>
                 <main className="buttons-area">
-                    <MessageViewer />
+                    <MessageViewer expanded={messageViewerExpanded} onToggle={setMessageViewerExpanded} />
                     <div className="buttons-header">
                         <h2>Commands</h2>
                         <button className="btn" onClick={handleNewButton}>
@@ -186,17 +236,22 @@ export function Dashboard() {
                             <p className="hint">Create a button to send MQTT commands</p>
                         </div>
                     ) : (
-                        <div className="buttons-grid">
+                        <div className="buttons-grid" ref={gridRef}>
                             {activeConnection.buttons.map((button, index) => (
                                 <ButtonCard
                                     key={button.id}
                                     button={button}
                                     index={index}
-                                    onEdit={() => handleEditButton(button)}
+                                    onEdit={handleEditButton}
+                                    onDuplicate={handleDuplicateButton}
+                                    onSelect={handleSelectButton}
                                     onDragStart={handleDragStart}
                                     onDragEnter={handleDragEnter}
                                     isDragging={dragIndex === index}
                                     isDragOver={dragOverIndex === index}
+                                    isSelected={selectedIndex === index}
+                                    isAnimating={animatingId === button.id}
+                                    keyboardSent={keyboardSentId === button.id}
                                 />
                             ))}
                         </div>

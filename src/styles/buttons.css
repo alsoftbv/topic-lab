@@ -63,6 +63,27 @@
 .btn-publish {
     width: 100%;
     margin-top: auto;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.btn-publish:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+.btn-publish.keyboard-press {
+    animation: keyboard-press 0.15s ease-out;
+}
+
+@keyframes keyboard-press {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(0.97);
+    }
+    100% {
+        transform: scale(1);
+    }
 }
 
 .btn-icon-only {

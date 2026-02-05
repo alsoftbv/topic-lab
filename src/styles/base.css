@@ -56,6 +56,15 @@ select {
     padding: 0;
 }
 
+*:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--primary);
+}
+
+*:focus:not(:focus-visible) {
+    box-shadow: none;
+}
+
 html,
 body,
 #root {

@@ -8,6 +8,10 @@
     transition: box-shadow 0.2s;
 }
 
+.button-card.selected {
+    box-shadow: 0 0 0 2px var(--text-secondary);
+}
+
 .button-card.success {
     box-shadow: 0 0 0 2px var(--primary);
 }
@@ -144,6 +148,24 @@ body:has(.button-card.dragging) .button-card {
     }
     50% {
         box-shadow: 0 0 0 4px var(--primary), 0 0 12px var(--primary);
+    }
+}
+
+.button-card.pop {
+    animation: pop 0.3s ease-out;
+}
+
+@keyframes pop {
+    0% {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.02);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
     }
 }
 

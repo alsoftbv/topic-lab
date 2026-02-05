@@ -69,11 +69,6 @@
     transform: translate(-50%, -50%) rotate(45deg);
 }
 
-.checkbox-group input[type='checkbox']:focus {
-    outline: none;
-    border-color: var(--primary);
-}
-
 .button-row {
     display: flex;
     gap: 0.75rem;
