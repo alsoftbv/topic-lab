@@ -29,7 +29,38 @@
     gap: 0.5rem;
 }
 
+.search-bar {
+    position: absolute;
+    top: 0;
+    right: 1.5rem;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.search-bar-icon {
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.search-bar-input {
+    max-width: 300px;
+    height: 30px;
+    font-size: 0.8125rem;
+}
+
+.search-bar-input:focus {
+    box-shadow: none;
+}
+
 .dashboard-content {
+    position: relative;
     display: flex;
     flex: 1;
     overflow: hidden;

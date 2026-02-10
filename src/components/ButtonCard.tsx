@@ -33,6 +33,7 @@ interface ButtonCardProps {
     isSelected: boolean;
     isAnimating: boolean;
     keyboardSent: boolean;
+    isDimmed: boolean;
 }
 
 const propsAreEqual = (prev: ButtonCardProps, next: ButtonCardProps) =>
@@ -42,9 +43,10 @@ const propsAreEqual = (prev: ButtonCardProps, next: ButtonCardProps) =>
     prev.isDragOver === next.isDragOver &&
     prev.isSelected === next.isSelected &&
     prev.isAnimating === next.isAnimating &&
-    prev.keyboardSent === next.keyboardSent;
+    prev.keyboardSent === next.keyboardSent &&
+    prev.isDimmed === next.isDimmed;
 
-export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDuplicate, onSelect, onDragStart, onDragEnter, isDragging, isDragOver, isSelected, isAnimating, keyboardSent }: ButtonCardProps) {
+export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDuplicate, onSelect, onDragStart, onDragEnter, isDragging, isDragOver, isSelected, isAnimating, keyboardSent, isDimmed }: ButtonCardProps) {
     const { activeConnection, publishButton, deleteButton, updateButton, connectionStatus } = useApp();
     const [publishing, setPublishing] = useState(false);
     const [lastResult, setLastResult] = useState<'success' | 'error' | null>(null);
@@ -234,7 +236,7 @@ export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDu
     return (
         <div
             ref={cardRef}
-            className={`button-card ${lastResult || ''} ${keyboardSent ? 'success' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''} ${isMultiSending ? 'multi-send-active' : ''} ${isSelected ? 'selected' : ''} ${isAnimating ? 'pop' : ''}`}
+            className={`button-card ${lastResult || ''} ${keyboardSent ? 'success' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''} ${isMultiSending ? 'multi-send-active' : ''} ${isSelected ? 'selected' : ''} ${isAnimating ? 'pop' : ''} ${isDimmed ? 'dimmed' : ''}`}
             onClick={(e) => { e.stopPropagation(); onSelect(index); }}
             onMouseEnter={handleMouseEnter}
         >

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { confirm } from '@tauri-apps/plugin-dialog';
-import { Settings, Plus, X } from 'lucide-react';
+import { Settings, Plus, X, Search } from 'lucide-react';
 import * as api from '../utils/api';
 import { useApp } from '../contexts/AppContext';
+import { substituteVariables } from '../utils/variables';
 import { useDashboardKeyboard } from '../hooks/useDashboardKeyboard';
 import { ConnectionSwitcher } from './ConnectionSwitcher';
 import { ConnectionStatus } from './ConnectionStatus';
@@ -24,6 +25,9 @@ export function Dashboard() {
     const [dragIndex, setDragIndex] = useState<number | null>(null);
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
     const [messageViewerExpanded, setMessageViewerExpanded] = useState(false);
+    const [showSearch, setShowSearch] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const searchInputRef = useRef<HTMLInputElement>(null);
     const dragOverIndexRef = useRef<number | null>(null);
     const dragIndexRef = useRef<number | null>(null);
     const ghostRef = useRef<HTMLElement | null>(null);
@@ -93,6 +97,32 @@ export function Dashboard() {
             window.removeEventListener('mouseup', handleGlobalMouseUp);
         };
     }, [dragIndex, activeConnection, reorderButtons]);
+
+    useEffect(() => {
+        if (showSearch) searchInputRef.current?.focus();
+    }, [showSearch]);
+
+    useEffect(() => {
+        const handleSearchKey = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+                if (showEditor || showSettings || showConnectionEditor) return;
+                e.preventDefault();
+                if (showSearch) {
+                    searchInputRef.current?.focus();
+                    searchInputRef.current?.select();
+                } else {
+                    setShowSearch(true);
+                }
+            }
+            if (e.key === 'Escape' && showSearch) {
+                e.stopPropagation();
+                setShowSearch(false);
+                setSearchQuery('');
+            }
+        };
+        window.addEventListener('keydown', handleSearchKey, true);
+        return () => window.removeEventListener('keydown', handleSearchKey, true);
+    }, [showSearch, showEditor, showSettings, showConnectionEditor]);
 
     if (!activeConnection) return null;
 
@@ -193,6 +223,21 @@ export function Dashboard() {
         }
     };
 
+    const variables = activeConnection.variables;
+    const query = searchQuery.toLowerCase();
+    const matchingButtonIds = new Set(
+        query
+            ? activeConnection.buttons
+                  .filter((b) => {
+                      const name = b.name.toLowerCase();
+                      const topic = substituteVariables(b.topic, variables).toLowerCase();
+                      const payload = b.payload ? substituteVariables(b.payload, variables).toLowerCase() : '';
+                      return name.includes(query) || topic.includes(query) || payload.includes(query);
+                  })
+                  .map((b) => b.id)
+            : activeConnection.buttons.map((b) => b.id)
+    );
+
     return (
         <div className="dashboard">
             <header className="dashboard-header">
@@ -220,6 +265,29 @@ export function Dashboard() {
             {error && <div className="error-banner">{error}</div>}
 
             <div className="dashboard-content" onClick={() => setSelectedIndex(null)}>
+                {showSearch && (
+                    <div className="search-bar">
+                        <Search size={16} className="search-bar-icon" />
+                        <input
+                            ref={searchInputRef}
+                            type="text"
+                            className="search-bar-input"
+                            placeholder="Search buttons..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    setShowSearch(false);
+                                    setSearchQuery('');
+                                }
+                            }}
+                        />
+                        <button className="btn-icon" onClick={() => { setShowSearch(false); setSearchQuery(''); }}>
+                            <X size={16} />
+                        </button>
+                    </div>
+                )}
                 <main className="buttons-area">
                     <MessageViewer expanded={messageViewerExpanded} onToggle={setMessageViewerExpanded} />
                     <div className="buttons-header">
@@ -252,6 +320,7 @@ export function Dashboard() {
                                     isSelected={selectedIndex === index}
                                     isAnimating={animatingId === button.id}
                                     keyboardSent={keyboardSentId === button.id}
+                                    isDimmed={!matchingButtonIds.has(button.id)}
                                 />
                             ))}
                         </div>
