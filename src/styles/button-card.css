@@ -109,7 +109,7 @@ body:has(.button-card.dragging) .button-card {
 .detail-row {
     display: flex;
     gap: 0.5rem;
-    align-items: baseline;
+    align-items: center;
 }
 
 .detail-label {
@@ -124,6 +124,24 @@ body:has(.button-card.dragging) .button-card {
     font-family: 'SF Mono', Monaco, Consolas, monospace;
     font-size: 0.75rem;
     word-break: break-all;
+}
+
+.detail-value-editable {
+    cursor: text;
+}
+
+.detail-value[contenteditable] {
+    outline: none;
+    box-shadow: none;
+}
+
+.inline-edit-save {
+    display: inline-flex;
+    align-items: center;
+    padding: 0;
+    line-height: 1;
+    color: var(--primary);
+    opacity: 1;
 }
 
 /* Multi-send styles */

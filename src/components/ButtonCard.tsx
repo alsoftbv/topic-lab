@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, memo } from 'react';
 import { confirm } from '@tauri-apps/plugin-dialog';
-import { GripVertical, Pencil, Trash2, Repeat, CopyPlus } from 'lucide-react';
+import { GripVertical, Pencil, Trash2, Repeat, CopyPlus, Check } from 'lucide-react';
 import type { Button } from '../types';
 import { useApp } from '../contexts/AppContext';
 import { substituteVariables } from '../utils/variables';
@@ -45,11 +45,13 @@ const propsAreEqual = (prev: ButtonCardProps, next: ButtonCardProps) =>
     prev.keyboardSent === next.keyboardSent;
 
 export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDuplicate, onSelect, onDragStart, onDragEnter, isDragging, isDragOver, isSelected, isAnimating, keyboardSent }: ButtonCardProps) {
-    const { activeConnection, publishButton, deleteButton, connectionStatus } = useApp();
+    const { activeConnection, publishButton, deleteButton, updateButton, connectionStatus } = useApp();
     const [publishing, setPublishing] = useState(false);
     const [lastResult, setLastResult] = useState<'success' | 'error' | null>(null);
     const [isMultiSending, setIsMultiSending] = useState(false);
     const [sendCount, setSendCount] = useState(0);
+    const [editingField, setEditingField] = useState<'topic' | 'payload' | null>(null);
+    const editRef = useRef<HTMLElement>(null);
     const cardRef = useRef<HTMLDivElement>(null);
     const intervalRef = useRef<number | null>(null);
     const timeoutRef = useRef<number | null>(null);
@@ -177,6 +179,47 @@ export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDu
         exactlyonce: 'QoS 2',
     };
 
+    useEffect(() => {
+        const el = editRef.current;
+        if (!editingField || !el) return;
+        const raw = editingField === 'topic' ? button.topic : button.payload || '';
+        el.textContent = raw;
+        el.focus();
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+    }, [editingField]);
+
+    const startEditing = (field: 'topic' | 'payload', e: React.MouseEvent) => {
+        e.stopPropagation();
+        setEditingField(field);
+    };
+
+    const saveEdit = () => {
+        if (!editingField || !editRef.current) return;
+        const trimmed = (editRef.current.textContent || '').trim();
+        if (editingField === 'topic' && !trimmed) {
+            cancelEdit();
+            return;
+        }
+        const updated = { ...button, [editingField]: editingField === 'payload' && !trimmed ? undefined : trimmed };
+        updateButton(updated);
+        setEditingField(null);
+    };
+
+    const cancelEdit = () => {
+        setEditingField(null);
+    };
+
+    const handleEditKeyDown = (e: React.KeyboardEvent) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') { e.preventDefault(); saveEdit(); }
+        if (e.key === 'Escape') cancelEdit();
+    };
+
     const handleMouseDown = (e: React.MouseEvent) => {
         e.preventDefault();
         if (cardRef.current) {
@@ -220,14 +263,46 @@ export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDu
             <div className="button-card-details">
                 <div className="detail-row">
                     <span className="detail-label">Topic:</span>
-                    <code className="detail-value">{resolvedTopic}</code>
+                    <code
+                        ref={editingField === 'topic' ? editRef : undefined}
+                        className={`detail-value${editingField !== 'topic' ? ' detail-value-editable' : ''}`}
+                        contentEditable={editingField === 'topic'}
+                        suppressContentEditableWarning
+                        onClick={(e) => { if (editingField !== 'topic') startEditing('topic', e); else e.stopPropagation(); }}
+                        onKeyDown={(e) => { if (editingField !== 'topic') return; handleEditKeyDown(e); }}
+                        onBlur={() => { if (editingField === 'topic') cancelEdit(); }}
+                        spellCheck={false}
+                    >
+                        {editingField !== 'topic' ? resolvedTopic : null}
+                    </code>
+                    {editingField === 'topic' && (
+                        <button className="btn-icon inline-edit-save" onMouseDown={(e) => { e.preventDefault(); saveEdit(); }}>
+                            <Check size={14} />
+                        </button>
+                    )}
                 </div>
-                {resolvedPayload && (
+                {(resolvedPayload || editingField === 'payload') ? (
                     <div className="detail-row">
                         <span className="detail-label">Payload:</span>
-                        <code className="detail-value">{resolvedPayload}</code>
+                        <code
+                            ref={editingField === 'payload' ? editRef : undefined}
+                            className={`detail-value${editingField !== 'payload' ? ' detail-value-editable' : ''}`}
+                            contentEditable={editingField === 'payload'}
+                            suppressContentEditableWarning
+                            onClick={(e) => { if (editingField !== 'payload') startEditing('payload', e); else e.stopPropagation(); }}
+                            onKeyDown={(e) => { if (editingField !== 'payload') return; handleEditKeyDown(e); }}
+                            onBlur={() => { if (editingField === 'payload') cancelEdit(); }}
+                            spellCheck={false}
+                        >
+                            {editingField !== 'payload' ? resolvedPayload : null}
+                        </code>
+                        {editingField === 'payload' && (
+                            <button className="btn-icon inline-edit-save" onMouseDown={(e) => { e.preventDefault(); saveEdit(); }}>
+                                <Check size={14} />
+                            </button>
+                        )}
                     </div>
-                )}
+                ) : null}
                 <div className="detail-row">
                     {button.qos !== 'atmostonce' && <span className="badge">{qosLabels[button.qos]}</span>}
                     {button.retain && <span className="badge">Retain</span>}
