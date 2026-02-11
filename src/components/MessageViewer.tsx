@@ -38,6 +38,8 @@ export function MessageViewer({ expanded, onToggle }: MessageViewerProps) {
         setSubscriptions(activeSubs);
     }
 
+    const prevVariablesRef = useRef(variables);
+
     useEffect(() => {
         if (connectionStatus !== 'connected') {
             setSubscriptions([]);
@@ -65,6 +67,22 @@ export function MessageViewer({ expanded, onToggle }: MessageViewerProps) {
             unlisten.then((fn) => fn());
         };
     }, [connectionStatus, savedSubscriptions]);
+
+    useEffect(() => {
+        if (connectionStatus !== 'connected' || subscriptions.length === 0) return;
+        const prev = prevVariablesRef.current;
+        prevVariablesRef.current = variables;
+
+        (async () => {
+            for (const t of subscriptions) {
+                const oldResolved = substituteVariables(t, prev);
+                const newResolved = substituteVariables(t, variables);
+                if (oldResolved === newResolved) continue;
+                try { await api.unsubscribe(oldResolved); } catch {}
+                try { await api.subscribe(newResolved, 'atmostonce' as QoS); } catch {}
+            }
+        })();
+    }, [JSON.stringify(variables)]);
 
     useEffect(() => {
         const list = messagesListRef.current;
