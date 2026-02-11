@@ -52,6 +52,23 @@ npm run tauri build
 3. **Create Buttons**: Add buttons with topics like `devices/{device_id}/CMD`
 4. **Send Commands**: Click buttons to publish messages to your MQTT broker
 
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd/Ctrl + 1-9, 0` | Quick send buttons 1-10 |
+| `Arrow keys` | Navigate between buttons |
+| `Enter` | Send selected button |
+| `Escape` | Deselect button / Close search |
+| `Cmd/Ctrl + N` | New button |
+| `Cmd/Ctrl + E` | Edit selected button |
+| `Cmd/Ctrl + C` | Copy selected button |
+| `Cmd/Ctrl + V` | Paste copied button |
+| `Cmd/Ctrl + D` | Duplicate selected button |
+| `Cmd/Ctrl + F` | Search buttons |
+| `Cmd/Ctrl + T` | Toggle message viewer |
+| `Delete / Backspace` | Delete selected button |
+
 ## License
 
 MIT
