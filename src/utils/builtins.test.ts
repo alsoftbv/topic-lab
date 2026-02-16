@@ -228,6 +228,12 @@ describe('resolveBuiltin', () => {
             const result = resolveBuiltin('now', ['utc', '-1h', 'fmt:HH:mm']);
             expect(result).toBe('09:30');
         });
+
+        it('should apply multi-digit minute offset with unix format', () => {
+            const result = resolveBuiltin('now', ['utc', 'unix', '-10m']);
+            const expected = Math.floor(new Date('2024-06-15T10:20:45.123Z').getTime() / 1000);
+            expect(result).toBe(expected.toString());
+        });
     });
 
     describe('non-builtin', () => {
