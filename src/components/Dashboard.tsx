@@ -1,45 +1,91 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { Settings, Plus, X, Search } from 'lucide-react';
 import * as api from '../utils/api';
 import { useApp } from '../contexts/AppContext';
 import { substituteVariables } from '../utils/variables';
+import { preferences } from '../utils/preferences';
 import { useDashboardKeyboard } from '../hooks/useDashboardKeyboard';
+import { useButtonDrag } from '../hooks/useButtonDrag';
+import { useGroupDrag } from '../hooks/useGroupDrag';
 import { ConnectionSwitcher } from './ConnectionSwitcher';
 import { ConnectionStatus } from './ConnectionStatus';
 import { MessageViewer } from './MessageViewer';
-import { ButtonCard } from './ButtonCard';
 import { ButtonEditor } from './ButtonEditor';
+import { ButtonGroupSection } from './ButtonGroup';
 import { VariablesPanel } from './VariablesPanel';
 import { ConnectionEditor } from './ConnectionEditor';
+import { SettingsModal } from './SettingsModal';
 import type { Button } from '../types';
 
 export function Dashboard() {
-    const { activeConnection, error, deleteConnection, deleteButton, reorderButtons, importConnection } = useApp();
+    const { activeConnection, error, deleteConnection, deleteButton, reorderButtons, importConnection, addGroup, reorderGroups } = useApp();
     const [showEditor, setShowEditor] = useState(false);
     const [editingButton, setEditingButton] = useState<Button | undefined>();
+    const [editorGroupId, setEditorGroupId] = useState<string | undefined>();
     const [showVariables, setShowVariables] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [showConnectionEditor, setShowConnectionEditor] = useState(false);
     const [isAddingConnection, setIsAddingConnection] = useState(false);
-    const [dragIndex, setDragIndex] = useState<number | null>(null);
-    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-    const [messageViewerExpanded, setMessageViewerExpanded] = useState(false);
+    const [messageViewerExpanded, setMessageViewerExpanded] = useState(() => preferences.messageViewerExpanded);
     const [showSearch, setShowSearch] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set(preferences.collapsedGroups));
+    const [newGroupName, setNewGroupName] = useState('');
+    const [showNewGroupInput, setShowNewGroupInput] = useState(false);
     const searchInputRef = useRef<HTMLInputElement>(null);
-    const dragOverIndexRef = useRef<number | null>(null);
-    const dragIndexRef = useRef<number | null>(null);
-    const ghostRef = useRef<HTMLElement | null>(null);
+    const newGroupInputRef = useRef<HTMLInputElement>(null);
     const gridRef = useRef<HTMLDivElement | null>(null);
 
-    const { selectedIndex, setSelectedIndex, keyboardSentId, animatingId, setAnimatingId } = useDashboardKeyboard({
+    function getVisibleButtonOrder(): { buttons: Button[]; groupNav: { id: string; start: number; count: number }[] } {
+        if (!activeConnection) return { buttons: [], groupNav: [] };
+        const result: Button[] = [];
+        const nav: { id: string; start: number; count: number }[] = [];
+        for (const group of activeConnection.groups) {
+            const groupButtons = activeConnection.buttons.filter(b => b.groupId === group.id);
+            if (collapsedGroups.has(group.id)) {
+                nav.push({ id: group.id, start: -1, count: 0 });
+                continue;
+            }
+            nav.push({ id: group.id, start: groupButtons.length > 0 ? result.length : -1, count: groupButtons.length });
+            result.push(...groupButtons);
+        }
+        const ungrouped = activeConnection.buttons.filter(
+            b => !b.groupId || !activeConnection.groups.some(g => g.id === b.groupId)
+        );
+        if (ungrouped.length > 0 || activeConnection.groups.length === 0) {
+            if (collapsedGroups.has('__ungrouped__')) {
+                nav.push({ id: '__ungrouped__', start: -1, count: 0 });
+            } else {
+                nav.push({ id: '__ungrouped__', start: ungrouped.length > 0 ? result.length : -1, count: ungrouped.length });
+                result.push(...ungrouped);
+            }
+        }
+        return { buttons: result, groupNav: nav };
+    }
+
+    const { buttons: visibleButtons, groupNav } = getVisibleButtonOrder();
+
+    const { dragIndex, dragOverIndex, dragTargetGroupId, handleDragStart, handleDragEnter, handleDragSide, handleDragEnterGroupZone } = useButtonDrag({
         activeConnection,
+        reorderButtons,
+        visibleButtons,
+    });
+
+    const { dragGroupId, dragOverGroupId, recentGroupDragRef, handleGroupDragStart, handleGroupDragEnter, handleGroupDragSide } = useGroupDrag({
+        activeConnection,
+        reorderGroups,
+    });
+
+    const { selectedIndex, setSelectedIndex, selectedGroupId, setSelectedGroupId, keyboardSentId, animatingId, setAnimatingId } = useDashboardKeyboard({
+        activeConnection,
+        visibleButtons,
+        groupNav,
         modalsOpen: showEditor || showSettings || showConnectionEditor,
-        gridRef,
         reorderButtons,
         onEdit: (button) => {
             setEditingButton(button);
+            setEditorGroupId(button.groupId);
             setShowEditor(true);
         },
         onDelete: async (button) => {
@@ -53,54 +99,38 @@ export function Dashboard() {
         },
         onNewButton: () => {
             setEditingButton(undefined);
+            setEditorGroupId(undefined);
             setShowEditor(true);
         },
-        onToggleMessageViewer: () => setMessageViewerExpanded(prev => !prev),
+        onToggleMessageViewer: () => setMessageViewerExpanded(prev => { const next = !prev; preferences.messageViewerExpanded = next; return next; }),
+        onToggleGroup: (groupId: string) => {
+            setCollapsedGroups(prev => {
+                const next = new Set(prev);
+                if (next.has(groupId)) next.delete(groupId);
+                else next.add(groupId);
+                preferences.collapsedGroups = [...next];
+                return next;
+            });
+        },
     });
 
-    useEffect(() => {
-        if (dragIndex === null) return;
-
-        const handleGlobalMouseMove = (e: MouseEvent) => {
-            if (ghostRef.current) {
-                ghostRef.current.style.left = `${e.clientX + 5}px`;
-                ghostRef.current.style.top = `${e.clientY + 5}px`;
-            }
-        };
-
-        const handleGlobalMouseUp = () => {
-            const fromIndex = dragIndexRef.current;
-            const toIndex = dragOverIndexRef.current;
-
-            if (fromIndex !== null && toIndex !== null && fromIndex !== toIndex && activeConnection) {
-                const buttons = [...activeConnection.buttons];
-                const [dragged] = buttons.splice(fromIndex, 1);
-                buttons.splice(toIndex, 0, dragged);
-                reorderButtons(buttons);
-            }
-
-            if (ghostRef.current) {
-                ghostRef.current.remove();
-                ghostRef.current = null;
-            }
-
-            setDragIndex(null);
-            setDragOverIndex(null);
-            dragOverIndexRef.current = null;
-            dragIndexRef.current = null;
-        };
-
-        window.addEventListener('mousemove', handleGlobalMouseMove);
-        window.addEventListener('mouseup', handleGlobalMouseUp);
-        return () => {
-            window.removeEventListener('mousemove', handleGlobalMouseMove);
-            window.removeEventListener('mouseup', handleGlobalMouseUp);
-        };
-    }, [dragIndex, activeConnection, reorderButtons]);
+    const toggleGroupCollapse = (groupId: string) => {
+        setCollapsedGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(groupId)) next.delete(groupId);
+            else next.add(groupId);
+            preferences.collapsedGroups = [...next];
+            return next;
+        });
+    };
 
     useEffect(() => {
         if (showSearch) searchInputRef.current?.focus();
     }, [showSearch]);
+
+    useEffect(() => {
+        if (showNewGroupInput) newGroupInputRef.current?.focus();
+    }, [showNewGroupInput]);
 
     useEffect(() => {
         const handleSearchKey = (e: KeyboardEvent) => {
@@ -126,74 +156,50 @@ export function Dashboard() {
 
     if (!activeConnection) return null;
 
-    const handleDragStart = useCallback((index: number, x: number, y: number, element: HTMLElement) => {
-        setDragIndex(index);
-        setDragOverIndex(index);
-        dragIndexRef.current = index;
-        dragOverIndexRef.current = index;
+    const groups = activeConnection.groups;
+    const buttonsByGroup = new Map<string | undefined, Button[]>();
+    for (const button of activeConnection.buttons) {
+        const key = button.groupId;
+        if (!buttonsByGroup.has(key)) buttonsByGroup.set(key, []);
+        buttonsByGroup.get(key)!.push(button);
+    }
 
-        const clone = element.cloneNode(true) as HTMLElement;
-        clone.classList.add('drag-ghost');
-        clone.classList.remove('dragging');
-        clone.style.position = 'fixed';
-        clone.style.left = `${x + 5}px`;
-        clone.style.top = `${y + 5}px`;
-        clone.style.width = `${element.offsetWidth}px`;
-        clone.style.pointerEvents = 'none';
-        clone.style.zIndex = '1000';
-        clone.style.opacity = '0.85';
-        clone.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.3)';
-        document.body.appendChild(clone);
-        ghostRef.current = clone;
-    }, []);
-
-    const handleDragEnter = useCallback((index: number) => {
-        if (dragIndexRef.current === null) return;
-        setDragOverIndex(index);
-        dragOverIndexRef.current = index;
-    }, []);
-
-    const handleNewButton = () => {
+    const handleNewButton = (groupId?: string) => {
         setEditingButton(undefined);
+        setEditorGroupId(groupId);
         setShowEditor(true);
     };
 
-    const handleEditButton = useCallback((buttonId: string) => {
+    const handleEditButton = (buttonId: string) => {
         const button = activeConnection?.buttons.find(b => b.id === buttonId);
         if (button) {
             setEditingButton(button);
+            setEditorGroupId(button.groupId);
             setShowEditor(true);
         }
-    }, [activeConnection?.buttons]);
+    };
 
-    const handleDuplicateButton = useCallback((buttonId: string, index: number) => {
-        const button = activeConnection?.buttons.find(b => b.id === buttonId);
+    const handleDuplicateButton = (_buttonId: string, index: number) => {
+        const button = visibleButtons[index];
         if (!button || !activeConnection) return;
         const newId = crypto.randomUUID();
-        const duplicate: Button = {
-            ...button,
-            id: newId,
-        };
+        const duplicate: Button = { ...button, id: newId };
         const buttons = [...activeConnection.buttons];
-        buttons.splice(index + 1, 0, duplicate);
+        const globalIdx = buttons.findIndex(b => b.id === button.id);
+        buttons.splice(globalIdx + 1, 0, duplicate);
         reorderButtons(buttons);
         setAnimatingId(newId);
         setTimeout(() => setAnimatingId(null), 300);
-    }, [activeConnection, reorderButtons]);
+    };
 
-    const handleSelectButton = useCallback((index: number) => {
+    const handleSelectButton = (index: number) => {
         setSelectedIndex(prev => prev === index ? null : index);
-    }, []);
+    };
 
     const handleCloseEditor = () => {
         setShowEditor(false);
         setEditingButton(undefined);
-    };
-
-    const handleEditConnection = () => {
-        setShowSettings(false);
-        setIsAddingConnection(false);
-        setShowConnectionEditor(true);
+        setEditorGroupId(undefined);
     };
 
     const handleAddConnection = () => {
@@ -201,26 +207,19 @@ export function Dashboard() {
         setShowConnectionEditor(true);
     };
 
-    const handleDeleteConnection = async () => {
-        const confirmed = await confirm(
-            `Delete connection "${activeConnection.name}"? This will also delete all buttons and variables for this connection.`,
-            { title: 'Delete Connection', kind: 'warning' }
-        );
-        if (confirmed) {
-            setShowSettings(false);
-            await deleteConnection(activeConnection.id);
-        }
-    };
-
-    const handleExport = async () => {
-        await api.exportConnection(activeConnection);
-    };
-
     const handleImport = async () => {
         const connectionData = await api.importConnection();
         if (connectionData) {
             await importConnection(connectionData);
         }
+    };
+
+    const handleCreateGroup = async () => {
+        const name = newGroupName.trim();
+        if (!name) return;
+        await addGroup({ id: crypto.randomUUID(), name });
+        setNewGroupName('');
+        setShowNewGroupInput(false);
     };
 
     const variables = activeConnection.variables;
@@ -237,6 +236,12 @@ export function Dashboard() {
                   .map((b) => b.id)
             : activeConnection.buttons.map((b) => b.id)
     );
+
+    const ungroupedButtons = activeConnection.buttons.filter(
+        b => !b.groupId || !groups.some(g => g.id === b.groupId)
+    );
+
+    let globalIndexCounter = 0;
 
     return (
         <div className="dashboard">
@@ -264,7 +269,7 @@ export function Dashboard() {
 
             {error && <div className="error-banner">{error}</div>}
 
-            <div className="dashboard-content" onClick={() => setSelectedIndex(null)}>
+            <div className="dashboard-content" onClick={() => { setSelectedIndex(null); setSelectedGroupId(null); }}>
                 {showSearch && (
                     <div className="search-bar">
                         <Search size={16} className="search-bar-icon" />
@@ -289,42 +294,107 @@ export function Dashboard() {
                     </div>
                 )}
                 <main className="buttons-area">
-                    <MessageViewer expanded={messageViewerExpanded} onToggle={setMessageViewerExpanded} />
-                    <div className="buttons-header">
-                        <h2>Commands</h2>
-                        <button className="btn" onClick={handleNewButton}>
-                            <Plus size={16} />
-                            New Button
-                        </button>
-                    </div>
+                    <MessageViewer expanded={messageViewerExpanded} onToggle={(v) => { setMessageViewerExpanded(v); preferences.messageViewerExpanded = v; }} />
 
-                    {activeConnection.buttons.length === 0 ? (
-                        <div className="empty-state">
-                            <p>No buttons yet</p>
-                            <p className="hint">Create a button to send MQTT commands</p>
-                        </div>
-                    ) : (
-                        <div className="buttons-grid" ref={gridRef}>
-                            {activeConnection.buttons.map((button, index) => (
-                                <ButtonCard
-                                    key={button.id}
-                                    button={button}
-                                    index={index}
-                                    onEdit={handleEditButton}
-                                    onDuplicate={handleDuplicateButton}
-                                    onSelect={handleSelectButton}
-                                    onDragStart={handleDragStart}
-                                    onDragEnter={handleDragEnter}
-                                    isDragging={dragIndex === index}
-                                    isDragOver={dragOverIndex === index}
-                                    isSelected={selectedIndex === index}
-                                    isAnimating={animatingId === button.id}
-                                    keyboardSent={keyboardSentId === button.id}
-                                    isDimmed={!matchingButtonIds.has(button.id)}
+                    <div className="button-groups">
+                        {groups.map((group) => {
+                            const groupButtons = buttonsByGroup.get(group.id) || [];
+                            const offset = globalIndexCounter;
+                            if (!collapsedGroups.has(group.id)) {
+                                globalIndexCounter += groupButtons.length;
+                            }
+                            return (
+                                <ButtonGroupSection
+                                    key={group.id}
+                                    group={group}
+                                    buttons={groupButtons}
+                                    collapsed={collapsedGroups.has(group.id)}
+                                    onToggle={() => { if (!recentGroupDragRef.current) toggleGroupCollapse(group.id); }}
+                                    onAddButton={handleNewButton}
+                                    onEditButton={handleEditButton}
+                                    onDuplicateButton={handleDuplicateButton}
+                                    onSelectButton={handleSelectButton}
+                                    onDragStartButton={handleDragStart}
+                                    onDragEnterButton={handleDragEnter}
+                                    onDragSideButton={handleDragSide}
+                                    onDragEnterGroupZone={handleDragEnterGroupZone}
+                                    isDraggingButton={dragIndex !== null}
+                                    dragIndex={dragIndex}
+                                    dragOverIndex={dragOverIndex}
+                                    selectedIndex={selectedIndex}
+                                    animatingId={animatingId}
+                                    keyboardSentId={keyboardSentId}
+                                    matchingButtonIds={matchingButtonIds}
+                                    globalIndexOffset={offset}
+                                    onGroupDragStart={handleGroupDragStart}
+                                    onGroupDragEnter={handleGroupDragEnter}
+                                    onGroupDragSide={handleGroupDragSide}
+                                    isGroupDragging={dragGroupId === group.id}
+                                    isGroupDragOver={dragOverGroupId === group.id}
+                                    isDropTarget={dragTargetGroupId === group.id}
+                                    isGroupSelected={selectedGroupId === group.id}
                                 />
-                            ))}
-                        </div>
-                    )}
+                            );
+                        })}
+
+                        {(ungroupedButtons.length > 0 || groups.length === 0) && (
+                            <ButtonGroupSection
+                                group={null}
+                                buttons={ungroupedButtons}
+                                collapsed={collapsedGroups.has('__ungrouped__')}
+                                onToggle={() => toggleGroupCollapse('__ungrouped__')}
+                                onAddButton={handleNewButton}
+                                onEditButton={handleEditButton}
+                                onDuplicateButton={handleDuplicateButton}
+                                onSelectButton={handleSelectButton}
+                                onDragStartButton={handleDragStart}
+                                onDragEnterButton={handleDragEnter}
+                                onDragSideButton={handleDragSide}
+                                onDragEnterGroupZone={handleDragEnterGroupZone}
+                                isDraggingButton={dragIndex !== null}
+                                dragIndex={dragIndex}
+                                dragOverIndex={dragOverIndex}
+                                selectedIndex={selectedIndex}
+                                animatingId={animatingId}
+                                keyboardSentId={keyboardSentId}
+                                matchingButtonIds={matchingButtonIds}
+                                globalIndexOffset={globalIndexCounter}
+                                onGroupDragStart={() => {}}
+                                onGroupDragEnter={() => {}}
+                                onGroupDragSide={() => {}}
+                                isGroupDragging={false}
+                                isGroupDragOver={false}
+                                isDropTarget={dragTargetGroupId === '__ungrouped__'}
+                                isGroupSelected={selectedGroupId === '__ungrouped__'}
+                                gridRef={gridRef}
+                            />
+                        )}
+
+                        {showNewGroupInput ? (
+                            <div className="new-group-input">
+                                <input
+                                    ref={newGroupInputRef}
+                                    type="text"
+                                    value={newGroupName}
+                                    onChange={(e) => setNewGroupName(e.target.value)}
+                                    placeholder="Group name..."
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') { e.preventDefault(); handleCreateGroup(); }
+                                        if (e.key === 'Escape') { setShowNewGroupInput(false); setNewGroupName(''); }
+                                    }}
+                                    onBlur={() => { if (!newGroupName.trim()) { setShowNewGroupInput(false); setNewGroupName(''); } }}
+                                />
+                                <button className="btn btn-small" onClick={handleCreateGroup} disabled={!newGroupName.trim()}>
+                                    Create
+                                </button>
+                            </div>
+                        ) : (
+                            <button className="new-group-area" onClick={() => setShowNewGroupInput(true)}>
+                                <Plus size={14} />
+                                New Group
+                            </button>
+                        )}
+                    </div>
                 </main>
 
                 {showVariables && (
@@ -334,57 +404,19 @@ export function Dashboard() {
                 )}
             </div>
 
-            {showEditor && <ButtonEditor button={editingButton} onClose={handleCloseEditor} />}
+            {showEditor && <ButtonEditor button={editingButton} defaultGroupId={editorGroupId} onClose={handleCloseEditor} />}
 
             {showSettings && (
-                <div className="modal-overlay" onMouseDown={() => setShowSettings(false)}>
-                    <div className="modal modal-small" onMouseDown={(e) => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h2>Connection Settings</h2>
-                            <button className="btn-icon" onClick={() => setShowSettings(false)}>
-                                <X size={18} />
-                            </button>
-                        </div>
-                        <div className="settings-content">
-                            <div className="setting-item">
-                                <div>
-                                    <strong>Broker</strong>
-                                    <p>
-                                        {activeConnection.broker_url}:{activeConnection.port}
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="setting-item">
-                                <div>
-                                    <strong>Client ID</strong>
-                                    <p>{activeConnection.client_id}</p>
-                                </div>
-                            </div>
-                            <div className="setting-item">
-                                <div>
-                                    <strong>TLS</strong>
-                                    <p>{activeConnection.use_tls ? 'Enabled' : 'Disabled'}</p>
-                                </div>
-                            </div>
-                            <div
-                                className="button-row"
-                                style={{ marginTop: '1rem', justifyContent: 'flex-start' }}
-                            >
-                                <button type="button" className="btn" onClick={handleEditConnection}>
-                                    Edit Connection
-                                </button>
-                                <button type="button" className="btn btn-secondary" onClick={handleExport}>
-                                    Export Connection
-                                </button>
-                            </div>
-                            <hr />
-                            <button type="button" className="btn btn-danger" onClick={handleDeleteConnection}>
-                                Delete Connection
-                            </button>
-                            <p className="hint">This will delete this connection, including its variables and its buttons</p>
-                        </div>
-                    </div>
-                </div>
+                <SettingsModal
+                    connection={activeConnection}
+                    onClose={() => setShowSettings(false)}
+                    onEditConnection={() => {
+                        setShowSettings(false);
+                        setIsAddingConnection(false);
+                        setShowConnectionEditor(true);
+                    }}
+                    onDeleteConnection={() => deleteConnection(activeConnection.id)}
+                />
             )}
 
             {showConnectionEditor && (

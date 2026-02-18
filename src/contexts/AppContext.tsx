@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import type { AppData, Connection, Button, ConnectionStatus } from '../types';
+import type { AppData, Connection, Button, ButtonGroup, ConnectionStatus } from '../types';
 import * as api from '../utils/api';
 
 interface AppContextType {
@@ -18,6 +18,10 @@ interface AppContextType {
     updateButton: (button: Button) => Promise<void>;
     deleteButton: (id: string) => Promise<void>;
     reorderButtons: (buttons: Button[]) => Promise<void>;
+    addGroup: (group: ButtonGroup) => Promise<void>;
+    updateGroup: (group: ButtonGroup) => Promise<void>;
+    deleteGroup: (id: string) => Promise<void>;
+    reorderGroups: (groups: ButtonGroup[]) => Promise<void>;
     updateVariables: (variables: Record<string, string>) => Promise<void>;
     updateSubscriptions: (subscriptions: string[]) => Promise<void>;
     connect: () => Promise<void>;
@@ -98,14 +102,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     async function saveData(newData: AppData) {
+        setData(newData);
         try {
             await api.saveData(newData);
-            setData(newData);
             setError(null);
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Failed to save data';
             setError(msg);
-            throw new Error(msg);
         }
     }
 
@@ -191,6 +194,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
     }
 
+    async function addGroup(group: ButtonGroup) {
+        if (!activeConnection) return;
+        await updateConnection({
+            ...activeConnection,
+            groups: [...activeConnection.groups, group],
+        });
+    }
+
+    async function updateGroup(group: ButtonGroup) {
+        if (!activeConnection) return;
+        await updateConnection({
+            ...activeConnection,
+            groups: activeConnection.groups.map((g) => (g.id === group.id ? group : g)),
+        });
+    }
+
+    async function deleteGroup(id: string) {
+        if (!activeConnection) return;
+        await updateConnection({
+            ...activeConnection,
+            groups: activeConnection.groups.filter((g) => g.id !== id),
+            buttons: activeConnection.buttons.map((b) =>
+                b.groupId === id ? { ...b, groupId: undefined } : b
+            ),
+        });
+    }
+
+    async function reorderGroups(groups: ButtonGroup[]) {
+        if (!activeConnection) return;
+        await updateConnection({ ...activeConnection, groups });
+    }
+
     async function updateVariables(variables: Record<string, string>) {
         if (!activeConnection) return;
         await updateConnection({ ...activeConnection, variables });
@@ -269,6 +304,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 updateButton,
                 deleteButton,
                 reorderButtons,
+                addGroup,
+                updateGroup,
+                deleteGroup,
+                reorderGroups,
                 updateVariables,
                 updateSubscriptions,
                 connect,

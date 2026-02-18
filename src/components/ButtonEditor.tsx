@@ -32,10 +32,11 @@ function msToUnit(ms: number): { value: number; unit: IntervalUnit } {
 
 interface ButtonEditorProps {
     button?: Button;
+    defaultGroupId?: string;
     onClose: () => void;
 }
 
-export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
+export function ButtonEditor({ button, defaultGroupId, onClose }: ButtonEditorProps) {
     const { activeConnection, addButton, updateButton } = useApp();
     const isEditing = !!button;
 
@@ -49,6 +50,7 @@ export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
     const initialInterval = msToUnit(button?.multiSendInterval || 1000);
     const [intervalValue, setIntervalValue] = useState(initialInterval.value);
     const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>(initialInterval.unit);
+    const [groupId, setGroupId] = useState<string>(button?.groupId ?? defaultGroupId ?? '');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -86,6 +88,7 @@ export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
                 color,
                 multiSendEnabled: multiSendEnabled || undefined,
                 multiSendInterval: multiSendEnabled ? intervalValue * UNIT_TO_MS[intervalUnit] : undefined,
+                groupId: groupId || undefined,
             };
 
             if (isEditing) {
@@ -197,6 +200,24 @@ export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
                             Missing variables: {missingVariables.join(', ')}
                             <br />
                             <small>Add them in the Variables panel</small>
+                        </div>
+                    )}
+
+                    {activeConnection && activeConnection.groups.length > 0 && (
+                        <div className="form-group-inline">
+                            <label>Group</label>
+                            <select
+                                value={groupId}
+                                onChange={(e) => setGroupId(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') e.preventDefault();
+                                }}
+                            >
+                                <option value="">Ungrouped</option>
+                                {activeConnection.groups.map((g) => (
+                                    <option key={g.id} value={g.id}>{g.name}</option>
+                                ))}
+                            </select>
                         </div>
                     )}
 

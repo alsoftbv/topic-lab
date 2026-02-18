@@ -28,6 +28,7 @@ interface ButtonCardProps {
     onSelect: (index: number) => void;
     onDragStart: (index: number, x: number, y: number, element: HTMLElement) => void;
     onDragEnter: (index: number) => void;
+    onDragSide: (side: 'left' | 'right') => void;
     isDragging: boolean;
     isDragOver: boolean;
     isSelected: boolean;
@@ -46,7 +47,7 @@ const propsAreEqual = (prev: ButtonCardProps, next: ButtonCardProps) =>
     prev.keyboardSent === next.keyboardSent &&
     prev.isDimmed === next.isDimmed;
 
-export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDuplicate, onSelect, onDragStart, onDragEnter, isDragging, isDragOver, isSelected, isAnimating, keyboardSent, isDimmed }: ButtonCardProps) {
+export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDuplicate, onSelect, onDragStart, onDragEnter, onDragSide, isDragging, isDragOver, isSelected, isAnimating, keyboardSent, isDimmed }: ButtonCardProps) {
     const { activeConnection, publishButton, deleteButton, updateButton, connectionStatus } = useApp();
     const [publishing, setPublishing] = useState(false);
     const [lastResult, setLastResult] = useState<'success' | 'error' | null>(null);
@@ -229,16 +230,34 @@ export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDu
         }
     };
 
-    const handleMouseEnter = () => {
+    const [dragSide, setDragSide] = useState<'left' | 'right'>('left');
+
+    const computeSide = (clientX: number): 'left' | 'right' => {
+        const rect = cardRef.current?.getBoundingClientRect();
+        if (!rect) return 'left';
+        return clientX > rect.left + rect.width / 2 ? 'right' : 'left';
+    };
+
+    const handleMouseEnter = (e: React.MouseEvent) => {
         onDragEnter(index);
+        const side = computeSide(e.clientX);
+        setDragSide(side);
+        onDragSide(side);
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        const side = computeSide(e.clientX);
+        setDragSide(side);
+        onDragSide(side);
     };
 
     return (
         <div
             ref={cardRef}
-            className={`button-card ${lastResult || ''} ${keyboardSent ? 'success' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''} ${isMultiSending ? 'multi-send-active' : ''} ${isSelected ? 'selected' : ''} ${isAnimating ? 'pop' : ''} ${isDimmed ? 'dimmed' : ''}`}
+            className={`button-card ${lastResult || ''} ${keyboardSent ? 'success' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? `drag-over drag-${dragSide}` : ''} ${isMultiSending ? 'multi-send-active' : ''} ${isSelected ? 'selected' : ''} ${isAnimating ? 'pop' : ''} ${isDimmed ? 'dimmed' : ''}`}
             onClick={(e) => { e.stopPropagation(); onSelect(index); }}
             onMouseEnter={handleMouseEnter}
+            onMouseMove={isDragOver ? handleMouseMove : undefined}
         >
             <div className="button-card-header">
                 <div

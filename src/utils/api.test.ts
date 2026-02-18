@@ -39,6 +39,7 @@ const mockConnection: Connection = {
             color: 'red',
         },
     ],
+    groups: [],
     subscriptions: ['test/#'],
 };
 

@@ -55,6 +55,15 @@ pub struct Button {
     pub multi_send_enabled: Option<bool>,
     #[serde(default)]
     pub multi_send_interval: Option<u64>,
+    #[serde(default)]
+    pub group_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ButtonGroup {
+    pub id: String,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,6 +85,8 @@ pub struct Connection {
     pub variables: HashMap<String, String>,
     #[serde(default)]
     pub buttons: Vec<Button>,
+    #[serde(default)]
+    pub groups: Vec<ButtonGroup>,
     #[serde(default)]
     pub subscriptions: Vec<String>,
 }
@@ -220,6 +231,7 @@ mod tests {
             color: Some(ButtonColor::Purple),
             multi_send_enabled: None,
             multi_send_interval: None,
+            group_id: None,
         };
         let json = serde_json::to_string(&button).unwrap();
         assert!(json.contains("\"color\":\"purple\""));
@@ -348,5 +360,70 @@ mod tests {
         let data: AppData = serde_json::from_str(data_json).unwrap();
         assert_eq!(data.connections.len(), 1);
         assert_eq!(data.connections[0].subscriptions, vec!["test/#"]);
+    }
+
+    #[test]
+    fn test_button_with_group_id() {
+        let json = r#"{
+            "id": "btn1",
+            "name": "Test",
+            "topic": "test/topic",
+            "groupId": "group-1"
+        }"#;
+        let button: Button = serde_json::from_str(json).unwrap();
+        assert_eq!(button.group_id, Some("group-1".to_string()));
+    }
+
+    #[test]
+    fn test_button_without_group_id() {
+        let json = r#"{
+            "id": "btn1",
+            "name": "Test",
+            "topic": "test/topic"
+        }"#;
+        let button: Button = serde_json::from_str(json).unwrap();
+        assert_eq!(button.group_id, None);
+    }
+
+    #[test]
+    fn test_button_group_serialization() {
+        let group = ButtonGroup {
+            id: "g1".to_string(),
+            name: "Living Room".to_string(),
+        };
+        let json = serde_json::to_string(&group).unwrap();
+        assert!(json.contains("\"id\":\"g1\""));
+        assert!(json.contains("\"name\":\"Living Room\""));
+    }
+
+    #[test]
+    fn test_connection_with_groups() {
+        let json = r#"{
+            "id": "conn1",
+            "name": "Test",
+            "broker_url": "localhost",
+            "port": 1883,
+            "client_id": "test",
+            "groups": [
+                {"id": "g1", "name": "Group 1"},
+                {"id": "g2", "name": "Group 2"}
+            ]
+        }"#;
+        let conn: Connection = serde_json::from_str(json).unwrap();
+        assert_eq!(conn.groups.len(), 2);
+        assert_eq!(conn.groups[0].name, "Group 1");
+    }
+
+    #[test]
+    fn test_connection_without_groups_defaults_to_empty() {
+        let json = r#"{
+            "id": "conn1",
+            "name": "Test",
+            "broker_url": "localhost",
+            "port": 1883,
+            "client_id": "test"
+        }"#;
+        let conn: Connection = serde_json::from_str(json).unwrap();
+        assert!(conn.groups.is_empty());
     }
 }

@@ -69,6 +69,7 @@ impl Storage {
             auto_connect: legacy.connection.auto_connect,
             variables: legacy.variables,
             buttons: legacy.buttons,
+            groups: vec![],
             subscriptions: vec![],
         };
 
@@ -132,7 +133,9 @@ mod tests {
                 color: None,
                 multi_send_enabled: None,
                 multi_send_interval: None,
+                group_id: None,
             }],
+            groups: vec![],
             subscriptions: vec![],
         }
     }
@@ -160,6 +163,7 @@ mod tests {
                 color: None,
                 multi_send_enabled: None,
                 multi_send_interval: None,
+                group_id: None,
             }],
         }
     }

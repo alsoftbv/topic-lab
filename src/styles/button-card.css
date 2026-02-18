@@ -30,6 +30,11 @@
     opacity: 1;
 }
 
+.button-card.dragging.drag-over::before,
+.button-card.dragging.drag-over::after {
+    display: none;
+}
+
 body:has(.button-card.dragging) {
     cursor: grabbing;
     user-select: none;
@@ -43,12 +48,23 @@ body:has(.button-card.dragging) .button-card {
     position: relative;
 }
 
-.button-card.drag-over::before {
+.button-card.drag-left::before {
     content: '';
     position: absolute;
     top: 0;
     bottom: 0;
-    left: -8px;
+    left: -10px;
+    width: 4px;
+    background: var(--primary);
+    border-radius: 2px;
+}
+
+.button-card.drag-right::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: -10px;
     width: 4px;
     background: var(--primary);
     border-radius: 2px;

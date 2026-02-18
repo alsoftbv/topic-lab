@@ -1,139 +1,268 @@
-import { useState, useEffect, useRef, type RefObject } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Button, Connection } from '../types';
+
+interface GroupNavItem {
+    id: string;
+    start: number;
+    count: number;
+}
 
 interface UseDashboardKeyboardOptions {
     activeConnection: Connection | null;
+    visibleButtons: Button[];
+    groupNav: GroupNavItem[];
     modalsOpen: boolean;
-    gridRef: RefObject<HTMLDivElement | null>;
     reorderButtons: (buttons: Button[]) => void;
     onEdit: (button: Button) => void;
     onDelete: (button: Button) => void;
     onNewButton: () => void;
     onToggleMessageViewer: () => void;
+    onToggleGroup: (groupId: string) => void;
 }
 
-function getGridColumns(gridElement: HTMLDivElement | null): number {
-    if (!gridElement) return 1;
-    const style = getComputedStyle(gridElement);
+function findGroupForButton(index: number, nav: GroupNavItem[]): { navIdx: number; start: number; end: number } | null {
+    for (let i = 0; i < nav.length; i++) {
+        if (nav[i].start === -1) continue;
+        const end = nav[i].start + nav[i].count;
+        if (index >= nav[i].start && index < end) {
+            return { navIdx: i, start: nav[i].start, end };
+        }
+    }
+    return null;
+}
+
+function getGridColumns(): number {
+    const selected = document.querySelector('.button-card.selected');
+    if (!selected) return 1;
+    const grid = selected.closest('.buttons-grid');
+    if (!grid) return 1;
+    const style = getComputedStyle(grid);
     const columns = style.gridTemplateColumns.split(' ').filter(s => s.length > 0);
     return columns.length || 1;
 }
 
 export function useDashboardKeyboard({
     activeConnection,
+    visibleButtons,
+    groupNav,
     modalsOpen,
-    gridRef,
     reorderButtons,
     onEdit,
     onDelete,
     onNewButton,
     onToggleMessageViewer,
+    onToggleGroup,
 }: UseDashboardKeyboardOptions) {
     const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+    const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
     const [copiedButton, setCopiedButton] = useState<Button | null>(null);
     const [keyboardSentId, setKeyboardSentId] = useState<string | null>(null);
     const [animatingId, setAnimatingId] = useState<string | null>(null);
 
-    const refs = useRef({ gridRef, activeConnection, reorderButtons, onEdit, onDelete, onNewButton, onToggleMessageViewer });
-    refs.current = { gridRef, activeConnection, reorderButtons, onEdit, onDelete, onNewButton, onToggleMessageViewer };
+    const lastColumnRef = useRef(0);
+
+    const refs = useRef({ activeConnection, visibleButtons, groupNav, reorderButtons, onEdit, onDelete, onNewButton, onToggleMessageViewer, onToggleGroup });
+    refs.current = { activeConnection, visibleButtons, groupNav, reorderButtons, onEdit, onDelete, onNewButton, onToggleMessageViewer, onToggleGroup };
+
+    useEffect(() => {
+        if (selectedIndex !== null && selectedIndex >= visibleButtons.length) {
+            setSelectedIndex(null);
+        }
+    }, [visibleButtons.length]);
+
+    useEffect(() => {
+        const el = selectedGroupId !== null
+            ? document.querySelector('.button-group-header.group-selected')
+            : selectedIndex !== null
+                ? document.querySelector('.button-card.selected')
+                : null;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const container = el.closest('.button-groups');
+        if (!container) return;
+        const containerRect = container.getBoundingClientRect();
+        const margin = 40;
+        if (rect.bottom + margin > containerRect.bottom) {
+            container.scrollBy({ top: rect.bottom + margin - containerRect.bottom, behavior: 'smooth' });
+        } else if (rect.top - margin < containerRect.top) {
+            container.scrollBy({ top: rect.top - margin - containerRect.top, behavior: 'smooth' });
+        }
+    }, [selectedIndex, selectedGroupId]);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (modalsOpen) return;
-            const { activeConnection, reorderButtons, onEdit, onDelete, onNewButton, onToggleMessageViewer, gridRef } = refs.current;
+            const { activeConnection, visibleButtons, groupNav, reorderButtons, onEdit, onDelete, onNewButton, onToggleMessageViewer, onToggleGroup } = refs.current;
 
             if (e.key === 'Escape') {
                 setSelectedIndex(null);
+                setSelectedGroupId(null);
                 return;
             }
 
-            if ((e.key === 'Enter' || e.key === ' ') && selectedIndex !== null && activeConnection) {
+            // Group header: Enter/Space toggles collapse
+            if ((e.key === 'Enter' || e.key === ' ') && selectedGroupId !== null) {
                 e.preventDefault();
-                const btn = activeConnection.buttons[selectedIndex];
+                onToggleGroup(selectedGroupId);
+                return;
+            }
+
+            // Button: Enter/Space sends
+            if ((e.key === 'Enter' || e.key === ' ') && selectedIndex !== null && visibleButtons[selectedIndex]) {
+                e.preventDefault();
+                const btn = visibleButtons[selectedIndex];
                 setKeyboardSentId(btn.id);
                 setTimeout(() => setKeyboardSentId(null), 200);
                 return;
             }
 
-            if ((e.key === 'Backspace' || e.key === 'Delete') && selectedIndex !== null && activeConnection) {
+            // Button: Delete
+            if ((e.key === 'Backspace' || e.key === 'Delete') && selectedIndex !== null && visibleButtons[selectedIndex]) {
                 e.preventDefault();
-                onDelete(activeConnection.buttons[selectedIndex]);
+                onDelete(visibleButtons[selectedIndex]);
                 return;
             }
 
-            const total = activeConnection?.buttons.length ?? 0;
-            if (total === 0) return;
-
-            const columns = getGridColumns(gridRef.current);
-
-            if (e.key === 'ArrowRight') {
+            // Arrow navigation
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
                 e.preventDefault();
-                if (selectedIndex === null) {
-                    setSelectedIndex(0);
-                } else {
-                    const col = selectedIndex % columns;
-                    const rowStart = selectedIndex - col;
-                    const rowEnd = Math.min(rowStart + columns - 1, total - 1);
-                    const isLastInRow = selectedIndex === rowEnd;
-                    setSelectedIndex(isLastInRow ? rowStart : selectedIndex + 1);
-                }
-                return;
-            }
 
-            if (e.key === 'ArrowLeft') {
-                e.preventDefault();
-                if (selectedIndex === null) {
-                    setSelectedIndex(0);
-                } else {
-                    const col = selectedIndex % columns;
-                    const rowStart = selectedIndex - col;
-                    const rowEnd = Math.min(rowStart + columns - 1, total - 1);
-                    setSelectedIndex(col === 0 ? rowEnd : selectedIndex - 1);
-                }
-                return;
-            }
-
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                if (selectedIndex === null) {
-                    setSelectedIndex(0);
-                } else {
-                    const next = selectedIndex + columns;
-                    setSelectedIndex(next >= total ? selectedIndex % columns : next);
-                }
-                return;
-            }
-
-            if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                if (selectedIndex === null) {
-                    setSelectedIndex(0);
-                } else {
-                    const prev = selectedIndex - columns;
-                    if (prev < 0) {
-                        const col = selectedIndex % columns;
-                        const lastRowStart = Math.floor((total - 1) / columns) * columns;
-                        const target = lastRowStart + col;
-                        setSelectedIndex(target >= total ? target - columns : target);
-                    } else {
-                        setSelectedIndex(prev);
+                const selectNextDown = (fromNavIdx: number, col: number) => {
+                    for (let i = fromNavIdx + 1; i < groupNav.length; i++) {
+                        if (groupNav[i].count > 0) {
+                            setSelectedIndex(Math.min(groupNav[i].start + col, groupNav[i].start + groupNav[i].count - 1));
+                            setSelectedGroupId(null);
+                            lastColumnRef.current = col;
+                            return;
+                        }
+                        setSelectedGroupId(groupNav[i].id);
+                        setSelectedIndex(null);
+                        lastColumnRef.current = col;
+                        return;
                     }
+                };
+
+                const selectNextUp = (fromNavIdx: number, col: number, columns: number) => {
+                    for (let i = fromNavIdx - 1; i >= 0; i--) {
+                        if (groupNav[i].count > 0) {
+                            const lastRowStart = groupNav[i].start + Math.floor((groupNav[i].count - 1) / columns) * columns;
+                            setSelectedIndex(Math.min(lastRowStart + col, groupNav[i].start + groupNav[i].count - 1));
+                            setSelectedGroupId(null);
+                            lastColumnRef.current = col;
+                            return;
+                        }
+                        setSelectedGroupId(groupNav[i].id);
+                        setSelectedIndex(null);
+                        lastColumnRef.current = col;
+                        return;
+                    }
+                };
+
+                // Nothing selected → first buttons or first collapsed header
+                if (selectedIndex === null && selectedGroupId === null) {
+                    for (const g of groupNav) {
+                        if (g.count > 0) { setSelectedIndex(g.start); return; }
+                        setSelectedGroupId(g.id); return;
+                    }
+                    return;
                 }
+
+                // Group header navigation (only collapsed groups can be selected)
+                if (selectedGroupId !== null) {
+                    const gIdx = groupNav.findIndex(g => g.id === selectedGroupId);
+                    const col = lastColumnRef.current;
+                    if (e.key === 'ArrowDown') selectNextDown(gIdx, col);
+                    else if (e.key === 'ArrowUp') selectNextUp(gIdx, col, 1);
+                    return;
+                }
+
+                // Button navigation
+                const columns = getGridColumns();
+
+                if (e.key === 'ArrowRight') {
+                    const gInfo = findGroupForButton(selectedIndex!, groupNav);
+                    if (!gInfo) return;
+                    const col = (selectedIndex! - gInfo.start) % columns;
+                    if (col + 1 < columns && selectedIndex! + 1 < gInfo.end) {
+                        setSelectedIndex(selectedIndex! + 1);
+                    }
+                    return;
+                }
+
+                if (e.key === 'ArrowLeft') {
+                    const gInfo = findGroupForButton(selectedIndex!, groupNav);
+                    if (!gInfo) return;
+                    const col = (selectedIndex! - gInfo.start) % columns;
+                    if (col > 0) {
+                        setSelectedIndex(selectedIndex! - 1);
+                    }
+                    return;
+                }
+
+                if (e.key === 'ArrowDown') {
+                    const gInfo = findGroupForButton(selectedIndex!, groupNav);
+                    if (!gInfo) return;
+                    const localIdx = selectedIndex! - gInfo.start;
+                    const col = localIdx % columns;
+                    const groupSize = gInfo.end - gInfo.start;
+                    const currentRow = Math.floor(localIdx / columns);
+                    const totalRows = Math.ceil(groupSize / columns);
+                    const next = selectedIndex! + columns;
+                    if (next < gInfo.end) {
+                        setSelectedIndex(next);
+                    } else if (currentRow + 1 < totalRows) {
+                        setSelectedIndex(gInfo.end - 1);
+                    } else {
+                        selectNextDown(gInfo.navIdx, col);
+                    }
+                    return;
+                }
+
+                if (e.key === 'ArrowUp') {
+                    const gInfo = findGroupForButton(selectedIndex!, groupNav);
+                    if (!gInfo) return;
+                    const col = (selectedIndex! - gInfo.start) % columns;
+                    const prev = selectedIndex! - columns;
+                    if (prev >= gInfo.start) {
+                        setSelectedIndex(prev);
+                    } else {
+                        selectNextUp(gInfo.navIdx, col, columns);
+                    }
+                    return;
+                }
+
                 return;
             }
 
+            // Mod key shortcuts
             const isMod = e.metaKey || e.ctrlKey;
             if (!isMod) return;
 
-            if (e.key === 't') {
+            if (e.key === 'i') {
                 e.preventDefault();
                 onToggleMessageViewer();
                 return;
             }
 
-            if (e.key === 'e' && selectedIndex !== null && activeConnection) {
+            if (e.key === 't') {
                 e.preventDefault();
-                onEdit(activeConnection.buttons[selectedIndex]);
+                if (selectedGroupId) {
+                    onToggleGroup(selectedGroupId);
+                } else if (selectedIndex !== null && visibleButtons[selectedIndex]) {
+                    const btn = visibleButtons[selectedIndex];
+                    const groupId = btn.groupId || '__ungrouped__';
+                    onToggleGroup(groupId);
+                    setSelectedGroupId(groupId);
+                    setSelectedIndex(null);
+                } else if (groupNav.length > 0) {
+                    onToggleGroup(groupNav[0].id);
+                }
+                return;
+            }
+
+            if (e.key === 'e' && selectedIndex !== null && visibleButtons[selectedIndex]) {
+                e.preventDefault();
+                onEdit(visibleButtons[selectedIndex]);
                 return;
             }
 
@@ -155,33 +284,33 @@ export function useDashboardKeyboard({
                 return;
             }
 
-            if (e.key === 'c' && selectedIndex !== null) {
+            if (e.key === 'c' && selectedIndex !== null && visibleButtons[selectedIndex]) {
                 e.preventDefault();
-                setCopiedButton(activeConnection?.buttons[selectedIndex] || null);
+                setCopiedButton(visibleButtons[selectedIndex]);
             } else if (e.key === 'v' && copiedButton && activeConnection) {
                 e.preventDefault();
-                const insertIndex = selectedIndex !== null ? selectedIndex : activeConnection.buttons.length - 1;
+                const targetButton = selectedIndex !== null ? visibleButtons[selectedIndex] : null;
                 const newId = crypto.randomUUID();
-                const duplicate: Button = {
-                    ...copiedButton,
-                    id: newId,
-                };
+                const duplicate: Button = { ...copiedButton, id: newId };
                 const buttons = [...activeConnection.buttons];
-                buttons.splice(insertIndex + 1, 0, duplicate);
+                if (targetButton) {
+                    const idx = buttons.findIndex(b => b.id === targetButton.id);
+                    buttons.splice(idx + 1, 0, duplicate);
+                } else {
+                    buttons.push(duplicate);
+                }
                 reorderButtons(buttons);
-                setSelectedIndex(insertIndex + 1);
+                if (selectedIndex !== null) setSelectedIndex(selectedIndex + 1);
                 setAnimatingId(newId);
                 setTimeout(() => setAnimatingId(null), 300);
-            } else if (e.key === 'd' && selectedIndex !== null && activeConnection) {
+            } else if (e.key === 'd' && selectedIndex !== null && visibleButtons[selectedIndex] && activeConnection) {
                 e.preventDefault();
-                const button = activeConnection.buttons[selectedIndex];
+                const button = visibleButtons[selectedIndex];
                 const newId = crypto.randomUUID();
-                const duplicate: Button = {
-                    ...button,
-                    id: newId,
-                };
+                const duplicate: Button = { ...button, id: newId };
                 const buttons = [...activeConnection.buttons];
-                buttons.splice(selectedIndex + 1, 0, duplicate);
+                const idx = buttons.findIndex(b => b.id === button.id);
+                buttons.splice(idx + 1, 0, duplicate);
                 reorderButtons(buttons);
                 setSelectedIndex(selectedIndex + 1);
                 setAnimatingId(newId);
@@ -191,11 +320,13 @@ export function useDashboardKeyboard({
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedIndex, copiedButton, modalsOpen]);
+    }, [selectedIndex, selectedGroupId, copiedButton, modalsOpen]);
 
     return {
         selectedIndex,
         setSelectedIndex,
+        selectedGroupId,
+        setSelectedGroupId,
         keyboardSentId,
         animatingId,
         setAnimatingId,

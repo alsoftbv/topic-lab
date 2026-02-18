@@ -63,6 +63,7 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
                     auto_connect: autoConnect,
                     variables: {},
                     buttons: [],
+                    groups: [],
                     subscriptions: [],
                 };
                 await addConnection(newConnection);

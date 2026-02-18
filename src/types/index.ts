@@ -12,6 +12,12 @@ export interface Button {
     color?: ButtonColor;
     multiSendEnabled?: boolean;
     multiSendInterval?: number;
+    groupId?: string;
+}
+
+export interface ButtonGroup {
+    id: string;
+    name: string;
 }
 
 export interface Connection {
@@ -26,6 +32,7 @@ export interface Connection {
     auto_connect: boolean;
     variables: Record<string, string>;
     buttons: Button[];
+    groups: ButtonGroup[];
     subscriptions: string[];
 }
 

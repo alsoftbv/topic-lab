@@ -295,6 +295,7 @@ mod tests {
             auto_connect: false,
             variables: std::collections::HashMap::new(),
             buttons: vec![],
+            groups: vec![],
             subscriptions: vec![],
         }
     }

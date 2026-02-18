@@ -77,6 +77,7 @@ export function SetupWizard() {
                 auto_connect: autoConnect,
                 variables: {},
                 buttons: [],
+                groups: [],
                 subscriptions: [],
             };
 
