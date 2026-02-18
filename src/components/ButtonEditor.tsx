@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import type { Button, QoS, ButtonColor } from '../types';
 import { useApp } from '../contexts/AppContext';
 import { substituteVariables, extractVariableNames } from '../utils/variables';
+import { minifyJson, validateJson } from '../utils/json';
 
 const COLOR_OPTIONS: { value: ButtonColor; label: string }[] = [
     { value: 'orange', label: 'Orange' },
@@ -59,6 +60,15 @@ export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
 
     const previewTopic = substituteVariables(topic, variables);
     const previewPayload = substituteVariables(payload, variables);
+
+    const jsonError = validateJson(previewPayload);
+
+    const handleMinify = () => {
+        const minified = minifyJson(payload);
+        if (minified !== null) {
+            setPayload(minified);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -150,9 +160,22 @@ export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
                     </div>
 
                     <div className="form-group">
-                        <label htmlFor="payload">Payload</label>
+                        <div className="payload-header">
+                            <label htmlFor="payload">Payload</label>
+                            {payload && (
+                                <button
+                                    type="button"
+                                    className="btn-minify"
+                                    onClick={handleMinify}
+                                    title="Compact JSON"
+                                >
+                                    Minify
+                                </button>
+                            )}
+                        </div>
                         <textarea
                             id="payload"
+                            className={jsonError ? 'json-invalid' : ''}
                             value={payload}
                             onChange={(e) => setPayload(e.target.value)}
                             placeholder='{"action": "ON"}'
@@ -161,6 +184,7 @@ export function ButtonEditor({ button, onClose }: ButtonEditorProps) {
                             autoCapitalize="off"
                             spellCheck={false}
                         />
+                        {jsonError && <div className="json-error">{jsonError}</div>}
                         {payload && (
                             <div className="preview">
                                 Preview: <code>{previewPayload}</code>
