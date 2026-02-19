@@ -92,6 +92,11 @@ export function useDashboardKeyboard({
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (modalsOpen) return;
+
+            const target = e.target as HTMLElement;
+            const isEditing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+            if (isEditing) return;
+
             const { activeConnection, visibleButtons, groupNav, reorderButtons, onEdit, onDelete, onNewButton, onToggleMessageViewer, onToggleGroup } = refs.current;
 
             if (e.key === 'Escape') {
