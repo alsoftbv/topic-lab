@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { ChevronDown, ChevronRight, Plus, X, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, X, Trash2, Check } from 'lucide-react';
 import type { Message, QoS } from '../types';
 import * as api from '../utils/api';
 import { useApp } from '../contexts/AppContext';
@@ -123,6 +123,41 @@ export function MessageViewer({ expanded, onToggle }: MessageViewerProps) {
         }
     };
 
+    const [editingSub, setEditingSub] = useState<string | null>(null);
+    const editSubRef = useRef<HTMLElement>(null);
+
+    useEffect(() => {
+        const el = editSubRef.current;
+        if (!editingSub || !el) return;
+        el.textContent = editingSub;
+        el.focus();
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+    }, [editingSub]);
+
+    const saveSubEdit = async (oldTopic: string) => {
+        if (!editSubRef.current) return;
+        const newTopic = (editSubRef.current.textContent || '').trim();
+        setEditingSub(null);
+        if (!newTopic || newTopic === oldTopic) return;
+
+        const oldResolved = substituteVariables(oldTopic, variables);
+        const newResolved = substituteVariables(newTopic, variables);
+        try {
+            await api.unsubscribe(oldResolved);
+            await api.subscribe(newResolved, 'atmostonce' as QoS);
+            const newSubs = subscriptions.map((s) => (s === oldTopic ? newTopic : s));
+            setSubscriptions(newSubs);
+            await updateSubscriptions(newSubs);
+        } catch (err) {
+            console.error('Edit subscription failed:', err);
+        }
+    };
+
     const handleClear = async () => {
         try {
             await api.clearMessages();
@@ -199,10 +234,31 @@ export function MessageViewer({ expanded, onToggle }: MessageViewerProps) {
                             <div className="subscriptions-list">
                                 {subscriptions.map((sub) => (
                                     <div key={sub} className="subscription-item">
-                                        <code>{sub}</code>
-                                        <button className="btn-icon" onClick={() => handleUnsubscribe(sub)} title="Unsubscribe">
-                                            <X size={14} />
-                                        </button>
+                                        <code
+                                            ref={editingSub === sub ? editSubRef : undefined}
+                                            className={editingSub !== sub ? 'sub-editable' : undefined}
+                                            contentEditable={editingSub === sub}
+                                            suppressContentEditableWarning
+                                            onClick={() => { if (editingSub !== sub) setEditingSub(sub); }}
+                                            onKeyDown={(e) => {
+                                                if (editingSub !== sub) return;
+                                                if (e.key === 'Enter') { e.preventDefault(); saveSubEdit(sub); }
+                                                if (e.key === 'Escape') setEditingSub(null);
+                                            }}
+                                            onBlur={() => { if (editingSub === sub) setEditingSub(null); }}
+                                            spellCheck={false}
+                                        >
+                                            {editingSub !== sub ? substituteVariables(sub, variables) : null}
+                                        </code>
+                                        {editingSub === sub ? (
+                                            <button className="btn-icon" onMouseDown={(e) => { e.preventDefault(); saveSubEdit(sub); }} title="Save">
+                                                <Check size={14} />
+                                            </button>
+                                        ) : (
+                                            <button className="btn-icon" onClick={() => handleUnsubscribe(sub)} title="Unsubscribe">
+                                                <X size={14} />
+                                            </button>
+                                        )}
                                     </div>
                                 ))}
                             </div>

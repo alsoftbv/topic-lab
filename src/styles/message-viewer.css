@@ -91,6 +91,12 @@
 
 .subscription-item code {
     color: var(--primary);
+    outline: none;
+    box-shadow: none;
+}
+
+.subscription-item code.sub-editable {
+    cursor: text;
 }
 
 .subscription-item .btn-icon {
