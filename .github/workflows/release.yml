@@ -6,9 +6,7 @@ on:
       - 'v*'
 
 jobs:
-  release:
-    permissions:
-      contents: write
+  build:
     strategy:
       fail-fast: false
       matrix:
@@ -98,7 +96,26 @@ jobs:
           Move-Item "src-tauri/target/release/bundle/msi/*.msi" "MQTT-Topic-Lab-${version}-${name}.msi"
           Move-Item "src-tauri/target/release/bundle/nsis/*.exe" "MQTT-Topic-Lab-${version}-${name}-setup.exe"
 
-      - name: Upload to release
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-${{ matrix.name }}
+          path: MQTT-Topic-Lab-*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: artifacts-*
+          merge-multiple: true
+
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           draft: false
