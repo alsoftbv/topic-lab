@@ -52,6 +52,44 @@ npm run tauri build
 3. **Create Buttons**: Add buttons with topics like `devices/{device_id}/CMD`
 4. **Send Commands**: Click buttons to publish messages to your MQTT broker
 
+## Variables
+
+Use `{variable_name}` syntax in topics and payloads. Variables are defined per connection in the Variables panel.
+
+### Custom Variables
+
+Define your own variables like `device_id = "sensor-001"`, then use `{device_id}` in topics or payloads.
+
+### Built-in Variables
+
+| Variable | Description | Example Output |
+|----------|-------------|----------------|
+| `{now}` | ISO 8601 timestamp | `2026-02-19T14:30:00.000Z` |
+| `{now:unix}` | Unix timestamp (seconds) | `1771508400` |
+| `{now:unixms}` | Unix timestamp (milliseconds) | `1771508400000` |
+| `{now:date}` | Date only | `2026-02-19` |
+| `{now:time}` | Time only | `14:30:00` |
+| `{now:datetime}` | Date and time | `2026-02-19 14:30:00` |
+| `{uuid}` | Random UUID v4 | `a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5` |
+| `{random}` | Random integer 0-100 | `42` |
+| `{random:1-1000}` | Random integer in range | `537` |
+
+`{timestamp}` is an alias for `{now}`, and `{rand}` is an alias for `{random}`.
+
+### Modifiers
+
+Modifiers are added with `:` after the variable name and can be combined.
+
+**Time offsets**: `{now:+5m}`, `{now:-1h}`, `{now:+7d}`, `{now:+2w}`, `{now:+1M}`, `{now:+1y}`
+- Units: `s` (seconds), `m` (minutes), `h` (hours), `d` (days), `w` (weeks), `M` (months), `y` (years)
+
+**Timezone**: `{now:utc}` or `{now:local}` (default is local)
+
+**Custom format**: `{now:fmt:YYYY-MM-DD}`, `{now:fmt:HH:mm:ss}`
+- Tokens: `YYYY`, `YY`, `MM`, `M`, `DD`, `D`, `HH`, `H`, `mm`, `ss`, `SSS`
+
+**Combined**: `{now:unix:+1h}`, `{now:utc:fmt:YYYY-MM-DD_HH:mm}`
+
 ## Keyboard Shortcuts
 
 | Shortcut | Action |
