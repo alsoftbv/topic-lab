@@ -165,7 +165,7 @@ export function ButtonEditor({ button, defaultGroupId, onClose }: ButtonEditorPr
                     <div className="form-group">
                         <div className="payload-header">
                             <label htmlFor="payload">Payload</label>
-                            {payload && (
+                            {payload && !jsonError && (
                                 <button
                                     type="button"
                                     className="btn-minify"
