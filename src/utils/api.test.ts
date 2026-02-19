@@ -74,6 +74,7 @@ describe('exportConnection', () => {
 
         const writtenData = JSON.parse(writeCall[1] as string);
         expect(writtenData).not.toHaveProperty('id');
+        expect(writtenData).not.toHaveProperty('client_id');
         expect(writtenData.name).toBe('Test Connection');
         expect(writtenData.broker_url).toBe('broker.example.com');
         expect(writtenData.variables).toEqual({ device_id: 'abc123' });
@@ -129,12 +130,11 @@ describe('importConnection', () => {
         expect(result).toBeNull();
     });
 
-    it('should parse and return connection data', async () => {
+    it('should parse and return connection data with random client_id', async () => {
         const connectionData = {
             name: 'Imported Connection',
             broker_url: 'imported.broker.com',
             port: 8883,
-            client_id: 'imported-client',
             use_tls: true,
             auto_connect: false,
             variables: { key: 'value' },
@@ -147,7 +147,9 @@ describe('importConnection', () => {
 
         const result = await importConnection();
 
-        expect(result).toEqual(connectionData);
+        expect(result?.name).toBe('Imported Connection');
+        expect(result?.broker_url).toBe('imported.broker.com');
+        expect(result?.client_id).toMatch(/^mqtt-topic-lab-[a-z0-9]+$/);
         expect(open).toHaveBeenCalledWith({
             filters: [{ name: 'JSON', extensions: ['json'] }],
         });
@@ -159,7 +161,6 @@ describe('importConnection', () => {
             name: 'Full Connection',
             broker_url: 'broker.example.com',
             port: 1883,
-            client_id: 'client-123',
             username: 'user',
             password: 'pass',
             use_tls: true,
@@ -174,9 +175,9 @@ describe('importConnection', () => {
 
         const result = await importConnection();
 
-        expect(result).toEqual(connectionData);
         expect(result?.username).toBe('user');
         expect(result?.password).toBe('pass');
+        expect(result?.client_id).toMatch(/^mqtt-topic-lab-[a-z0-9]+$/);
     });
 });
 
@@ -200,7 +201,8 @@ describe('export/import roundtrip', () => {
         expect(imported?.name).toBe(mockConnection.name);
         expect(imported?.broker_url).toBe(mockConnection.broker_url);
         expect(imported?.port).toBe(mockConnection.port);
-        expect(imported?.client_id).toBe(mockConnection.client_id);
+        expect(imported?.client_id).toMatch(/^mqtt-topic-lab-[a-z0-9]+$/);
+        expect(imported?.client_id).not.toBe(mockConnection.client_id);
         expect(imported?.use_tls).toBe(mockConnection.use_tls);
         expect(imported?.auto_connect).toBe(mockConnection.auto_connect);
         expect(imported?.variables).toEqual(mockConnection.variables);

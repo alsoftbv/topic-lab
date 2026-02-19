@@ -62,7 +62,7 @@ export async function exportConnection(connection: Connection): Promise<boolean>
 
     if (!filePath) return false;
 
-    const { id, ...exportData } = connection;
+    const { id, client_id, ...exportData } = connection;
     await writeTextFile(filePath, JSON.stringify(exportData, null, 2));
     return true;
 }
@@ -76,7 +76,9 @@ export async function importConnection(): Promise<Omit<Connection, 'id'> | null>
 
     const content = await readTextFile(filePath);
     try {
-        return JSON.parse(content);
+        const data = JSON.parse(content);
+        data.client_id = `mqtt-topic-lab-${Math.random().toString(36).slice(2, 8)}`;
+        return data;
     } catch {
         throw new Error('Invalid JSON file');
     }
