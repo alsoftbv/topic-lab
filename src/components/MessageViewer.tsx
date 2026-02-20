@@ -10,9 +10,10 @@ import { preferences } from '../utils/preferences';
 interface MessageViewerProps {
     expanded: boolean;
     onToggle: (expanded: boolean) => void;
+    showRawTemplates?: boolean;
 }
 
-export function MessageViewer({ expanded, onToggle }: MessageViewerProps) {
+export function MessageViewer({ expanded, onToggle, showRawTemplates }: MessageViewerProps) {
     const { connectionStatus, activeConnection, updateSubscriptions } = useApp();
     const [topic, setTopic] = useState('');
     const [subscriptions, setSubscriptions] = useState<string[]>([]);
@@ -248,7 +249,7 @@ export function MessageViewer({ expanded, onToggle }: MessageViewerProps) {
                                             onBlur={() => { if (editingSub === sub) setEditingSub(null); }}
                                             spellCheck={false}
                                         >
-                                            {editingSub !== sub ? substituteVariables(sub, variables) : null}
+                                            {editingSub !== sub ? (showRawTemplates ? sub : substituteVariables(sub, variables)) : null}
                                         </code>
                                         {editingSub === sub ? (
                                             <button className="btn-icon" onMouseDown={(e) => { e.preventDefault(); saveSubEdit(sub); }} title="Save">

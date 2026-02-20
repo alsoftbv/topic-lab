@@ -35,6 +35,7 @@ interface ButtonCardProps {
     isAnimating: boolean;
     keyboardSent: boolean;
     isDimmed: boolean;
+    showRawTemplates?: boolean;
 }
 
 const propsAreEqual = (prev: ButtonCardProps, next: ButtonCardProps) =>
@@ -45,9 +46,10 @@ const propsAreEqual = (prev: ButtonCardProps, next: ButtonCardProps) =>
     prev.isSelected === next.isSelected &&
     prev.isAnimating === next.isAnimating &&
     prev.keyboardSent === next.keyboardSent &&
-    prev.isDimmed === next.isDimmed;
+    prev.isDimmed === next.isDimmed &&
+    prev.showRawTemplates === next.showRawTemplates;
 
-export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDuplicate, onSelect, onDragStart, onDragEnter, onDragSide, isDragging, isDragOver, isSelected, isAnimating, keyboardSent, isDimmed }: ButtonCardProps) {
+export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDuplicate, onSelect, onDragStart, onDragEnter, onDragSide, isDragging, isDragOver, isSelected, isAnimating, keyboardSent, isDimmed, showRawTemplates }: ButtonCardProps) {
     const { activeConnection, publishButton, deleteButton, updateButton, connectionStatus } = useApp();
     const [publishing, setPublishing] = useState(false);
     const [lastResult, setLastResult] = useState<'success' | 'error' | null>(null);
@@ -60,8 +62,8 @@ export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDu
     const timeoutRef = useRef<number | null>(null);
 
     const variables = activeConnection?.variables || {};
-    const resolvedTopic = substituteVariables(button.topic, variables);
-    const resolvedPayload = button.payload ? substituteVariables(button.payload, variables) : '';
+    const displayTopic = showRawTemplates ? button.topic : substituteVariables(button.topic, variables);
+    const displayPayload = showRawTemplates ? (button.payload || '') : (button.payload ? substituteVariables(button.payload, variables) : '');
 
     function stopMultiSend() {
         if (intervalRef.current) {
@@ -294,7 +296,7 @@ export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDu
                         onBlur={() => { if (editingField === 'topic') cancelEdit(); }}
                         spellCheck={false}
                     >
-                        {editingField !== 'topic' ? resolvedTopic : null}
+                        {editingField !== 'topic' ? displayTopic : null}
                     </code>
                     {editingField === 'topic' && (
                         <button className="btn-icon inline-edit-save" onMouseDown={(e) => { e.preventDefault(); saveEdit(); }}>
@@ -302,7 +304,7 @@ export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDu
                         </button>
                     )}
                 </div>
-                {(resolvedPayload || editingField === 'payload') ? (
+                {(displayPayload || editingField === 'payload') ? (
                     <div className="detail-row">
                         <span className="detail-label">Payload:</span>
                         <code
@@ -315,7 +317,7 @@ export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDu
                             onBlur={() => { if (editingField === 'payload') cancelEdit(); }}
                             spellCheck={false}
                         >
-                            {editingField !== 'payload' ? resolvedPayload : null}
+                            {editingField !== 'payload' ? displayPayload : null}
                         </code>
                         {editingField === 'payload' && (
                             <button className="btn-icon inline-edit-save" onMouseDown={(e) => { e.preventDefault(); saveEdit(); }}>

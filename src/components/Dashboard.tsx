@@ -294,7 +294,7 @@ export function Dashboard() {
                     </div>
                 )}
                 <main className="buttons-area">
-                    <MessageViewer expanded={messageViewerExpanded} onToggle={(v) => { setMessageViewerExpanded(v); preferences.messageViewerExpanded = v; }} />
+                    <MessageViewer expanded={messageViewerExpanded} onToggle={(v) => { setMessageViewerExpanded(v); preferences.messageViewerExpanded = v; }} showRawTemplates={showVariables} />
 
                     <div className="button-groups">
                         {groups.map((group) => {
@@ -333,6 +333,7 @@ export function Dashboard() {
                                     isGroupDragOver={dragOverGroupId === group.id}
                                     isDropTarget={dragTargetGroupId === group.id}
                                     isGroupSelected={selectedGroupId === group.id}
+                                    showRawTemplates={showVariables}
                                 />
                             );
                         })}
@@ -366,6 +367,7 @@ export function Dashboard() {
                                 isGroupDragOver={false}
                                 isDropTarget={dragTargetGroupId === '__ungrouped__'}
                                 isGroupSelected={selectedGroupId === '__ungrouped__'}
+                                showRawTemplates={showVariables}
                                 gridRef={gridRef}
                             />
                         )}

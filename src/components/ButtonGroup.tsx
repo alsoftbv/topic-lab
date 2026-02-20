@@ -33,6 +33,7 @@ interface ButtonGroupProps {
     isGroupDragOver: boolean;
     isDropTarget: boolean;
     isGroupSelected: boolean;
+    showRawTemplates?: boolean;
     gridRef?: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -64,6 +65,7 @@ export function ButtonGroupSection({
     isGroupDragOver,
     isDropTarget,
     isGroupSelected,
+    showRawTemplates,
     gridRef,
 }: ButtonGroupProps) {
     const { updateGroup, deleteGroup } = useApp();
@@ -222,6 +224,7 @@ export function ButtonGroupSection({
                                         isAnimating={animatingId === button.id}
                                         keyboardSent={keyboardSentId === button.id}
                                         isDimmed={!matchingButtonIds.has(button.id)}
+                                        showRawTemplates={showRawTemplates}
                                     />
                                 );
                             })}
