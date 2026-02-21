@@ -1,0 +1,19 @@
+services:
+    e2e:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        environment:
+            - MQTT_TOPIC_LAB_DATA_DIR=/tmp/e2e-data
+        volumes:
+            - .:/app
+            - /app/node_modules
+            - /app/e2e/node_modules
+            - cargo-registry:/root/.cargo/registry
+            - cargo-git:/root/.cargo/git
+            - rust-target:/app/src-tauri/target
+
+volumes:
+    cargo-registry:
+    cargo-git:
+    rust-target:

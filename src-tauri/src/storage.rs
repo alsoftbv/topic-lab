@@ -21,8 +21,12 @@ pub struct Storage {
 
 impl Storage {
     pub fn new() -> Result<Self, StorageError> {
-        let data_dir = dirs::data_dir().ok_or(StorageError::NoAppDataDir)?;
-        let app_dir = data_dir.join("mqtt-topic-lab");
+        let app_dir = if let Ok(custom) = std::env::var("MQTT_TOPIC_LAB_DATA_DIR") {
+            PathBuf::from(custom)
+        } else {
+            let data_dir = dirs::data_dir().ok_or(StorageError::NoAppDataDir)?;
+            data_dir.join("mqtt-topic-lab")
+        };
 
         if !app_dir.exists() {
             fs::create_dir_all(&app_dir)?;

@@ -1,50 +1,50 @@
-export type QoS = 'atmostonce' | 'atleastonce' | 'exactlyonce';
+export type QoS = "atmostonce" | "atleastonce" | "exactlyonce";
 
-export type ButtonColor = 'orange' | 'green' | 'blue' | 'purple' | 'red' | 'teal';
+export type ButtonColor = "orange" | "green" | "blue" | "purple" | "red" | "teal";
 
 export interface Button {
-    id: string;
-    name: string;
-    topic: string;
-    payload?: string;
-    qos: QoS;
-    retain: boolean;
-    color?: ButtonColor;
-    multiSendEnabled?: boolean;
-    multiSendInterval?: number;
-    groupId?: string;
+  id: string;
+  name: string;
+  topic: string;
+  payload?: string;
+  qos: QoS;
+  retain: boolean;
+  color?: ButtonColor;
+  multiSendEnabled?: boolean;
+  multiSendInterval?: number;
+  groupId?: string;
 }
 
 export interface ButtonGroup {
-    id: string;
-    name: string;
+  id: string;
+  name: string;
 }
 
 export interface Connection {
-    id: string;
-    name: string;
-    broker_url: string;
-    port: number;
-    client_id: string;
-    username?: string;
-    password?: string;
-    use_tls: boolean;
-    auto_connect: boolean;
-    variables: Record<string, string>;
-    buttons: Button[];
-    groups: ButtonGroup[];
-    subscriptions: string[];
+  id: string;
+  name: string;
+  broker_url: string;
+  port: number;
+  client_id: string;
+  username?: string;
+  password?: string;
+  use_tls: boolean;
+  auto_connect: boolean;
+  variables: Record<string, string>;
+  buttons: Button[];
+  groups: ButtonGroup[];
+  subscriptions: string[];
 }
 
 export interface AppData {
-    connections: Connection[];
-    last_connection_id?: string;
+  connections: Connection[];
+  last_connection_id?: string;
 }
 
-export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 
 export interface Message {
-    topic: string;
-    payload: string;
-    timestamp: number;
+  topic: string;
+  payload: string;
+  timestamp: number;
 }

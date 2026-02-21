@@ -7,7 +7,7 @@ use mqtt::{Message, MqttClient};
 use std::io::Write;
 use std::sync::Arc;
 use storage::Storage;
-use tauri::State;
+use tauri::{Manager, State};
 use tauri_plugin_window_state::StateFlags;
 use tokio::sync::RwLock;
 use types::{AppData, Connection, QoS};
@@ -130,6 +130,11 @@ pub fn run() {
             tauri::async_runtime::block_on(async {
                 client.write().await.set_app_handle(handle);
             });
+            if std::env::var("MQTT_TOPIC_LAB_DATA_DIR").is_ok() {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.eval("window.__TAURI_E2E__ = true;");
+                }
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

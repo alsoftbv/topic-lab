@@ -1,330 +1,330 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-import { listen } from '@tauri-apps/api/event';
-import type { AppData, Connection, Button, ButtonGroup, ConnectionStatus } from '../types';
-import * as api from '../utils/api';
+import { createContext, useContext, useState, useEffect } from "react";
+import { listen } from "@tauri-apps/api/event";
+import type { AppData, Connection, Button, ButtonGroup, ConnectionStatus } from "../types";
+import * as api from "../utils/api";
 
 interface AppContextType {
-    data: AppData;
-    activeConnection: Connection | null;
-    connectionStatus: ConnectionStatus;
-    loading: boolean;
-    error: string | null;
-    addConnection: (connection: Connection) => Promise<void>;
-    importConnection: (connection: Omit<Connection, 'id'>) => Promise<void>;
-    updateConnection: (connection: Connection) => Promise<void>;
-    deleteConnection: (id: string) => Promise<void>;
-    switchConnection: (id: string) => Promise<void>;
-    addButton: (button: Button) => Promise<void>;
-    updateButton: (button: Button) => Promise<void>;
-    deleteButton: (id: string) => Promise<void>;
-    reorderButtons: (buttons: Button[]) => Promise<void>;
-    addGroup: (group: ButtonGroup) => Promise<void>;
-    updateGroup: (group: ButtonGroup) => Promise<void>;
-    deleteGroup: (id: string) => Promise<void>;
-    reorderGroups: (groups: ButtonGroup[]) => Promise<void>;
-    updateVariables: (variables: Record<string, string>) => Promise<void>;
-    updateSubscriptions: (subscriptions: string[]) => Promise<void>;
-    connect: () => Promise<void>;
-    disconnect: () => Promise<void>;
-    publishButton: (button: Button) => Promise<void>;
-    resetAll: () => void;
+  data: AppData;
+  activeConnection: Connection | null;
+  connectionStatus: ConnectionStatus;
+  loading: boolean;
+  error: string | null;
+  addConnection: (connection: Connection) => Promise<void>;
+  importConnection: (connection: Omit<Connection, "id">) => Promise<void>;
+  updateConnection: (connection: Connection) => Promise<void>;
+  deleteConnection: (id: string) => Promise<void>;
+  switchConnection: (id: string) => Promise<void>;
+  addButton: (button: Button) => Promise<void>;
+  updateButton: (button: Button) => Promise<void>;
+  deleteButton: (id: string) => Promise<void>;
+  reorderButtons: (buttons: Button[]) => Promise<void>;
+  addGroup: (group: ButtonGroup) => Promise<void>;
+  updateGroup: (group: ButtonGroup) => Promise<void>;
+  deleteGroup: (id: string) => Promise<void>;
+  reorderGroups: (groups: ButtonGroup[]) => Promise<void>;
+  updateVariables: (variables: Record<string, string>) => Promise<void>;
+  updateSubscriptions: (subscriptions: string[]) => Promise<void>;
+  connect: () => Promise<void>;
+  disconnect: () => Promise<void>;
+  publishButton: (button: Button) => Promise<void>;
+  resetAll: () => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-    const [data, setData] = useState<AppData>({ connections: [] });
-    const [activeConnectionId, setActiveConnectionId] = useState<string | null>(null);
-    const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<AppData>({ connections: [] });
+  const [activeConnectionId, setActiveConnectionId] = useState<string | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-    const activeConnection = data.connections.find((c) => c.id === activeConnectionId) ?? null;
+  const activeConnection = data.connections.find((c) => c.id === activeConnectionId) ?? null;
 
-    async function tryAutoConnect(connection: Connection | undefined) {
-        if (!connection?.auto_connect) return;
-        try {
-            setConnectionStatus('connecting');
-            await api.connect(connection);
-        } catch (e) {
-            setConnectionStatus('error');
-            console.error('Auto-connect failed:', e);
+  async function tryAutoConnect(connection: Connection | undefined) {
+    if (!connection?.auto_connect) return;
+    try {
+      setConnectionStatus("connecting");
+      await api.connect(connection);
+    } catch (e) {
+      setConnectionStatus("error");
+      console.error("Auto-connect failed:", e);
+    }
+  }
+
+  async function tryDisconnect() {
+    try {
+      await api.disconnect();
+    } catch (e) {
+      console.error("Disconnect failed:", e);
+    }
+    setConnectionStatus("disconnected");
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    const unlisten = listen<string>("mqtt-status", (event) => {
+      setConnectionStatus(event.payload as ConnectionStatus);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  async function loadData() {
+    try {
+      setLoading(true);
+      const loaded = await api.getData();
+      setData(loaded);
+
+      const initialConnectionId = loaded.last_connection_id ?? loaded.connections[0]?.id;
+      if (initialConnectionId) {
+        setActiveConnectionId(initialConnectionId);
+        const initialConnection = loaded.connections.find((c) => c.id === initialConnectionId);
+        if (initialConnection?.auto_connect) {
+          try {
+            setConnectionStatus("connecting");
+            await api.connect(initialConnection);
+          } catch (e) {
+            setConnectionStatus("error");
+            console.error("Auto-connect failed:", e);
+          }
         }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load data");
+    } finally {
+      setLoading(false);
     }
+  }
 
-    async function tryDisconnect() {
-        try {
-            await api.disconnect();
-        } catch (e) {
-            console.error('Disconnect failed:', e);
-        }
-        setConnectionStatus('disconnected');
+  async function saveData(newData: AppData) {
+    setData(newData);
+    try {
+      await api.saveData(newData);
+      setError(null);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to save data";
+      setError(msg);
     }
+  }
 
-    useEffect(() => {
-        loadData();
-    }, []);
+  async function addConnection(connection: Connection) {
+    await tryDisconnect();
+    await saveData({
+      ...data,
+      connections: [...data.connections, connection],
+      last_connection_id: connection.id,
+    });
+    setActiveConnectionId(connection.id);
+    await tryAutoConnect(connection);
+  }
 
-    useEffect(() => {
-        const unlisten = listen<string>('mqtt-status', (event) => {
-            setConnectionStatus(event.payload as ConnectionStatus);
-        });
-        return () => {
-            unlisten.then((fn) => fn());
-        };
-    }, []);
+  async function importConnection(connectionData: Omit<Connection, "id">) {
+    const connection: Connection = {
+      ...connectionData,
+      id: crypto.randomUUID(),
+    };
+    await addConnection(connection);
+  }
 
-    async function loadData() {
-        try {
-            setLoading(true);
-            const loaded = await api.getData();
-            setData(loaded);
+  async function updateConnection(connection: Connection) {
+    await saveData({
+      ...data,
+      connections: data.connections.map((c) => (c.id === connection.id ? connection : c)),
+    });
+  }
 
-            const initialConnectionId = loaded.last_connection_id ?? loaded.connections[0]?.id;
-            if (initialConnectionId) {
-                setActiveConnectionId(initialConnectionId);
-                const initialConnection = loaded.connections.find((c) => c.id === initialConnectionId);
-                if (initialConnection?.auto_connect) {
-                    try {
-                        setConnectionStatus('connecting');
-                        await api.connect(initialConnection);
-                    } catch (e) {
-                        setConnectionStatus('error');
-                        console.error('Auto-connect failed:', e);
-                    }
-                }
-            }
-        } catch (e) {
-            setError(e instanceof Error ? e.message : 'Failed to load data');
-        } finally {
-            setLoading(false);
-        }
+  async function deleteConnection(id: string) {
+    const newConnections = data.connections.filter((c) => c.id !== id);
+    const newLastConnectionId =
+      data.last_connection_id === id ? newConnections[0]?.id : data.last_connection_id;
+
+    await saveData({ connections: newConnections, last_connection_id: newLastConnectionId });
+
+    if (activeConnectionId === id) {
+      await tryDisconnect();
+      const nextConnection = newConnections[0];
+      setActiveConnectionId(nextConnection?.id ?? null);
+      await tryAutoConnect(nextConnection);
     }
+  }
 
-    async function saveData(newData: AppData) {
-        setData(newData);
-        try {
-            await api.saveData(newData);
-            setError(null);
-        } catch (e) {
-            const msg = e instanceof Error ? e.message : 'Failed to save data';
-            setError(msg);
-        }
+  async function switchConnection(id: string) {
+    if (id === activeConnectionId) return;
+
+    await tryDisconnect();
+    await saveData({ ...data, last_connection_id: id });
+    setActiveConnectionId(id);
+    await tryAutoConnect(data.connections.find((c) => c.id === id));
+  }
+
+  async function addButton(button: Button) {
+    if (!activeConnection) return;
+    await updateConnection({
+      ...activeConnection,
+      buttons: [...activeConnection.buttons, button],
+    });
+  }
+
+  async function updateButton(button: Button) {
+    if (!activeConnection) return;
+    await updateConnection({
+      ...activeConnection,
+      buttons: activeConnection.buttons.map((b) => (b.id === button.id ? button : b)),
+    });
+  }
+
+  async function deleteButton(id: string) {
+    if (!activeConnection) return;
+    await updateConnection({
+      ...activeConnection,
+      buttons: activeConnection.buttons.filter((b) => b.id !== id),
+    });
+  }
+
+  async function reorderButtons(buttons: Button[]) {
+    if (!activeConnection) return;
+    await updateConnection({
+      ...activeConnection,
+      buttons,
+    });
+  }
+
+  async function addGroup(group: ButtonGroup) {
+    if (!activeConnection) return;
+    await updateConnection({
+      ...activeConnection,
+      groups: [...activeConnection.groups, group],
+    });
+  }
+
+  async function updateGroup(group: ButtonGroup) {
+    if (!activeConnection) return;
+    await updateConnection({
+      ...activeConnection,
+      groups: activeConnection.groups.map((g) => (g.id === group.id ? group : g)),
+    });
+  }
+
+  async function deleteGroup(id: string) {
+    if (!activeConnection) return;
+    await updateConnection({
+      ...activeConnection,
+      groups: activeConnection.groups.filter((g) => g.id !== id),
+      buttons: activeConnection.buttons.map((b) =>
+        b.groupId === id ? { ...b, groupId: undefined } : b
+      ),
+    });
+  }
+
+  async function reorderGroups(groups: ButtonGroup[]) {
+    if (!activeConnection) return;
+    await updateConnection({ ...activeConnection, groups });
+  }
+
+  async function updateVariables(variables: Record<string, string>) {
+    if (!activeConnection) return;
+    await updateConnection({ ...activeConnection, variables });
+  }
+
+  async function updateSubscriptions(subscriptions: string[]) {
+    if (!activeConnection) return;
+    await updateConnection({ ...activeConnection, subscriptions });
+  }
+
+  async function connect() {
+    if (!activeConnection) return;
+    if (connectionStatus === "connecting" || connectionStatus === "connected") return;
+    try {
+      setConnectionStatus("connecting");
+      await api.connect(activeConnection);
+    } catch (e) {
+      setConnectionStatus("error");
+      console.error("Connection failed:", e);
     }
+  }
 
-    async function addConnection(connection: Connection) {
-        await tryDisconnect();
-        await saveData({
-            ...data,
-            connections: [...data.connections, connection],
-            last_connection_id: connection.id,
-        });
-        setActiveConnectionId(connection.id);
-        await tryAutoConnect(connection);
+  async function disconnect() {
+    try {
+      await api.disconnect();
+      setConnectionStatus("disconnected");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to disconnect");
     }
+  }
 
-    async function importConnection(connectionData: Omit<Connection, 'id'>) {
-        const connection: Connection = {
-            ...connectionData,
-            id: crypto.randomUUID(),
-        };
-        await addConnection(connection);
+  async function publishButton(button: Button) {
+    if (!activeConnection) return;
+    try {
+      await api.publishButton(button, activeConnection.variables);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to publish";
+      setError(msg);
+      throw new Error(msg);
     }
+  }
 
-    async function updateConnection(connection: Connection) {
-        await saveData({
-            ...data,
-            connections: data.connections.map((c) => (c.id === connection.id ? connection : c)),
-        });
-    }
+  function resetAll() {
+    setData({ connections: [] });
+    setActiveConnectionId(null);
+    setConnectionStatus("disconnected");
+    setError(null);
+    (async () => {
+      try {
+        await api.disconnect();
+      } catch (e) {
+        console.error("Disconnect during reset failed:", e);
+      }
+      try {
+        await api.deleteData();
+      } catch (e) {
+        console.error("Delete data during reset failed:", e);
+      }
+    })();
+  }
 
-    async function deleteConnection(id: string) {
-        const newConnections = data.connections.filter((c) => c.id !== id);
-        const newLastConnectionId =
-            data.last_connection_id === id ? newConnections[0]?.id : data.last_connection_id;
-
-        await saveData({ connections: newConnections, last_connection_id: newLastConnectionId });
-
-        if (activeConnectionId === id) {
-            await tryDisconnect();
-            const nextConnection = newConnections[0];
-            setActiveConnectionId(nextConnection?.id ?? null);
-            await tryAutoConnect(nextConnection);
-        }
-    }
-
-    async function switchConnection(id: string) {
-        if (id === activeConnectionId) return;
-
-        await tryDisconnect();
-        await saveData({ ...data, last_connection_id: id });
-        setActiveConnectionId(id);
-        await tryAutoConnect(data.connections.find((c) => c.id === id));
-    }
-
-    async function addButton(button: Button) {
-        if (!activeConnection) return;
-        await updateConnection({
-            ...activeConnection,
-            buttons: [...activeConnection.buttons, button],
-        });
-    }
-
-    async function updateButton(button: Button) {
-        if (!activeConnection) return;
-        await updateConnection({
-            ...activeConnection,
-            buttons: activeConnection.buttons.map((b) => (b.id === button.id ? button : b)),
-        });
-    }
-
-    async function deleteButton(id: string) {
-        if (!activeConnection) return;
-        await updateConnection({
-            ...activeConnection,
-            buttons: activeConnection.buttons.filter((b) => b.id !== id),
-        });
-    }
-
-    async function reorderButtons(buttons: Button[]) {
-        if (!activeConnection) return;
-        await updateConnection({
-            ...activeConnection,
-            buttons,
-        });
-    }
-
-    async function addGroup(group: ButtonGroup) {
-        if (!activeConnection) return;
-        await updateConnection({
-            ...activeConnection,
-            groups: [...activeConnection.groups, group],
-        });
-    }
-
-    async function updateGroup(group: ButtonGroup) {
-        if (!activeConnection) return;
-        await updateConnection({
-            ...activeConnection,
-            groups: activeConnection.groups.map((g) => (g.id === group.id ? group : g)),
-        });
-    }
-
-    async function deleteGroup(id: string) {
-        if (!activeConnection) return;
-        await updateConnection({
-            ...activeConnection,
-            groups: activeConnection.groups.filter((g) => g.id !== id),
-            buttons: activeConnection.buttons.map((b) =>
-                b.groupId === id ? { ...b, groupId: undefined } : b
-            ),
-        });
-    }
-
-    async function reorderGroups(groups: ButtonGroup[]) {
-        if (!activeConnection) return;
-        await updateConnection({ ...activeConnection, groups });
-    }
-
-    async function updateVariables(variables: Record<string, string>) {
-        if (!activeConnection) return;
-        await updateConnection({ ...activeConnection, variables });
-    }
-
-    async function updateSubscriptions(subscriptions: string[]) {
-        if (!activeConnection) return;
-        await updateConnection({ ...activeConnection, subscriptions });
-    }
-
-    async function connect() {
-        if (!activeConnection) return;
-        if (connectionStatus === 'connecting' || connectionStatus === 'connected') return;
-        try {
-            setConnectionStatus('connecting');
-            await api.connect(activeConnection);
-        } catch (e) {
-            setConnectionStatus('error');
-            console.error('Connection failed:', e);
-        }
-    }
-
-    async function disconnect() {
-        try {
-            await api.disconnect();
-            setConnectionStatus('disconnected');
-        } catch (e) {
-            setError(e instanceof Error ? e.message : 'Failed to disconnect');
-        }
-    }
-
-    async function publishButton(button: Button) {
-        if (!activeConnection) return;
-        try {
-            await api.publishButton(button, activeConnection.variables);
-        } catch (e) {
-            const msg = e instanceof Error ? e.message : 'Failed to publish';
-            setError(msg);
-            throw new Error(msg);
-        }
-    }
-
-    function resetAll() {
-        setData({ connections: [] });
-        setActiveConnectionId(null);
-        setConnectionStatus('disconnected');
-        setError(null);
-        (async () => {
-            try {
-                await api.disconnect();
-            } catch (e) {
-                console.error('Disconnect during reset failed:', e);
-            }
-            try {
-                await api.deleteData();
-            } catch (e) {
-                console.error('Delete data during reset failed:', e);
-            }
-        })();
-    }
-
-    return (
-        <AppContext.Provider
-            value={{
-                data,
-                activeConnection,
-                connectionStatus,
-                loading,
-                error,
-                addConnection,
-                importConnection,
-                updateConnection,
-                deleteConnection,
-                switchConnection,
-                addButton,
-                updateButton,
-                deleteButton,
-                reorderButtons,
-                addGroup,
-                updateGroup,
-                deleteGroup,
-                reorderGroups,
-                updateVariables,
-                updateSubscriptions,
-                connect,
-                disconnect,
-                publishButton,
-                resetAll,
-            }}
-        >
-            {children}
-        </AppContext.Provider>
-    );
+  return (
+    <AppContext.Provider
+      value={{
+        data,
+        activeConnection,
+        connectionStatus,
+        loading,
+        error,
+        addConnection,
+        importConnection,
+        updateConnection,
+        deleteConnection,
+        switchConnection,
+        addButton,
+        updateButton,
+        deleteButton,
+        reorderButtons,
+        addGroup,
+        updateGroup,
+        deleteGroup,
+        reorderGroups,
+        updateVariables,
+        updateSubscriptions,
+        connect,
+        disconnect,
+        publishButton,
+        resetAll,
+      }}
+    >
+      {children}
+    </AppContext.Provider>
+  );
 }
 
 export function useApp() {
-    const context = useContext(AppContext);
-    if (!context) {
-        throw new Error('useApp must be used within an AppProvider');
-    }
-    return context;
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error("useApp must be used within an AppProvider");
+  }
+  return context;
 }

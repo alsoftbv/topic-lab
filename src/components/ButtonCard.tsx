@@ -1,348 +1,415 @@
-import { useState, useRef, useEffect, memo } from 'react';
-import { confirm } from '@tauri-apps/plugin-dialog';
-import { GripVertical, Pencil, Trash2, Repeat, CopyPlus, Check } from 'lucide-react';
-import type { Button } from '../types';
-import { useApp } from '../contexts/AppContext';
-import { substituteVariables } from '../utils/variables';
+import { useState, useRef, useEffect, memo } from "react";
+import { confirm } from "../utils/dialog";
+import { GripVertical, Pencil, Trash2, Repeat, CopyPlus, Check } from "lucide-react";
+import type { Button } from "../types";
+import { useApp } from "../contexts/AppContext";
+import { substituteVariables } from "../utils/variables";
 
 function formatInterval(ms: number): string {
-    const parts: string[] = [];
-    const hours = Math.floor(ms / 3600000);
-    const minutes = Math.floor((ms % 3600000) / 60000);
-    const seconds = Math.floor((ms % 60000) / 1000);
-    const millis = ms % 1000;
+  const parts: string[] = [];
+  const hours = Math.floor(ms / 3600000);
+  const minutes = Math.floor((ms % 3600000) / 60000);
+  const seconds = Math.floor((ms % 60000) / 1000);
+  const millis = ms % 1000;
 
-    if (hours) parts.push(`${hours}h`);
-    if (minutes) parts.push(`${minutes}min`);
-    if (seconds) parts.push(`${seconds}s`);
-    if (millis) parts.push(`${millis}ms`);
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}min`);
+  if (seconds) parts.push(`${seconds}s`);
+  if (millis) parts.push(`${millis}ms`);
 
-    return parts.join(' ') || '0ms';
+  return parts.join(" ") || "0ms";
 }
 
 interface ButtonCardProps {
-    button: Button;
-    index: number;
-    onEdit: (buttonId: string) => void;
-    onDuplicate: (buttonId: string, index: number) => void;
-    onSelect: (index: number) => void;
-    onDragStart: (index: number, x: number, y: number, element: HTMLElement) => void;
-    onDragEnter: (index: number) => void;
-    onDragSide: (side: 'left' | 'right') => void;
-    isDragging: boolean;
-    isDragOver: boolean;
-    isSelected: boolean;
-    isAnimating: boolean;
-    keyboardSent: boolean;
-    isDimmed: boolean;
-    showRawTemplates?: boolean;
+  button: Button;
+  index: number;
+  onEdit: (buttonId: string) => void;
+  onDuplicate: (buttonId: string, index: number) => void;
+  onSelect: (index: number) => void;
+  onDragStart: (index: number, x: number, y: number, element: HTMLElement) => void;
+  onDragEnter: (index: number) => void;
+  onDragSide: (side: "left" | "right") => void;
+  isDragging: boolean;
+  isDragOver: boolean;
+  isSelected: boolean;
+  isAnimating: boolean;
+  keyboardSent: boolean;
+  isDimmed: boolean;
+  showRawTemplates?: boolean;
 }
 
 const propsAreEqual = (prev: ButtonCardProps, next: ButtonCardProps) =>
-    prev.button === next.button &&
-    prev.index === next.index &&
-    prev.isDragging === next.isDragging &&
-    prev.isDragOver === next.isDragOver &&
-    prev.isSelected === next.isSelected &&
-    prev.isAnimating === next.isAnimating &&
-    prev.keyboardSent === next.keyboardSent &&
-    prev.isDimmed === next.isDimmed &&
-    prev.showRawTemplates === next.showRawTemplates;
+  prev.button === next.button &&
+  prev.index === next.index &&
+  prev.isDragging === next.isDragging &&
+  prev.isDragOver === next.isDragOver &&
+  prev.isSelected === next.isSelected &&
+  prev.isAnimating === next.isAnimating &&
+  prev.keyboardSent === next.keyboardSent &&
+  prev.isDimmed === next.isDimmed &&
+  prev.showRawTemplates === next.showRawTemplates;
 
-const mod = /Mac|iPhone|iPad/.test(navigator.userAgent) ? '\u2318\u2009' : 'Ctrl+';
+const mod = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "\u2318\u2009" : "Ctrl+";
 
-export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDuplicate, onSelect, onDragStart, onDragEnter, onDragSide, isDragging, isDragOver, isSelected, isAnimating, keyboardSent, isDimmed, showRawTemplates }: ButtonCardProps) {
-    const { activeConnection, publishButton, deleteButton, updateButton, connectionStatus } = useApp();
-    const [publishing, setPublishing] = useState(false);
-    const [lastResult, setLastResult] = useState<'success' | 'error' | null>(null);
-    const [isMultiSending, setIsMultiSending] = useState(false);
-    const [sendCount, setSendCount] = useState(0);
-    const [editingField, setEditingField] = useState<'topic' | 'payload' | null>(null);
-    const editRef = useRef<HTMLElement>(null);
-    const cardRef = useRef<HTMLDivElement>(null);
-    const intervalRef = useRef<number | null>(null);
-    const timeoutRef = useRef<number | null>(null);
+export const ButtonCard = memo(function ButtonCard({
+  button,
+  index,
+  onEdit,
+  onDuplicate,
+  onSelect,
+  onDragStart,
+  onDragEnter,
+  onDragSide,
+  isDragging,
+  isDragOver,
+  isSelected,
+  isAnimating,
+  keyboardSent,
+  isDimmed,
+  showRawTemplates,
+}: ButtonCardProps) {
+  const { activeConnection, publishButton, deleteButton, updateButton, connectionStatus } =
+    useApp();
+  const [publishing, setPublishing] = useState(false);
+  const [lastResult, setLastResult] = useState<"success" | "error" | null>(null);
+  const [isMultiSending, setIsMultiSending] = useState(false);
+  const [sendCount, setSendCount] = useState(0);
+  const [editingField, setEditingField] = useState<"topic" | "payload" | null>(null);
+  const editRef = useRef<HTMLElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const intervalRef = useRef<number | null>(null);
+  const timeoutRef = useRef<number | null>(null);
 
-    const variables = activeConnection?.variables || {};
-    const displayTopic = showRawTemplates ? button.topic : substituteVariables(button.topic, variables);
-    const displayPayload = showRawTemplates ? (button.payload || '') : (button.payload ? substituteVariables(button.payload, variables) : '');
+  const variables = activeConnection?.variables || {};
+  const displayTopic = showRawTemplates
+    ? button.topic
+    : substituteVariables(button.topic, variables);
+  const displayPayload = showRawTemplates
+    ? button.payload || ""
+    : button.payload
+      ? substituteVariables(button.payload, variables)
+      : "";
 
-    function stopMultiSend() {
-        if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-        }
-        setIsMultiSending(false);
-        setSendCount(0);
+  function stopMultiSend() {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
+    setIsMultiSending(false);
+    setSendCount(0);
+  }
 
-    useEffect(() => {
-        if (connectionStatus !== 'connected' && isMultiSending) {
-            stopMultiSend();
-        }
-    }, [connectionStatus, isMultiSending]);
+  useEffect(() => {
+    if (connectionStatus !== "connected" && isMultiSending) {
+      stopMultiSend();
+    }
+  }, [connectionStatus, isMultiSending]);
 
-    useEffect(() => {
-        if (!button.multiSendEnabled && isMultiSending) {
-            stopMultiSend();
-        }
-    }, [button.multiSendEnabled, isMultiSending]);
+  useEffect(() => {
+    if (!button.multiSendEnabled && isMultiSending) {
+      stopMultiSend();
+    }
+  }, [button.multiSendEnabled, isMultiSending]);
 
-    useEffect(() => {
-        if (!isMultiSending || !intervalRef.current) return;
+  useEffect(() => {
+    if (!isMultiSending || !intervalRef.current) return;
 
+    clearInterval(intervalRef.current);
+    const newInterval = Math.max(100, button.multiSendInterval || 1000);
+    const publishOnce = async () => {
+      try {
+        await publishButton(button);
+        setSendCount((c) => c + 1);
+      } catch {
+        stopMultiSend();
+        setLastResult("error");
+      }
+    };
+    intervalRef.current = window.setInterval(publishOnce, newInterval);
+  }, [isMultiSending, button]);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
         clearInterval(intervalRef.current);
-        const newInterval = Math.max(100, button.multiSendInterval || 1000);
-        const publishOnce = async () => {
-            try {
-                await publishButton(button);
-                setSendCount((c) => c + 1);
-            } catch {
-                stopMultiSend();
-                setLastResult('error');
-            }
-        };
-        intervalRef.current = window.setInterval(publishOnce, newInterval);
-    }, [isMultiSending, button]);
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
-    useEffect(() => {
-        return () => {
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-            }
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-            }
-        };
-    }, []);
+  const prevKeyboardSent = useRef(false);
+  useEffect(() => {
+    if (keyboardSent && !prevKeyboardSent.current) {
+      handlePublish();
+    }
+    prevKeyboardSent.current = keyboardSent;
+  }, [keyboardSent]);
 
-    const prevKeyboardSent = useRef(false);
-    useEffect(() => {
-        if (keyboardSent && !prevKeyboardSent.current) {
-            handlePublish();
-        }
-        prevKeyboardSent.current = keyboardSent;
-    }, [keyboardSent]);
+  const singlePublish = async () => {
+    setPublishing(true);
+    setLastResult(null);
+    try {
+      await publishButton(button);
+      setLastResult("success");
+      timeoutRef.current = window.setTimeout(() => setLastResult(null), 2000);
+    } catch {
+      setLastResult("error");
+    } finally {
+      setPublishing(false);
+    }
+  };
 
-    const singlePublish = async () => {
-        setPublishing(true);
-        setLastResult(null);
-        try {
-            await publishButton(button);
-            setLastResult('success');
-            timeoutRef.current = window.setTimeout(() => setLastResult(null), 2000);
-        } catch {
-            setLastResult('error');
-        } finally {
-            setPublishing(false);
-        }
+  const startMultiSend = async () => {
+    const publishOnce = async (): Promise<boolean> => {
+      try {
+        await publishButton(button);
+        setSendCount((c) => c + 1);
+        return true;
+      } catch {
+        stopMultiSend();
+        setLastResult("error");
+        return false;
+      }
     };
 
-    const startMultiSend = async () => {
-        const publishOnce = async (): Promise<boolean> => {
-            try {
-                await publishButton(button);
-                setSendCount((c) => c + 1);
-                return true;
-            } catch {
-                stopMultiSend();
-                setLastResult('error');
-                return false;
-            }
-        };
+    setIsMultiSending(true);
+    setSendCount(0);
 
-        setIsMultiSending(true);
-        setSendCount(0);
+    if (!(await publishOnce())) return;
 
-        if (!(await publishOnce())) return;
+    const interval = Math.max(100, button.multiSendInterval || 1000);
+    intervalRef.current = window.setInterval(publishOnce, interval);
+  };
 
-        const interval = Math.max(100, button.multiSendInterval || 1000);
-        intervalRef.current = window.setInterval(publishOnce, interval);
+  const handlePublish = async () => {
+    if (connectionStatus !== "connected") return;
+
+    if (button.multiSendEnabled) {
+      isMultiSending ? stopMultiSend() : await startMultiSend();
+    } else {
+      await singlePublish();
+    }
+  };
+
+  const handleDelete = async () => {
+    const confirmed = await confirm("This action cannot be undone.", {
+      title: `Delete "${button.name}"?`,
+      kind: "warning",
+    });
+    if (confirmed) {
+      await deleteButton(button.id);
+    }
+  };
+
+  const qosLabels: Record<string, string> = {
+    atmostonce: "QoS 0",
+    atleastonce: "QoS 1",
+    exactlyonce: "QoS 2",
+  };
+
+  useEffect(() => {
+    const el = editRef.current;
+    if (!editingField || !el) return;
+    const raw = editingField === "topic" ? button.topic : button.payload || "";
+    el.textContent = raw;
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  }, [editingField]);
+
+  const startEditing = (field: "topic" | "payload", e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingField(field);
+  };
+
+  const saveEdit = () => {
+    if (!editingField || !editRef.current) return;
+    const trimmed = (editRef.current.textContent || "").trim();
+    if (editingField === "topic" && !trimmed) {
+      cancelEdit();
+      return;
+    }
+    const updated = {
+      ...button,
+      [editingField]: editingField === "payload" && !trimmed ? undefined : trimmed,
     };
+    updateButton(updated);
+    setEditingField(null);
+  };
 
-    const handlePublish = async () => {
-        if (connectionStatus !== 'connected') return;
+  const cancelEdit = () => {
+    setEditingField(null);
+  };
 
-        if (button.multiSendEnabled) {
-            isMultiSending ? stopMultiSend() : await startMultiSend();
-        } else {
-            await singlePublish();
-        }
-    };
+  const handleEditKeyDown = (e: React.KeyboardEvent) => {
+    e.stopPropagation();
+    if (e.key === "Enter") {
+      e.preventDefault();
+      saveEdit();
+    }
+    if (e.key === "Escape") cancelEdit();
+  };
 
-    const handleDelete = async () => {
-        const confirmed = await confirm('This action cannot be undone.', {
-            title: `Delete "${button.name}"?`,
-            kind: 'warning',
-        });
-        if (confirmed) {
-            await deleteButton(button.id);
-        }
-    };
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (cardRef.current) {
+      onDragStart(index, e.clientX, e.clientY, cardRef.current);
+    }
+  };
 
-    const qosLabels: Record<string, string> = {
-        atmostonce: 'QoS 0',
-        atleastonce: 'QoS 1',
-        exactlyonce: 'QoS 2',
-    };
+  const [dragSide, setDragSide] = useState<"left" | "right">("left");
 
-    useEffect(() => {
-        const el = editRef.current;
-        if (!editingField || !el) return;
-        const raw = editingField === 'topic' ? button.topic : button.payload || '';
-        el.textContent = raw;
-        el.focus();
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        range.collapse(false);
-        const sel = window.getSelection();
-        sel?.removeAllRanges();
-        sel?.addRange(range);
-    }, [editingField]);
+  const computeSide = (clientX: number): "left" | "right" => {
+    const rect = cardRef.current?.getBoundingClientRect();
+    if (!rect) return "left";
+    return clientX > rect.left + rect.width / 2 ? "right" : "left";
+  };
 
-    const startEditing = (field: 'topic' | 'payload', e: React.MouseEvent) => {
+  const handleMouseEnter = (e: React.MouseEvent) => {
+    onDragEnter(index);
+    const side = computeSide(e.clientX);
+    setDragSide(side);
+    onDragSide(side);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    const side = computeSide(e.clientX);
+    setDragSide(side);
+    onDragSide(side);
+  };
+
+  return (
+    <div
+      ref={cardRef}
+      className={`button-card ${lastResult || ""} ${keyboardSent ? "success" : ""} ${isDragging ? "dragging" : ""} ${isDragOver ? `drag-over drag-${dragSide}` : ""} ${isMultiSending ? "multi-send-active" : ""} ${isSelected ? "selected" : ""} ${isAnimating ? "pop" : ""} ${isDimmed ? "dimmed" : ""}`}
+      onClick={(e) => {
         e.stopPropagation();
-        setEditingField(field);
-    };
-
-    const saveEdit = () => {
-        if (!editingField || !editRef.current) return;
-        const trimmed = (editRef.current.textContent || '').trim();
-        if (editingField === 'topic' && !trimmed) {
-            cancelEdit();
-            return;
-        }
-        const updated = { ...button, [editingField]: editingField === 'payload' && !trimmed ? undefined : trimmed };
-        updateButton(updated);
-        setEditingField(null);
-    };
-
-    const cancelEdit = () => {
-        setEditingField(null);
-    };
-
-    const handleEditKeyDown = (e: React.KeyboardEvent) => {
-        e.stopPropagation();
-        if (e.key === 'Enter') { e.preventDefault(); saveEdit(); }
-        if (e.key === 'Escape') cancelEdit();
-    };
-
-    const handleMouseDown = (e: React.MouseEvent) => {
-        e.preventDefault();
-        if (cardRef.current) {
-            onDragStart(index, e.clientX, e.clientY, cardRef.current);
-        }
-    };
-
-    const [dragSide, setDragSide] = useState<'left' | 'right'>('left');
-
-    const computeSide = (clientX: number): 'left' | 'right' => {
-        const rect = cardRef.current?.getBoundingClientRect();
-        if (!rect) return 'left';
-        return clientX > rect.left + rect.width / 2 ? 'right' : 'left';
-    };
-
-    const handleMouseEnter = (e: React.MouseEvent) => {
-        onDragEnter(index);
-        const side = computeSide(e.clientX);
-        setDragSide(side);
-        onDragSide(side);
-    };
-
-    const handleMouseMove = (e: React.MouseEvent) => {
-        const side = computeSide(e.clientX);
-        setDragSide(side);
-        onDragSide(side);
-    };
-
-    return (
-        <div
-            ref={cardRef}
-            className={`button-card ${lastResult || ''} ${keyboardSent ? 'success' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? `drag-over drag-${dragSide}` : ''} ${isMultiSending ? 'multi-send-active' : ''} ${isSelected ? 'selected' : ''} ${isAnimating ? 'pop' : ''} ${isDimmed ? 'dimmed' : ''}`}
-            onClick={(e) => { e.stopPropagation(); onSelect(index); }}
-            onMouseEnter={handleMouseEnter}
-            onMouseMove={isDragOver ? handleMouseMove : undefined}
-        >
-            <div className="button-card-header">
-                <div
-                    className="drag-handle"
-                    title="Drag to reorder"
-                    onMouseDown={handleMouseDown}
-                >
-                    <GripVertical size={16} />
-                </div>
-                                <h3>{button.name}</h3>
-                <div className="button-card-actions" onClick={(e) => e.stopPropagation()}>
-                    <button className="btn-icon" onClick={() => onDuplicate(button.id, index)} title={`Duplicate (${mod}D)`}>
-                        <CopyPlus size={16} />
-                    </button>
-                    <button className="btn-icon" onClick={() => onEdit(button.id)} title={`Edit (${mod}E)`}>
-                        <Pencil size={16} />
-                    </button>
-                    <button className="btn-icon" onClick={handleDelete} title="Delete (⌫)">
-                        <Trash2 size={16} />
-                    </button>
-                </div>
-            </div>
-
-            <div className="button-card-details">
-                <div className="detail-row">
-                    <span className="detail-label">Topic:</span>
-                    <code
-                        ref={editingField === 'topic' ? editRef : undefined}
-                        className={`detail-value${editingField !== 'topic' ? ' detail-value-editable' : ''}`}
-                        contentEditable={editingField === 'topic'}
-                        suppressContentEditableWarning
-                        onClick={(e) => { if (editingField !== 'topic') startEditing('topic', e); else e.stopPropagation(); }}
-                        onKeyDown={(e) => { if (editingField !== 'topic') return; handleEditKeyDown(e); }}
-                        onBlur={() => { if (editingField === 'topic') cancelEdit(); }}
-                        spellCheck={false}
-                    >
-                        {editingField !== 'topic' ? displayTopic : null}
-                    </code>
-                    {editingField === 'topic' && (
-                        <button className="btn-icon inline-edit-save" onMouseDown={(e) => { e.preventDefault(); saveEdit(); }}>
-                            <Check size={14} />
-                        </button>
-                    )}
-                </div>
-                {(displayPayload || editingField === 'payload') ? (
-                    <div className="detail-row">
-                        <span className="detail-label">Payload:</span>
-                        <code
-                            ref={editingField === 'payload' ? editRef : undefined}
-                            className={`detail-value${editingField !== 'payload' ? ' detail-value-editable' : ''}`}
-                            contentEditable={editingField === 'payload'}
-                            suppressContentEditableWarning
-                            onClick={(e) => { if (editingField !== 'payload') startEditing('payload', e); else e.stopPropagation(); }}
-                            onKeyDown={(e) => { if (editingField !== 'payload') return; handleEditKeyDown(e); }}
-                            onBlur={() => { if (editingField === 'payload') cancelEdit(); }}
-                            spellCheck={false}
-                        >
-                            {editingField !== 'payload' ? displayPayload : null}
-                        </code>
-                        {editingField === 'payload' && (
-                            <button className="btn-icon inline-edit-save" onMouseDown={(e) => { e.preventDefault(); saveEdit(); }}>
-                                <Check size={14} />
-                            </button>
-                        )}
-                    </div>
-                ) : null}
-                <div className="detail-row">
-                    {button.qos !== 'atmostonce' && <span className="badge">{qosLabels[button.qos]}</span>}
-                    {button.retain && <span className="badge">Retain</span>}
-                    {button.multiSendEnabled && <span className="badge"><Repeat size={12} /> {formatInterval(button.multiSendInterval || 1000)}</span>}
-                </div>
-            </div>
-
-            <button
-                className={`btn btn-publish btn-color-${button.color || 'orange'} ${isMultiSending ? 'multi-send-active' : ''} ${keyboardSent ? 'keyboard-press' : ''}`}
-                onClick={(e) => { e.stopPropagation(); handlePublish(); }}
-                disabled={publishing || connectionStatus !== 'connected'}
-                title="Send (Enter / Space)"
-            >
-                {isMultiSending ? `Stop (${sendCount})` : button.multiSendEnabled ? 'Start' : 'Send'}
-            </button>
+        onSelect(index);
+      }}
+      onMouseEnter={handleMouseEnter}
+      onMouseMove={isDragOver ? handleMouseMove : undefined}
+    >
+      <div className="button-card-header">
+        <div className="drag-handle" title="Drag to reorder" onMouseDown={handleMouseDown}>
+          <GripVertical size={16} />
         </div>
-    );
+        <h3>{button.name}</h3>
+        <div className="button-card-actions" onClick={(e) => e.stopPropagation()}>
+          <button
+            className="btn-icon"
+            onClick={() => onDuplicate(button.id, index)}
+            title={`Duplicate (${mod}D)`}
+          >
+            <CopyPlus size={16} />
+          </button>
+          <button className="btn-icon" onClick={() => onEdit(button.id)} title={`Edit (${mod}E)`}>
+            <Pencil size={16} />
+          </button>
+          <button className="btn-icon" onClick={handleDelete} title="Delete (⌫)">
+            <Trash2 size={16} />
+          </button>
+        </div>
+      </div>
+
+      <div className="button-card-details">
+        <div className="detail-row">
+          <span className="detail-label">Topic:</span>
+          <code
+            ref={editingField === "topic" ? editRef : undefined}
+            className={`detail-value${editingField !== "topic" ? " detail-value-editable" : ""}`}
+            contentEditable={editingField === "topic"}
+            suppressContentEditableWarning
+            onClick={(e) => {
+              if (editingField !== "topic") startEditing("topic", e);
+              else e.stopPropagation();
+            }}
+            onKeyDown={(e) => {
+              if (editingField !== "topic") return;
+              handleEditKeyDown(e);
+            }}
+            onBlur={() => {
+              if (editingField === "topic") cancelEdit();
+            }}
+            spellCheck={false}
+          >
+            {editingField !== "topic" ? displayTopic : null}
+          </code>
+          {editingField === "topic" && (
+            <button
+              className="btn-icon inline-edit-save"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                saveEdit();
+              }}
+            >
+              <Check size={14} />
+            </button>
+          )}
+        </div>
+        {displayPayload || editingField === "payload" ? (
+          <div className="detail-row">
+            <span className="detail-label">Payload:</span>
+            <code
+              ref={editingField === "payload" ? editRef : undefined}
+              className={`detail-value${editingField !== "payload" ? " detail-value-editable" : ""}`}
+              contentEditable={editingField === "payload"}
+              suppressContentEditableWarning
+              onClick={(e) => {
+                if (editingField !== "payload") startEditing("payload", e);
+                else e.stopPropagation();
+              }}
+              onKeyDown={(e) => {
+                if (editingField !== "payload") return;
+                handleEditKeyDown(e);
+              }}
+              onBlur={() => {
+                if (editingField === "payload") cancelEdit();
+              }}
+              spellCheck={false}
+            >
+              {editingField !== "payload" ? displayPayload : null}
+            </code>
+            {editingField === "payload" && (
+              <button
+                className="btn-icon inline-edit-save"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  saveEdit();
+                }}
+              >
+                <Check size={14} />
+              </button>
+            )}
+          </div>
+        ) : null}
+        <div className="detail-row">
+          {button.qos !== "atmostonce" && <span className="badge">{qosLabels[button.qos]}</span>}
+          {button.retain && <span className="badge">Retain</span>}
+          {button.multiSendEnabled && (
+            <span className="badge">
+              <Repeat size={12} /> {formatInterval(button.multiSendInterval || 1000)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <button
+        className={`btn btn-publish btn-color-${button.color || "orange"} ${isMultiSending ? "multi-send-active" : ""} ${keyboardSent ? "keyboard-press" : ""}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          handlePublish();
+        }}
+        disabled={publishing || connectionStatus !== "connected"}
+        title="Send (Enter / Space)"
+      >
+        {isMultiSending ? `Stop (${sendCount})` : button.multiSendEnabled ? "Start" : "Send"}
+      </button>
+    </div>
+  );
 }, propsAreEqual);

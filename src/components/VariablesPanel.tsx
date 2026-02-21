@@ -1,148 +1,173 @@
-import { useState } from 'react';
-import { message } from '@tauri-apps/plugin-dialog';
-import { Pencil, Trash2, Check, X } from 'lucide-react';
-import { useApp } from '../contexts/AppContext';
-import { isBuiltinVariable } from '../utils/builtins';
+import { useState } from "react";
+import { message } from "../utils/dialog";
+import { Pencil, Trash2, Check, X } from "lucide-react";
+import { useApp } from "../contexts/AppContext";
+import { isBuiltinVariable } from "../utils/builtins";
 
 export function VariablesPanel() {
-    const { activeConnection, updateVariables } = useApp();
-    const [newKey, setNewKey] = useState('');
-    const [newValue, setNewValue] = useState('');
-    const [editingKey, setEditingKey] = useState<string | null>(null);
-    const [editValue, setEditValue] = useState('');
+  const { activeConnection, updateVariables } = useApp();
+  const [newKey, setNewKey] = useState("");
+  const [newValue, setNewValue] = useState("");
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
 
-    const variables = activeConnection?.variables || {};
+  const variables = activeConnection?.variables || {};
 
-    const handleAdd = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const key = newKey.trim();
-        if (!key) return;
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const key = newKey.trim();
+    if (!key) return;
 
-        if (isBuiltinVariable(key)) {
-            message(`"${key}" is a reserved built-in variable name`, { title: 'Reserved Name', kind: 'error' });
-            return;
-        }
+    if (isBuiltinVariable(key)) {
+      message(`"${key}" is a reserved built-in variable name`, {
+        title: "Reserved Name",
+        kind: "error",
+      });
+      return;
+    }
 
-        await updateVariables({
-            ...variables,
-            [key]: newValue,
-        });
+    await updateVariables({
+      ...variables,
+      [key]: newValue,
+    });
 
-        setNewKey('');
-        setNewValue('');
-    };
+    setNewKey("");
+    setNewValue("");
+  };
 
-    const handleUpdate = async (key: string) => {
-        await updateVariables({
-            ...variables,
-            [key]: editValue,
-        });
-        setEditingKey(null);
-    };
+  const handleUpdate = async (key: string) => {
+    await updateVariables({
+      ...variables,
+      [key]: editValue,
+    });
+    setEditingKey(null);
+  };
 
-    const handleDelete = async (key: string) => {
-        const updated = { ...variables };
-        delete updated[key];
-        await updateVariables(updated);
-    };
+  const handleDelete = async (key: string) => {
+    const updated = { ...variables };
+    delete updated[key];
+    await updateVariables(updated);
+  };
 
-    const startEditing = (key: string) => {
-        setEditingKey(key);
-        setEditValue(variables[key]);
-    };
+  const startEditing = (key: string) => {
+    setEditingKey(key);
+    setEditValue(variables[key]);
+  };
 
-    return (
-        <div className="variables-panel">
-            <h3>Variables</h3>
-            <p className="hint">
-                Define variables to use in topics and payloads with {'{variable_name}'}
-            </p>
+  return (
+    <div className="variables-panel">
+      <h3>Variables</h3>
+      <p className="hint">
+        Define variables to use in topics and payloads with {"{variable_name}"}
+      </p>
 
-            <div className="variables-list">
-                {Object.entries(variables).map(([key, value]) => (
-                    <div key={key} className="variable-row">
-                        <code className="variable-key">{key}</code>
-                        {editingKey === key ? (
-                            <>
-                                <input
-                                    type="text"
-                                    value={editValue}
-                                    onChange={(e) => setEditValue(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleUpdate(key);
-                                        if (e.key === 'Escape') setEditingKey(null);
-                                    }}
-                                    autoFocus
-                                    autoCorrect="off"
-                                    autoCapitalize="off"
-                                    spellCheck={false}
-                                />
-                                <button className="btn-icon" onClick={() => handleUpdate(key)} title="Save">
-                                    <Check size={16} />
-                                </button>
-                                <button className="btn-icon" onClick={() => setEditingKey(null)} title="Cancel">
-                                    <X size={16} />
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <span className="variable-value">{value}</span>
-                                <button className="btn-icon" onClick={() => startEditing(key)} title="Edit">
-                                    <Pencil size={16} />
-                                </button>
-                                <button className="btn-icon" onClick={() => handleDelete(key)} title="Delete">
-                                    <Trash2 size={16} />
-                                </button>
-                            </>
-                        )}
-                    </div>
-                ))}
-
-                {Object.keys(variables).length === 0 && (
-                    <p className="empty-state">No variables defined yet</p>
-                )}
-            </div>
-
-            <form className="add-variable-form" onSubmit={handleAdd}>
+      <div className="variables-list">
+        {Object.entries(variables).map(([key, value]) => (
+          <div key={key} className="variable-row">
+            <code className="variable-key">{key}</code>
+            {editingKey === key ? (
+              <>
                 <input
-                    type="text"
-                    placeholder="name"
-                    value={newKey}
-                    onChange={(e) => setNewKey(e.target.value)}
-                    pattern="[a-zA-Z_][a-zA-Z0-9_]*"
-                    title="Start with letter or underscore, followed by letters, numbers, or underscores"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
+                  type="text"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleUpdate(key);
+                    if (e.key === "Escape") setEditingKey(null);
+                  }}
+                  autoFocus
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
-                <input
-                    type="text"
-                    placeholder="Value"
-                    value={newValue}
-                    onChange={(e) => setNewValue(e.target.value)}
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
-                />
-                <button type="submit" className="btn btn-small">
-                    Add
+                <button className="btn-icon" onClick={() => handleUpdate(key)} title="Save">
+                  <Check size={16} />
                 </button>
-            </form>
+                <button className="btn-icon" onClick={() => setEditingKey(null)} title="Cancel">
+                  <X size={16} />
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="variable-value">{value}</span>
+                <button className="btn-icon" onClick={() => startEditing(key)} title="Edit">
+                  <Pencil size={16} />
+                </button>
+                <button className="btn-icon" onClick={() => handleDelete(key)} title="Delete">
+                  <Trash2 size={16} />
+                </button>
+              </>
+            )}
+          </div>
+        ))}
 
-            <div className="builtins-list">
-                <h4>Built-in Variables</h4>
-                <div className="builtin-row"><code>{'{now}'}</code> <span>ISO timestamp</span></div>
-                <div className="builtin-row"><code>{'{now:unix}'}</code> <span>Unix seconds</span></div>
-                <div className="builtin-row"><code>{'{now:unixms}'}</code> <span>Unix milliseconds</span></div>
-                <div className="builtin-row"><code>{'{now:date}'}</code> <span>Date only</span></div>
-                <div className="builtin-row"><code>{'{now:time}'}</code> <span>Time only</span></div>
-                <div className="builtin-row"><code>{'{now:utc}'}</code> <span>UTC timezone</span></div>
-                <div className="builtin-row"><code>{'{now:+5m}'}</code> <span>Offset (s/m/h/d/w/M/y)</span></div>
-                <div className="builtin-row"><code>{'{now:fmt:YYYY-MM-DD}'}</code> <span>Custom format</span></div>
-                <div className="builtin-row"><code>{'{uuid}'}</code> <span>Random UUID v4</span></div>
-                <div className="builtin-row"><code>{'{random}'}</code> <span>Random 0-100</span></div>
-                <div className="builtin-row"><code>{'{random:1-1000}'}</code> <span>Custom range</span></div>
-            </div>
+        {Object.keys(variables).length === 0 && (
+          <p className="empty-state">No variables defined yet</p>
+        )}
+      </div>
+
+      <form className="add-variable-form" onSubmit={handleAdd}>
+        <input
+          type="text"
+          placeholder="name"
+          value={newKey}
+          onChange={(e) => setNewKey(e.target.value)}
+          pattern="[a-zA-Z_][a-zA-Z0-9_]*"
+          title="Start with letter or underscore, followed by letters, numbers, or underscores"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+        />
+        <input
+          type="text"
+          placeholder="Value"
+          value={newValue}
+          onChange={(e) => setNewValue(e.target.value)}
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+        />
+        <button type="submit" className="btn btn-small">
+          Add
+        </button>
+      </form>
+
+      <div className="builtins-list">
+        <h4>Built-in Variables</h4>
+        <div className="builtin-row">
+          <code>{"{now}"}</code> <span>ISO timestamp</span>
         </div>
-    );
+        <div className="builtin-row">
+          <code>{"{now:unix}"}</code> <span>Unix seconds</span>
+        </div>
+        <div className="builtin-row">
+          <code>{"{now:unixms}"}</code> <span>Unix milliseconds</span>
+        </div>
+        <div className="builtin-row">
+          <code>{"{now:date}"}</code> <span>Date only</span>
+        </div>
+        <div className="builtin-row">
+          <code>{"{now:time}"}</code> <span>Time only</span>
+        </div>
+        <div className="builtin-row">
+          <code>{"{now:utc}"}</code> <span>UTC timezone</span>
+        </div>
+        <div className="builtin-row">
+          <code>{"{now:+5m}"}</code> <span>Offset (s/m/h/d/w/M/y)</span>
+        </div>
+        <div className="builtin-row">
+          <code>{"{now:fmt:YYYY-MM-DD}"}</code> <span>Custom format</span>
+        </div>
+        <div className="builtin-row">
+          <code>{"{uuid}"}</code> <span>Random UUID v4</span>
+        </div>
+        <div className="builtin-row">
+          <code>{"{random}"}</code> <span>Random 0-100</span>
+        </div>
+        <div className="builtin-row">
+          <code>{"{random:1-1000}"}</code> <span>Custom range</span>
+        </div>
+      </div>
+    </div>
+  );
 }
