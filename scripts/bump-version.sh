@@ -51,16 +51,6 @@ sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
 echo "Updating Cargo.lock..."
 (cd src-tauri && cargo update -p mqtt-topic-lab --quiet 2>/dev/null || cargo generate-lockfile --quiet)
 
-echo "Creating git tag v$VERSION..."
-git add package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock
-git commit -m "v$VERSION"
-git tag "v$VERSION"
-
 echo ""
-echo "Done! Tagged v$VERSION"
-echo ""
-read -r "PUSH?Push with tags? [y/N]: "
-if [[ $PUSH =~ ^[Yy]$ ]]; then
-    git push && git push --tags
-    echo "Pushed!"
-fi
+echo "Done! Updated to v$VERSION"
+echo "Remember to commit and tag: git tag v$VERSION"
