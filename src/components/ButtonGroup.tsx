@@ -5,6 +5,8 @@ import type { Button, ButtonGroup as ButtonGroupType } from '../types';
 import { useApp } from '../contexts/AppContext';
 import { ButtonCard } from './ButtonCard';
 
+const mod = /Mac|iPhone|iPad/.test(navigator.userAgent) ? '\u2318\u2009' : 'Ctrl+';
+
 interface ButtonGroupProps {
     group: ButtonGroupType | null;
     buttons: Button[];
@@ -145,7 +147,7 @@ export function ButtonGroupSection({
             onMouseEnter={handleGroupMouseEnter}
             onMouseMove={isGroupDragOver && !isGroupDragging ? handleGroupMouseMove : undefined}
         >
-            <button className={`button-group-header ${isGroupSelected ? 'group-selected' : ''}`} onClick={handleHeaderClick}>
+            <button className={`button-group-header ${isGroupSelected ? 'group-selected' : ''}`} onClick={handleHeaderClick} title={`Toggle (${mod}T)`}>
                 {collapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                 {isRenaming ? (
                     <span
@@ -162,7 +164,7 @@ export function ButtonGroupSection({
                     <span className="button-group-name">{groupName}</span>
                 )}
                 <span className="button-group-actions" onClick={(e) => e.stopPropagation()}>
-                    <button className="btn-icon" onClick={() => onAddButton(group?.id)} title="Add button">
+                    <button className="btn-icon" onClick={() => onAddButton(group?.id)} title={`Add button (${mod}N)`}>
                         <Plus size={14} />
                     </button>
                     {!isUngrouped && (

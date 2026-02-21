@@ -30,6 +30,7 @@ export function Dashboard() {
     const [messageViewerExpanded, setMessageViewerExpanded] = useState(() => preferences.messageViewerExpanded);
     const [showSearch, setShowSearch] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [sidebarWidth, setSidebarWidth] = useState(() => preferences.sidebarWidth);
     const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set(preferences.collapsedGroups));
     const [newGroupName, setNewGroupName] = useState('');
     const [showNewGroupInput, setShowNewGroupInput] = useState(false);
@@ -400,7 +401,28 @@ export function Dashboard() {
                 </main>
 
                 {showVariables && (
-                    <aside className="sidebar">
+                    <aside className="sidebar" style={{ width: sidebarWidth }}>
+                        <div className="sidebar-resize-handle" onMouseDown={(e) => {
+                            e.preventDefault();
+                            const startX = e.clientX;
+                            const startWidth = sidebarWidth;
+                            let newWidth = startWidth;
+                            document.body.style.cursor = 'col-resize';
+                            document.body.style.userSelect = 'none';
+                            const onMouseMove = (e: MouseEvent) => {
+                                newWidth = Math.max(280, Math.min(500, startWidth - (e.clientX - startX)));
+                                setSidebarWidth(newWidth);
+                            };
+                            const onMouseUp = () => {
+                                document.body.style.cursor = '';
+                                document.body.style.userSelect = '';
+                                document.removeEventListener('mousemove', onMouseMove);
+                                document.removeEventListener('mouseup', onMouseUp);
+                                preferences.sidebarWidth = newWidth;
+                            };
+                            document.addEventListener('mousemove', onMouseMove);
+                            document.addEventListener('mouseup', onMouseUp);
+                        }} />
                         <VariablesPanel />
                     </aside>
                 )}

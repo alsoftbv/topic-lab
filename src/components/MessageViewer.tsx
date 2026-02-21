@@ -7,6 +7,8 @@ import { useApp } from '../contexts/AppContext';
 import { substituteVariables } from '../utils/variables';
 import { preferences } from '../utils/preferences';
 
+const mod = /Mac|iPhone|iPad/.test(navigator.userAgent) ? '\u2318\u2009' : 'Ctrl+';
+
 interface MessageViewerProps {
     expanded: boolean;
     onToggle: (expanded: boolean) => void;
@@ -203,7 +205,7 @@ export function MessageViewer({ expanded, onToggle, showRawTemplates }: MessageV
 
     return (
         <div className="message-viewer">
-            <button className="message-viewer-header" onClick={() => onToggle(!expanded)}>
+            <button className="message-viewer-header" onClick={() => onToggle(!expanded)} title={`Toggle (${mod}I)`}>
                 {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 <span>Message Viewer</span>
                 {subscriptions.length > 0 && (

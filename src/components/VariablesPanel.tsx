@@ -128,6 +128,21 @@ export function VariablesPanel() {
                     Add
                 </button>
             </form>
+
+            <div className="builtins-list">
+                <h4>Built-in Variables</h4>
+                <div className="builtin-row"><code>{'{now}'}</code> <span>ISO timestamp</span></div>
+                <div className="builtin-row"><code>{'{now:unix}'}</code> <span>Unix seconds</span></div>
+                <div className="builtin-row"><code>{'{now:unixms}'}</code> <span>Unix milliseconds</span></div>
+                <div className="builtin-row"><code>{'{now:date}'}</code> <span>Date only</span></div>
+                <div className="builtin-row"><code>{'{now:time}'}</code> <span>Time only</span></div>
+                <div className="builtin-row"><code>{'{now:utc}'}</code> <span>UTC timezone</span></div>
+                <div className="builtin-row"><code>{'{now:+5m}'}</code> <span>Offset (s/m/h/d/w/M/y)</span></div>
+                <div className="builtin-row"><code>{'{now:fmt:YYYY-MM-DD}'}</code> <span>Custom format</span></div>
+                <div className="builtin-row"><code>{'{uuid}'}</code> <span>Random UUID v4</span></div>
+                <div className="builtin-row"><code>{'{random}'}</code> <span>Random 0-100</span></div>
+                <div className="builtin-row"><code>{'{random:1-1000}'}</code> <span>Custom range</span></div>
+            </div>
         </div>
     );
 }

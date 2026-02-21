@@ -2,10 +2,12 @@ const KEYS = {
     messageViewerHeight: 'messageViewerHeight',
     messageViewerExpanded: 'messageViewerExpanded',
     collapsedGroups: 'collapsedGroups',
+    sidebarWidth: 'sidebarWidth',
 } as const;
 
 const DEFAULTS = {
     messageViewerHeight: 180,
+    sidebarWidth: 350,
 };
 
 export const preferences = {
@@ -33,5 +35,14 @@ export const preferences = {
 
     set collapsedGroups(value: string[]) {
         localStorage.setItem(KEYS.collapsedGroups, JSON.stringify(value));
+    },
+
+    get sidebarWidth(): number {
+        const saved = localStorage.getItem(KEYS.sidebarWidth);
+        return saved ? parseInt(saved, 10) : DEFAULTS.sidebarWidth;
+    },
+
+    set sidebarWidth(value: number) {
+        localStorage.setItem(KEYS.sidebarWidth, String(value));
     },
 };

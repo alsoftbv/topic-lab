@@ -98,10 +98,26 @@
 }
 
 .sidebar {
+    position: relative;
     flex-shrink: 0;
     background: var(--bg-secondary);
     border-left: 1px solid var(--border);
     padding: 1.5rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.sidebar-resize-handle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+}
+
+.sidebar-resize-handle:hover {
+    background: var(--border);
 }
 
 @media (max-width: 900px) {

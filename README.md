@@ -2,59 +2,26 @@
 
 A desktop application for sending saved MQTT commands via configurable buttons. Built with Tauri (Rust) and React.
 
+![MQTT Topic Lab](screenshots/overview.png)
+
 ## Features
 
-- **Project-based Variables**: Define variables like `device_id` once, use them in multiple buttons with `{device_id}` syntax
 - **Button Commands**: Create buttons with customizable topics, payloads, QoS levels, and retain flags
+- **Project Variables**: Define variables like `device_id` once, use them across buttons with `{device_id}` syntax
+- **Multi-send**: Send messages repeatedly at configurable intervals
+- **Message Viewer**: Subscribe to topics and monitor incoming messages in real-time
+- **Multiple Connections**: Switch between different MQTT brokers
+- **Button Groups**: Organize buttons into collapsible groups with drag-and-drop reordering
+- **Import/Export**: Share connection configurations as JSON files
 - **Auto-connect**: Automatically connects to your MQTT broker on startup
 - **TLS Support**: Secure connections with TLS/SSL
 - **Cross-platform**: Works on Windows, Linux, and macOS
 
-## Getting Started
-
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) (v18+)
-- [Rust](https://rustup.rs/)
-- Platform-specific dependencies for Tauri (see [Tauri Prerequisites](https://tauri.app/start/prerequisites/))
-
-### Development
-
-```bash
-# Install dependencies
-npm install
-
-# Run in development mode
-npm run tauri dev
-```
-
-### Testing
-
-```bash
-# Run frontend tests
-npm test
-
-# Run Rust backend tests
-cd src-tauri && cargo test
-```
-
-### Building
-
-```bash
-# Build for production
-npm run tauri build
-```
-
-## Usage
-
-1. **First Launch**: Configure your MQTT broker connection (URL, port, credentials)
-2. **Add Variables**: Define project variables (e.g., `device_id = "sensor-001"`)
-3. **Create Buttons**: Add buttons with topics like `devices/{device_id}/CMD`
-4. **Send Commands**: Click buttons to publish messages to your MQTT broker
-
 ## Variables
 
-Use `{variable_name}` syntax in topics and payloads. Variables are defined per connection in the Variables panel.
+Use `{variable_name}` syntax in topics and payloads. Variables are defined per connection in the Variables panel. When the panel is open, buttons and subscriptions show the raw templates so you can see which variables are used where.
+
+![Variables panel](screenshots/variables.png)
 
 ### Custom Variables
 
@@ -106,6 +73,34 @@ Modifiers are added with `:` after the variable name and can be combined.
 | `Cmd/Ctrl + F` | Search buttons |
 | `Cmd/Ctrl + T` | Toggle message viewer |
 | `Delete / Backspace` | Delete selected button |
+
+## Getting Started
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) (v18+)
+- [Rust](https://rustup.rs/)
+- Platform-specific dependencies for Tauri (see [Tauri Prerequisites](https://tauri.app/start/prerequisites/))
+
+### Development
+
+```bash
+npm install
+npm run tauri dev
+```
+
+### Testing
+
+```bash
+npm test                    # Frontend tests
+cd src-tauri && cargo test  # Backend tests
+```
+
+### Building
+
+```bash
+npm run tauri build
+```
 
 ## License
 

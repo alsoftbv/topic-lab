@@ -49,6 +49,8 @@ const propsAreEqual = (prev: ButtonCardProps, next: ButtonCardProps) =>
     prev.isDimmed === next.isDimmed &&
     prev.showRawTemplates === next.showRawTemplates;
 
+const mod = /Mac|iPhone|iPad/.test(navigator.userAgent) ? '\u2318\u2009' : 'Ctrl+';
+
 export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDuplicate, onSelect, onDragStart, onDragEnter, onDragSide, isDragging, isDragOver, isSelected, isAnimating, keyboardSent, isDimmed, showRawTemplates }: ButtonCardProps) {
     const { activeConnection, publishButton, deleteButton, updateButton, connectionStatus } = useApp();
     const [publishing, setPublishing] = useState(false);
@@ -271,13 +273,13 @@ export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDu
                 </div>
                                 <h3>{button.name}</h3>
                 <div className="button-card-actions" onClick={(e) => e.stopPropagation()}>
-                    <button className="btn-icon" onClick={() => onDuplicate(button.id, index)} title="Duplicate">
+                    <button className="btn-icon" onClick={() => onDuplicate(button.id, index)} title={`Duplicate (${mod}D)`}>
                         <CopyPlus size={16} />
                     </button>
-                    <button className="btn-icon" onClick={() => onEdit(button.id)} title="Edit">
+                    <button className="btn-icon" onClick={() => onEdit(button.id)} title={`Edit (${mod}E)`}>
                         <Pencil size={16} />
                     </button>
-                    <button className="btn-icon" onClick={handleDelete} title="Delete">
+                    <button className="btn-icon" onClick={handleDelete} title="Delete (⌫)">
                         <Trash2 size={16} />
                     </button>
                 </div>
@@ -337,6 +339,7 @@ export const ButtonCard = memo(function ButtonCard({ button, index, onEdit, onDu
                 className={`btn btn-publish btn-color-${button.color || 'orange'} ${isMultiSending ? 'multi-send-active' : ''} ${keyboardSent ? 'keyboard-press' : ''}`}
                 onClick={(e) => { e.stopPropagation(); handlePublish(); }}
                 disabled={publishing || connectionStatus !== 'connected'}
+                title="Send (Enter / Space)"
             >
                 {isMultiSending ? `Stop (${sendCount})` : button.multiSendEnabled ? 'Start' : 'Send'}
             </button>
