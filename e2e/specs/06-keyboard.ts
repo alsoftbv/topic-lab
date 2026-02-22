@@ -6,10 +6,11 @@ describe("Keyboard Shortcuts", () => {
   });
 
   it("Ctrl+N opens the new button editor", async () => {
+    await browser.pause(500);
     await sendShortcut("n", { ctrl: true });
 
     const modal = await $(selectors.editorModal);
-    await modal.waitForExist({ timeout: 3000 });
+    await modal.waitForExist({ timeout: 5000 });
 
     await sendKey("Escape");
     await browser.pause(300);

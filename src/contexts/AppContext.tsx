@@ -18,6 +18,7 @@ interface AppContextType {
   updateButton: (button: Button) => Promise<void>;
   deleteButton: (id: string) => Promise<void>;
   reorderButtons: (buttons: Button[]) => Promise<void>;
+  duplicateButton: (sourceButton: Button, afterButtonId?: string) => Promise<string>;
   addGroup: (group: ButtonGroup) => Promise<void>;
   updateGroup: (group: ButtonGroup) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
@@ -194,6 +195,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }
 
+  async function duplicateButton(sourceButton: Button, afterButtonId?: string): Promise<string> {
+    const newId = crypto.randomUUID();
+    let newData: AppData | null = null;
+    setData((prev) => {
+      const conn = prev.connections.find((c) => c.id === activeConnectionId);
+      if (!conn) return prev;
+      const buttons = [...conn.buttons];
+      if (afterButtonId) {
+        const idx = buttons.findIndex((b) => b.id === afterButtonId);
+        buttons.splice(idx + 1, 0, { ...sourceButton, id: newId });
+      } else {
+        buttons.push({ ...sourceButton, id: newId });
+      }
+      newData = {
+        ...prev,
+        connections: prev.connections.map((c) =>
+          c.id === conn.id ? { ...c, buttons } : c
+        ),
+      };
+      return newData;
+    });
+    if (newData) {
+      try {
+        await api.saveData(newData);
+        setError(null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to save data");
+      }
+    }
+    return newId;
+  }
+
   async function addGroup(group: ButtonGroup) {
     if (!activeConnection) return;
     await updateConnection({
@@ -304,6 +337,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateButton,
         deleteButton,
         reorderButtons,
+        duplicateButton,
         addGroup,
         updateGroup,
         deleteGroup,

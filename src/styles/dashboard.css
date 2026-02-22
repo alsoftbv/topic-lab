@@ -128,7 +128,12 @@
     .sidebar {
         position: absolute;
         inset: 0;
+        width: 100% !important;
         border-left: none;
         z-index: 100;
+    }
+
+    .sidebar-resize-handle {
+        display: none;
     }
 }

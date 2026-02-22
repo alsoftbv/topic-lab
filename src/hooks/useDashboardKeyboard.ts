@@ -12,7 +12,7 @@ interface UseDashboardKeyboardOptions {
   visibleButtons: Button[];
   groupNav: GroupNavItem[];
   modalsOpen: boolean;
-  reorderButtons: (buttons: Button[]) => void;
+  duplicateButton: (sourceButton: Button, afterButtonId?: string) => Promise<string>;
   onEdit: (button: Button) => void;
   onDelete: (button: Button) => void;
   onNewButton: () => void;
@@ -49,7 +49,7 @@ export function useDashboardKeyboard({
   visibleButtons,
   groupNav,
   modalsOpen,
-  reorderButtons,
+  duplicateButton,
   onEdit,
   onDelete,
   onNewButton,
@@ -68,7 +68,7 @@ export function useDashboardKeyboard({
     activeConnection,
     visibleButtons,
     groupNav,
-    reorderButtons,
+    duplicateButton,
     onEdit,
     onDelete,
     onNewButton,
@@ -79,7 +79,7 @@ export function useDashboardKeyboard({
     activeConnection,
     visibleButtons,
     groupNav,
-    reorderButtons,
+    duplicateButton,
     onEdit,
     onDelete,
     onNewButton,
@@ -126,7 +126,7 @@ export function useDashboardKeyboard({
         activeConnection,
         visibleButtons,
         groupNav,
-        reorderButtons,
+        duplicateButton,
         onEdit,
         onDelete,
         onNewButton,
@@ -352,19 +352,11 @@ export function useDashboardKeyboard({
       } else if (e.key === "v" && copiedButton && activeConnection) {
         e.preventDefault();
         const targetButton = selectedIndex !== null ? visibleButtons[selectedIndex] : null;
-        const newId = crypto.randomUUID();
-        const duplicate: Button = { ...copiedButton, id: newId };
-        const buttons = [...activeConnection.buttons];
-        if (targetButton) {
-          const idx = buttons.findIndex((b) => b.id === targetButton.id);
-          buttons.splice(idx + 1, 0, duplicate);
-        } else {
-          buttons.push(duplicate);
-        }
-        reorderButtons(buttons);
-        if (selectedIndex !== null) setSelectedIndex(selectedIndex + 1);
-        setAnimatingId(newId);
-        setTimeout(() => setAnimatingId(null), 300);
+        duplicateButton(copiedButton, targetButton?.id).then((newId) => {
+          if (selectedIndex !== null) setSelectedIndex(selectedIndex + 1);
+          setAnimatingId(newId);
+          setTimeout(() => setAnimatingId(null), 300);
+        });
       } else if (
         e.key === "d" &&
         selectedIndex !== null &&
@@ -373,15 +365,11 @@ export function useDashboardKeyboard({
       ) {
         e.preventDefault();
         const button = visibleButtons[selectedIndex];
-        const newId = crypto.randomUUID();
-        const duplicate: Button = { ...button, id: newId };
-        const buttons = [...activeConnection.buttons];
-        const idx = buttons.findIndex((b) => b.id === button.id);
-        buttons.splice(idx + 1, 0, duplicate);
-        reorderButtons(buttons);
-        setSelectedIndex(selectedIndex + 1);
-        setAnimatingId(newId);
-        setTimeout(() => setAnimatingId(null), 300);
+        duplicateButton(button, button.id).then((newId) => {
+          setSelectedIndex(selectedIndex + 1);
+          setAnimatingId(newId);
+          setTimeout(() => setAnimatingId(null), 300);
+        });
       }
     };
 

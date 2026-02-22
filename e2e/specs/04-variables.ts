@@ -46,16 +46,21 @@ describe("Variables", () => {
     await browser.pause(500);
   });
 
-  it("edits a variable value", async () => {
-    const editBtn = await $("button[title='Edit']");
-    await browser.execute((el: HTMLElement) => el.click(), editBtn as unknown as HTMLElement);
+  it("edits a variable value inline", async () => {
+    const valueEl = await $(".variable-key=device_id").parentElement().$(selectors.variableValue);
+    await valueEl.click();
 
     await browser.pause(300);
 
-    await setInputValue(".variable-row input[type='text']", "sensor-002");
+    await browser.execute((sel: string) => {
+      const el = document.querySelector(`${sel}[contenteditable="true"]`);
+      if (el) el.textContent = "sensor-002";
+    }, selectors.variableValue);
 
     const saveBtn = await $("button[title='Save']");
-    await browser.execute((el: HTMLElement) => el.click(), saveBtn as unknown as HTMLElement);
+    await browser.execute((el: HTMLElement) => {
+      el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    }, saveBtn as unknown as HTMLElement);
 
     await browser.waitUntil(
       async () => {

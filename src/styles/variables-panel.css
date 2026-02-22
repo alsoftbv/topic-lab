@@ -29,9 +29,23 @@
     font-size: 0.8125rem;
 }
 
+.variable-key-editable {
+    cursor: text;
+}
+
+.variable-key-editable:hover {
+    outline: 1px solid var(--border);
+}
+
+.variable-key[contenteditable] {
+    outline: none;
+}
+
 .variable-value {
     flex: 1;
     min-width: 0;
+    padding: 0.125rem 0.25rem;
+    border-radius: 4px;
     font-size: 0.875rem;
     color: var(--text-secondary);
     overflow: hidden;
@@ -39,10 +53,16 @@
     white-space: nowrap;
 }
 
-.variable-row input {
-    flex: 1;
-    min-width: 0;
-    padding: 0.375rem;
+.variable-value-editable {
+    cursor: text;
+}
+
+.variable-value-editable:hover {
+    background: var(--bg);
+}
+
+.variable-value[contenteditable] {
+    outline: none;
 }
 
 .add-variable-form {

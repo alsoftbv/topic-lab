@@ -1,17 +1,31 @@
-import { useState } from "react";
-import { message } from "../utils/dialog";
-import { Pencil, Trash2, Check, X } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { confirm, message } from "../utils/dialog";
+import { Trash2, Check } from "lucide-react";
 import { useApp } from "../contexts/AppContext";
 import { isBuiltinVariable } from "../utils/builtins";
 
 export function VariablesPanel() {
-  const { activeConnection, updateVariables } = useApp();
+  const { activeConnection, updateConnection, updateVariables } = useApp();
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
-  const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState("");
+  const [editing, setEditing] = useState<{
+    originalKey: string;
+    field: "key" | "value";
+  } | null>(null);
+  const editRef = useRef<HTMLElement>(null);
 
   const variables = activeConnection?.variables || {};
+
+  useEffect(() => {
+    const el = editRef.current;
+    if (!editing || !el) return;
+    el.focus();
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  }, [editing]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,12 +49,98 @@ export function VariablesPanel() {
     setNewValue("");
   };
 
-  const handleUpdate = async (key: string) => {
-    await updateVariables({
-      ...variables,
-      [key]: editValue,
-    });
-    setEditingKey(null);
+  const handleSave = async (originalKey: string, field: "key" | "value") => {
+    const el = editRef.current;
+    if (!el) return;
+    const trimmed = (el.textContent || "").trim();
+
+    if (field === "key") {
+      if (!trimmed || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(trimmed)) {
+        el.textContent = originalKey;
+        setEditing(null);
+        return;
+      }
+      if (isBuiltinVariable(trimmed)) {
+        el.textContent = originalKey;
+        setEditing(null);
+        message(`"${trimmed}" is a reserved built-in variable name`, {
+          title: "Reserved Name",
+          kind: "error",
+        });
+        return;
+      }
+      if (trimmed !== originalKey) {
+        const updated: Record<string, string> = {};
+        for (const [k, v] of Object.entries(variables)) {
+          updated[k === originalKey ? trimmed : k] = v;
+        }
+
+        const pattern = `{${originalKey}}`;
+        const buttons = activeConnection?.buttons || [];
+        const subscriptions = activeConnection?.subscriptions || [];
+        const affectedButtons = buttons.filter(
+          (b) => b.topic.includes(pattern) || (b.payload || "").includes(pattern)
+        );
+        const affectedSubs = subscriptions.filter((s) => s.includes(pattern));
+        const totalAffected = affectedButtons.length + affectedSubs.length;
+
+        if (totalAffected > 0 && activeConnection) {
+          const parts: string[] = [];
+          if (affectedButtons.length > 0) {
+            parts.push(`${affectedButtons.length} ${affectedButtons.length === 1 ? "button" : "buttons"}`);
+          }
+          if (affectedSubs.length > 0) {
+            parts.push(`${affectedSubs.length} ${affectedSubs.length === 1 ? "subscription" : "subscriptions"}`);
+          }
+          const shouldRename = await confirm(
+            `${parts.join(" and ")} use {${originalKey}}. Rename to {${trimmed}}?`,
+            { title: "Update References", kind: "warning" }
+          );
+          if (shouldRename) {
+            const replacement = `{${trimmed}}`;
+            const updatedButtons = buttons.map((b) => ({
+              ...b,
+              topic: b.topic.split(pattern).join(replacement),
+              payload: b.payload ? b.payload.split(pattern).join(replacement) : b.payload,
+            }));
+            const updatedSubs = subscriptions.map((s) => s.split(pattern).join(replacement));
+            await updateConnection({
+              ...activeConnection,
+              variables: updated,
+              buttons: updatedButtons,
+              subscriptions: updatedSubs,
+            });
+            setEditing(null);
+            return;
+          }
+        }
+
+        await updateVariables(updated);
+      }
+    } else {
+      await updateVariables({
+        ...variables,
+        [originalKey]: el.textContent || "",
+      });
+    }
+    setEditing(null);
+  };
+
+  const handleCancel = (originalKey: string, field: "key" | "value") => {
+    const el = editRef.current;
+    if (el) {
+      el.textContent = field === "key" ? originalKey : variables[originalKey] || "";
+    }
+    setEditing(null);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, originalKey: string, field: "key" | "value") => {
+    e.stopPropagation();
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSave(originalKey, field);
+    }
+    if (e.key === "Escape") handleCancel(originalKey, field);
   };
 
   const handleDelete = async (key: string) => {
@@ -49,10 +149,8 @@ export function VariablesPanel() {
     await updateVariables(updated);
   };
 
-  const startEditing = (key: string) => {
-    setEditingKey(key);
-    setEditValue(variables[key]);
-  };
+  const isEditing = (key: string, field: "key" | "value") =>
+    editing?.originalKey === key && editing.field === field;
 
   return (
     <div className="variables-panel">
@@ -64,40 +162,68 @@ export function VariablesPanel() {
       <div className="variables-list">
         {Object.entries(variables).map(([key, value]) => (
           <div key={key} className="variable-row">
-            <code className="variable-key">{key}</code>
-            {editingKey === key ? (
-              <>
-                <input
-                  type="text"
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleUpdate(key);
-                    if (e.key === "Escape") setEditingKey(null);
-                  }}
-                  autoFocus
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck={false}
-                />
-                <button className="btn-icon" onClick={() => handleUpdate(key)} title="Save">
-                  <Check size={16} />
-                </button>
-                <button className="btn-icon" onClick={() => setEditingKey(null)} title="Cancel">
-                  <X size={16} />
-                </button>
-              </>
-            ) : (
-              <>
-                <span className="variable-value">{value}</span>
-                <button className="btn-icon" onClick={() => startEditing(key)} title="Edit">
-                  <Pencil size={16} />
-                </button>
-                <button className="btn-icon" onClick={() => handleDelete(key)} title="Delete">
-                  <Trash2 size={16} />
-                </button>
-              </>
+            <code
+              ref={isEditing(key, "key") ? editRef : undefined}
+              className={`variable-key variable-key-editable`}
+              contentEditable={isEditing(key, "key")}
+              suppressContentEditableWarning
+              onClick={(e) => {
+                if (!isEditing(key, "key")) {
+                  e.stopPropagation();
+                  setEditing({ originalKey: key, field: "key" });
+                }
+              }}
+              onKeyDown={isEditing(key, "key") ? (e) => handleKeyDown(e, key, "key") : undefined}
+              onBlur={isEditing(key, "key") ? () => handleCancel(key, "key") : undefined}
+            >
+              {key}
+            </code>
+            {isEditing(key, "key") && (
+              <button
+                className="btn-icon"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleSave(key, "key");
+                }}
+                title="Save"
+              >
+                <Check size={16} />
+              </button>
             )}
+            <span
+              ref={isEditing(key, "value") ? editRef : undefined}
+              className={`variable-value variable-value-editable`}
+              contentEditable={isEditing(key, "value")}
+              suppressContentEditableWarning
+              onClick={(e) => {
+                if (!isEditing(key, "value")) {
+                  e.stopPropagation();
+                  setEditing({ originalKey: key, field: "value" });
+                }
+              }}
+              onKeyDown={
+                isEditing(key, "value") ? (e) => handleKeyDown(e, key, "value") : undefined
+              }
+              onBlur={isEditing(key, "value") ? () => handleCancel(key, "value") : undefined}
+            >
+              {value}
+            </span>
+            {isEditing(key, "value") ? (
+              <button
+                className="btn-icon"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleSave(key, "value");
+                }}
+                title="Save"
+              >
+                <Check size={16} />
+              </button>
+            ) : !isEditing(key, "key") ? (
+              <button className="btn-icon" onClick={() => handleDelete(key)} title="Delete">
+                <Trash2 size={16} />
+              </button>
+            ) : null}
           </div>
         ))}
 

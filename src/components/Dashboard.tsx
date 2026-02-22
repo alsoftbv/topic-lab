@@ -25,6 +25,7 @@ export function Dashboard() {
     deleteConnection,
     deleteButton,
     reorderButtons,
+    duplicateButton,
     importConnection,
     addGroup,
     reorderGroups,
@@ -130,7 +131,7 @@ export function Dashboard() {
     visibleButtons,
     groupNav,
     modalsOpen: showEditor || showSettings || showConnectionEditor,
-    reorderButtons,
+    duplicateButton,
     onEdit: (button) => {
       setEditingButton(button);
       setEditorGroupId(button.groupId);
@@ -232,15 +233,10 @@ export function Dashboard() {
     }
   };
 
-  const handleDuplicateButton = (_buttonId: string, index: number) => {
+  const handleDuplicateButton = async (_buttonId: string, index: number) => {
     const button = visibleButtons[index];
     if (!button || !activeConnection) return;
-    const newId = crypto.randomUUID();
-    const duplicate: Button = { ...button, id: newId };
-    const buttons = [...activeConnection.buttons];
-    const globalIdx = buttons.findIndex((b) => b.id === button.id);
-    buttons.splice(globalIdx + 1, 0, duplicate);
-    reorderButtons(buttons);
+    const newId = await duplicateButton(button, button.id);
     setAnimatingId(newId);
     setTimeout(() => setAnimatingId(null), 300);
   };
