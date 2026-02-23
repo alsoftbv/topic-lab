@@ -74,8 +74,8 @@ export const ButtonCard = memo(function ButtonCard({
   const [lastResult, setLastResult] = useState<"success" | "error" | null>(null);
   const [isMultiSending, setIsMultiSending] = useState(false);
   const [sendCount, setSendCount] = useState(0);
-  const [editingField, setEditingField] = useState<"topic" | "payload" | null>(null);
-  const editRef = useRef<HTMLElement>(null);
+  const [editingField, setEditingField] = useState<"name" | "topic" | "payload" | null>(null);
+  const editRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<number | null>(null);
   const timeoutRef = useRef<number | null>(null);
@@ -212,7 +212,12 @@ export const ButtonCard = memo(function ButtonCard({
   useEffect(() => {
     const el = editRef.current;
     if (!editingField || !el) return;
-    const raw = editingField === "topic" ? button.topic : button.payload || "";
+    const raw =
+      editingField === "name"
+        ? button.name
+        : editingField === "topic"
+          ? button.topic
+          : button.payload || "";
     el.textContent = raw;
     el.focus();
     const range = document.createRange();
@@ -223,7 +228,7 @@ export const ButtonCard = memo(function ButtonCard({
     sel?.addRange(range);
   }, [editingField]);
 
-  const startEditing = (field: "topic" | "payload", e: React.MouseEvent) => {
+  const startEditing = (field: "name" | "topic" | "payload", e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingField(field);
   };
@@ -231,7 +236,7 @@ export const ButtonCard = memo(function ButtonCard({
   const saveEdit = () => {
     if (!editingField || !editRef.current) return;
     const trimmed = (editRef.current.textContent || "").trim();
-    if (editingField === "topic" && !trimmed) {
+    if ((editingField === "name" || editingField === "topic") && !trimmed) {
       cancelEdit();
       return;
     }
@@ -299,7 +304,40 @@ export const ButtonCard = memo(function ButtonCard({
         <div className="drag-handle" title="Drag to reorder" onMouseDown={handleMouseDown}>
           <GripVertical size={16} />
         </div>
-        <h3>{button.name}</h3>
+        <h3>
+          <span
+            ref={editingField === "name" ? editRef : undefined}
+            className={editingField !== "name" ? "editable-name" : undefined}
+            contentEditable={editingField === "name"}
+            suppressContentEditableWarning
+            onClick={(e) => {
+              if (editingField !== "name") startEditing("name", e);
+              else e.stopPropagation();
+            }}
+            onKeyDown={(e) => {
+              if (editingField !== "name") return;
+              handleEditKeyDown(e);
+            }}
+            onBlur={() => {
+              if (editingField === "name") cancelEdit();
+            }}
+            spellCheck={false}
+          >
+            {editingField !== "name" ? button.name : null}
+          </span>
+          {editingField && (
+            <button
+              className="btn-icon inline-edit-save"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                saveEdit();
+              }}
+              title="Save"
+            >
+              <Check size={16} />
+            </button>
+          )}
+        </h3>
         <div className="button-card-actions" onClick={(e) => e.stopPropagation()}>
           <button
             className="btn-icon"
@@ -340,17 +378,6 @@ export const ButtonCard = memo(function ButtonCard({
           >
             {editingField !== "topic" ? displayTopic : null}
           </code>
-          {editingField === "topic" && (
-            <button
-              className="btn-icon inline-edit-save"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                saveEdit();
-              }}
-            >
-              <Check size={14} />
-            </button>
-          )}
         </div>
         {displayPayload || editingField === "payload" ? (
           <div className="detail-row">
@@ -375,17 +402,6 @@ export const ButtonCard = memo(function ButtonCard({
             >
               {editingField !== "payload" ? displayPayload : null}
             </code>
-            {editingField === "payload" && (
-              <button
-                className="btn-icon inline-edit-save"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  saveEdit();
-                }}
-              >
-                <Check size={14} />
-              </button>
-            )}
           </div>
         ) : null}
         <div className="detail-row">

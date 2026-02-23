@@ -107,6 +107,18 @@ body:has(.button-card.dragging) .button-card {
 .button-card-header h3 {
     font-size: 1rem;
     flex: 1;
+    min-width: 0;
+}
+
+.button-card-header h3>span {
+    overflow-wrap: anywhere;
+}
+
+.button-card-header h3>span[contenteditable] {
+    overflow-wrap: normal;
+    word-break: normal;
+    outline: none;
+    box-shadow: none;
 }
 
 .button-card-actions {
@@ -142,6 +154,7 @@ body:has(.button-card.dragging) .button-card {
     word-break: break-all;
 }
 
+.editable-name,
 .detail-value-editable {
     cursor: text;
 }
@@ -152,12 +165,17 @@ body:has(.button-card.dragging) .button-card {
 }
 
 .inline-edit-save {
-    display: inline-flex;
-    align-items: center;
-    padding: 0;
-    line-height: 1;
+    flex-shrink: 0;
     color: var(--primary);
     opacity: 1;
+    background: none;
+    border: none;
+    outline: none;
+    box-shadow: none;
+}
+
+.button-card-header:has(.inline-edit-save)>.button-card-actions {
+    display: none;
 }
 
 /* Multi-send styles */
@@ -177,9 +195,12 @@ body:has(.button-card.dragging) .button-card {
 }
 
 @keyframes multi-send-pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 0 0 2px var(--primary);
     }
+
     50% {
         box-shadow: 0 0 0 4px var(--primary), 0 0 12px var(--primary);
     }
@@ -198,12 +219,13 @@ body:has(.button-card.dragging) .button-card {
         transform: scale(0.9);
         opacity: 0;
     }
+
     50% {
         transform: scale(1.02);
     }
+
     100% {
         transform: scale(1);
         opacity: 1;
     }
 }
-
