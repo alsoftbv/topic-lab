@@ -221,6 +221,7 @@ export function useDashboardKeyboard({
           for (const g of groupNav) {
             if (g.count > 0) {
               setSelectedIndex(g.start);
+              lastColumnRef.current = 0;
               return;
             }
             setSelectedGroupId(g.id);
@@ -247,6 +248,7 @@ export function useDashboardKeyboard({
           const col = (selectedIndex! - gInfo.start) % columns;
           if (col + 1 < columns && selectedIndex! + 1 < gInfo.end) {
             setSelectedIndex(selectedIndex! + 1);
+            lastColumnRef.current = col + 1;
           }
           return;
         }
@@ -257,6 +259,7 @@ export function useDashboardKeyboard({
           const col = (selectedIndex! - gInfo.start) % columns;
           if (col > 0) {
             setSelectedIndex(selectedIndex! - 1);
+            lastColumnRef.current = col - 1;
           }
           return;
         }
@@ -265,17 +268,15 @@ export function useDashboardKeyboard({
           const gInfo = findGroupForButton(selectedIndex!, groupNav);
           if (!gInfo) return;
           const localIdx = selectedIndex! - gInfo.start;
-          const col = localIdx % columns;
+          const desiredCol = lastColumnRef.current;
           const groupSize = gInfo.end - gInfo.start;
           const currentRow = Math.floor(localIdx / columns);
           const totalRows = Math.ceil(groupSize / columns);
-          const next = selectedIndex! + columns;
-          if (next < gInfo.end) {
-            setSelectedIndex(next);
-          } else if (currentRow + 1 < totalRows) {
-            setSelectedIndex(gInfo.end - 1);
+          if (currentRow + 1 < totalRows) {
+            const target = gInfo.start + (currentRow + 1) * columns + desiredCol;
+            setSelectedIndex(Math.min(target, gInfo.end - 1));
           } else {
-            selectNextDown(gInfo.navIdx, col);
+            selectNextDown(gInfo.navIdx, desiredCol);
           }
           return;
         }
@@ -283,12 +284,13 @@ export function useDashboardKeyboard({
         if (e.key === "ArrowUp") {
           const gInfo = findGroupForButton(selectedIndex!, groupNav);
           if (!gInfo) return;
-          const col = (selectedIndex! - gInfo.start) % columns;
-          const prev = selectedIndex! - columns;
-          if (prev >= gInfo.start) {
-            setSelectedIndex(prev);
+          const localIdx = selectedIndex! - gInfo.start;
+          const desiredCol = lastColumnRef.current;
+          const currentRow = Math.floor(localIdx / columns);
+          if (currentRow > 0) {
+            setSelectedIndex(gInfo.start + (currentRow - 1) * columns + desiredCol);
           } else {
-            selectNextUp(gInfo.navIdx, col, columns);
+            selectNextUp(gInfo.navIdx, desiredCol, columns);
           }
           return;
         }
