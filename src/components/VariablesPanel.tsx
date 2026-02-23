@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { confirm, message } from "../utils/dialog";
+import { message } from "../utils/dialog";
 import { Trash2, Check } from "lucide-react";
 import { useApp } from "../contexts/AppContext";
 import { isBuiltinVariable } from "../utils/builtins";
@@ -23,6 +23,7 @@ export function VariablesPanel() {
     const sel = window.getSelection();
     const range = document.createRange();
     range.selectNodeContents(el);
+    range.collapse(false);
     sel?.removeAllRanges();
     sel?.addRange(range);
   }, [editing]);
@@ -92,11 +93,21 @@ export function VariablesPanel() {
           if (affectedSubs.length > 0) {
             parts.push(`${affectedSubs.length} ${affectedSubs.length === 1 ? "subscription" : "subscriptions"}`);
           }
-          const shouldRename = await confirm(
-            `${parts.join(" and ")} use {${originalKey}}. Rename to {${trimmed}}?`,
-            { title: "Update References", kind: "warning" }
+          const renameLabel = "Rename References";
+          const result = await message(
+            `${parts.join(" and ")} use {${originalKey}}. Rename references to {${trimmed}}?`,
+            {
+              title: "Update References",
+              kind: "warning",
+              buttons: { yes: renameLabel, no: "Don't Rename", cancel: "Cancel" },
+            }
           );
-          if (shouldRename) {
+          if (result === "Cancel") {
+            el.textContent = originalKey;
+            setEditing(null);
+            return;
+          }
+          if (result === renameLabel) {
             const replacement = `{${trimmed}}`;
             const updatedButtons = buttons.map((b) => ({
               ...b,
@@ -180,7 +191,7 @@ export function VariablesPanel() {
             </code>
             {isEditing(key, "key") && (
               <button
-                className="btn-icon"
+                className="inline-edit-save"
                 onMouseDown={(e) => {
                   e.preventDefault();
                   handleSave(key, "key");
@@ -210,7 +221,7 @@ export function VariablesPanel() {
             </span>
             {isEditing(key, "value") ? (
               <button
-                className="btn-icon"
+                className="inline-edit-save"
                 onMouseDown={(e) => {
                   e.preventDefault();
                   handleSave(key, "value");

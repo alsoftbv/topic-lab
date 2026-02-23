@@ -3,6 +3,7 @@ import {
   message as nativeMessage,
   type ConfirmDialogOptions,
   type MessageDialogOptions,
+  type MessageDialogResult,
 } from "@tauri-apps/plugin-dialog";
 
 declare global {
@@ -16,7 +17,7 @@ export async function confirm(message: string, options?: ConfirmDialogOptions): 
   return nativeConfirm(message, options);
 }
 
-export async function message(msg: string, options?: string | MessageDialogOptions) {
-  if (window.__TAURI_E2E__) return;
+export async function message(msg: string, options?: string | MessageDialogOptions): Promise<MessageDialogResult> {
+  if (window.__TAURI_E2E__) return "Yes";
   return nativeMessage(msg, options);
 }

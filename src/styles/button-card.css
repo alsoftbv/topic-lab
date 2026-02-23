@@ -89,6 +89,8 @@ body:has(.button-card.dragging) .button-card {
 }
 
 .drag-handle {
+    display: flex;
+    align-items: center;
     cursor: grab;
     color: var(--text-secondary);
     opacity: 0.5;
@@ -165,6 +167,8 @@ body:has(.button-card.dragging) .button-card {
 }
 
 .inline-edit-save {
+    display: flex;
+    align-items: center;
     flex-shrink: 0;
     color: var(--primary);
     opacity: 1;
@@ -172,6 +176,8 @@ body:has(.button-card.dragging) .button-card {
     border: none;
     outline: none;
     box-shadow: none;
+    padding: 0.25rem;
+    cursor: pointer;
 }
 
 .button-card-header:has(.inline-edit-save)>.button-card-actions {
