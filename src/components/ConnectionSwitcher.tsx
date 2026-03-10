@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Plus, Upload, Wifi, WifiOff, Loader } from "lucide-react";
+import { ChevronDown, Plus, Upload, Download, Wifi, WifiOff, Loader } from "lucide-react";
+import type { Connection } from "../types";
 import { useApp } from "../contexts/AppContext";
+import * as api from "../utils/api";
 
 interface ConnectionSwitcherProps {
   onAddNew: () => void;
@@ -52,6 +54,12 @@ export function ConnectionSwitcher({ onAddNew, onImport }: ConnectionSwitcherPro
     onImport();
   };
 
+  const handleExport = async (e: React.MouseEvent, conn: Connection) => {
+    e.stopPropagation();
+    setIsOpen(false);
+    await api.exportConnection(conn);
+  };
+
   if (!activeConnection) return null;
 
   return (
@@ -65,14 +73,23 @@ export function ConnectionSwitcher({ onAddNew, onImport }: ConnectionSwitcherPro
       {isOpen && (
         <div className="connection-dropdown">
           {data.connections.map((conn) => (
-            <button
+            <div
               key={conn.id}
               className={`connection-option ${conn.id === activeConnection.id ? "active" : ""}`}
               onClick={() => handleSelect(conn.id)}
             >
-              <span className="connection-option-name">{conn.name}</span>
-              <span className="connection-option-broker">{conn.broker_url}</span>
-            </button>
+              <div className="connection-option-info">
+                <span className="connection-option-name">{conn.name}</span>
+                <span className="connection-option-broker">{conn.broker_url}</span>
+              </div>
+              <button
+                className="connection-export-btn"
+                onClick={(e) => handleExport(e, conn)}
+                title="Export connection"
+              >
+                <Upload size={14} />
+              </button>
+            </div>
           ))}
           <div className="connection-dropdown-divider" />
           <button className="connection-option add-new" onClick={handleAddNew}>
@@ -80,7 +97,7 @@ export function ConnectionSwitcher({ onAddNew, onImport }: ConnectionSwitcherPro
             <span>Add Connection</span>
           </button>
           <button className="connection-option add-new" onClick={handleImport}>
-            <Upload size={16} />
+            <Download size={16} />
             <span>Import Connection</span>
           </button>
         </div>
