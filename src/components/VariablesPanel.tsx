@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { message } from "../utils/dialog";
-import { Trash2, Check } from "lucide-react";
+import { Trash2, Check, X } from "lucide-react";
 import { useApp } from "../contexts/AppContext";
 import { isBuiltinVariable } from "../utils/builtins";
 
@@ -12,9 +12,38 @@ export function VariablesPanel() {
     originalKey: string;
     field: "key" | "value";
   } | null>(null);
+  const [historyOpen, setHistoryOpen] = useState<string | null>(null);
   const editRef = useRef<HTMLElement>(null);
+  const historyRef = useRef<HTMLDivElement>(null);
+  const savingRef = useRef(false);
 
   const variables = activeConnection?.variables || {};
+  const variableHistory = activeConnection?.variable_history || {};
+
+  useEffect(() => {
+    if (!historyOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (historyRef.current && !historyRef.current.contains(e.target as Node)) {
+        setHistoryOpen(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [historyOpen]);
+
+  const handleHistorySelect = async (key: string, value: string) => {
+    setHistoryOpen(null);
+    setEditing(null);
+    await updateVariables({ ...variables, [key]: value });
+  };
+
+  const handleHistoryDelete = async (key: string, value: string) => {
+    if (!activeConnection) return;
+    const history = { ...variableHistory };
+    history[key] = (history[key] || []).filter((v) => v !== value);
+    if (history[key].length === 0) delete history[key];
+    await updateConnection({ ...activeConnection, variable_history: history });
+  };
 
   useEffect(() => {
     const el = editRef.current;
@@ -53,16 +82,19 @@ export function VariablesPanel() {
   const handleSave = async (originalKey: string, field: "key" | "value") => {
     const el = editRef.current;
     if (!el) return;
+    savingRef.current = true;
     const trimmed = (el.textContent || "").trim();
 
     if (field === "key") {
       if (!trimmed || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(trimmed)) {
         el.textContent = originalKey;
+        savingRef.current = false;
         setEditing(null);
         return;
       }
       if (isBuiltinVariable(trimmed)) {
         el.textContent = originalKey;
+        savingRef.current = false;
         setEditing(null);
         message(`"${trimmed}" is a reserved built-in variable name`, {
           title: "Reserved Name",
@@ -104,6 +136,7 @@ export function VariablesPanel() {
           );
           if (result === "Cancel") {
             el.textContent = originalKey;
+            savingRef.current = false;
             setEditing(null);
             return;
           }
@@ -121,6 +154,7 @@ export function VariablesPanel() {
               buttons: updatedButtons,
               subscriptions: updatedSubs,
             });
+            savingRef.current = false;
             setEditing(null);
             return;
           }
@@ -134,10 +168,12 @@ export function VariablesPanel() {
         [originalKey]: el.textContent || "",
       });
     }
+    savingRef.current = false;
     setEditing(null);
   };
 
   const handleCancel = (originalKey: string, field: "key" | "value") => {
+    if (savingRef.current) return;
     const el = editRef.current;
     if (el) {
       el.textContent = field === "key" ? originalKey : variables[originalKey] || "";
@@ -201,24 +237,56 @@ export function VariablesPanel() {
                 <Check size={16} />
               </button>
             )}
-            <span
-              ref={isEditing(key, "value") ? editRef : undefined}
-              className={`variable-value variable-value-editable`}
-              contentEditable={isEditing(key, "value")}
-              suppressContentEditableWarning
-              onClick={(e) => {
-                if (!isEditing(key, "value")) {
-                  e.stopPropagation();
-                  setEditing({ originalKey: key, field: "value" });
+            <div className="variable-value-wrapper">
+              <span
+                ref={isEditing(key, "value") ? editRef : undefined}
+                className={`variable-value variable-value-editable`}
+                contentEditable={isEditing(key, "value")}
+                suppressContentEditableWarning
+                onClick={(e) => {
+                  if (!isEditing(key, "value")) {
+                    e.stopPropagation();
+                    setEditing({ originalKey: key, field: "value" });
+                    if ((variableHistory[key] || []).length > 0) {
+                      setHistoryOpen(key);
+                    }
+                  }
+                }}
+                onKeyDown={
+                  isEditing(key, "value") ? (e) => handleKeyDown(e, key, "value") : undefined
                 }
-              }}
-              onKeyDown={
-                isEditing(key, "value") ? (e) => handleKeyDown(e, key, "value") : undefined
-              }
-              onBlur={isEditing(key, "value") ? () => handleCancel(key, "value") : undefined}
-            >
-              {value}
-            </span>
+                onBlur={isEditing(key, "value") ? () => handleCancel(key, "value") : undefined}
+              >
+                {value}
+              </span>
+              {historyOpen === key && (variableHistory[key] || []).length > 0 && (
+                <div className="variable-history-dropdown" ref={historyRef}>
+                  {variableHistory[key].map((histValue) => (
+                    <div key={histValue} className="variable-history-item">
+                      <span
+                        className="variable-history-value"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleHistorySelect(key, histValue);
+                        }}
+                      >
+                        {histValue}
+                      </span>
+                      <button
+                        className="variable-history-delete"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleHistoryDelete(key, histValue);
+                        }}
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             {isEditing(key, "value") ? (
               <button
                 className="inline-edit-save"

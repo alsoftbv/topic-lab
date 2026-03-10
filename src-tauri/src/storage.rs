@@ -1,4 +1,5 @@
 use crate::types::{AppData, Connection, LegacyProject};
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -72,6 +73,7 @@ impl Storage {
             use_tls: legacy.connection.use_tls,
             auto_connect: legacy.connection.auto_connect,
             variables: legacy.variables,
+            variable_history: HashMap::new(),
             buttons: legacy.buttons,
             groups: vec![],
             subscriptions: vec![],
@@ -127,6 +129,7 @@ mod tests {
             use_tls: false,
             auto_connect: true,
             variables: HashMap::from([("device_id".to_string(), "abc123".to_string())]),
+            variable_history: HashMap::new(),
             buttons: vec![Button {
                 id: "btn1".to_string(),
                 name: "Test Button".to_string(),

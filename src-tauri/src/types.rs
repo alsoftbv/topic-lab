@@ -84,6 +84,8 @@ pub struct Connection {
     #[serde(default)]
     pub variables: HashMap<String, String>,
     #[serde(default)]
+    pub variable_history: HashMap<String, Vec<String>>,
+    #[serde(default)]
     pub buttons: Vec<Button>,
     #[serde(default)]
     pub groups: Vec<ButtonGroup>,
@@ -425,5 +427,35 @@ mod tests {
         }"#;
         let conn: Connection = serde_json::from_str(json).unwrap();
         assert!(conn.groups.is_empty());
+    }
+
+    #[test]
+    fn test_connection_without_variable_history_defaults_to_empty() {
+        let json = r#"{
+            "id": "conn1",
+            "name": "Test",
+            "broker_url": "localhost",
+            "port": 1883,
+            "client_id": "test",
+            "variables": {"mac": "AA:BB:CC"}
+        }"#;
+        let conn: Connection = serde_json::from_str(json).unwrap();
+        assert!(conn.variable_history.is_empty());
+    }
+
+    #[test]
+    fn test_connection_with_variable_history() {
+        let json = r#"{
+            "id": "conn1",
+            "name": "Test",
+            "broker_url": "localhost",
+            "port": 1883,
+            "client_id": "test",
+            "variables": {"mac": "AA:BB:CC"},
+            "variable_history": {"mac": ["11:22:33", "44:55:66"]}
+        }"#;
+        let conn: Connection = serde_json::from_str(json).unwrap();
+        assert_eq!(conn.variable_history.len(), 1);
+        assert_eq!(conn.variable_history["mac"], vec!["11:22:33", "44:55:66"]);
     }
 }

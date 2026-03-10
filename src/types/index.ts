@@ -31,6 +31,7 @@ export interface Connection {
   use_tls: boolean;
   auto_connect: boolean;
   variables: Record<string, string>;
+  variable_history?: Record<string, string[]>;
   buttons: Button[];
   groups: ButtonGroup[];
   subscriptions: string[];

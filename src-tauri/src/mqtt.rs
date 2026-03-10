@@ -294,6 +294,7 @@ mod tests {
             use_tls: false,
             auto_connect: false,
             variables: std::collections::HashMap::new(),
+            variable_history: std::collections::HashMap::new(),
             buttons: vec![],
             groups: vec![],
             subscriptions: vec![],

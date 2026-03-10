@@ -68,6 +68,75 @@
     box-shadow: none;
 }
 
+.variable-value-wrapper {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+.variable-value-wrapper .variable-value {
+    flex: unset;
+    display: block;
+}
+
+.variable-history-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-top: 0.25rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+}
+
+.variable-history-item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.variable-history-value {
+    flex: 1;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.variable-history-value:hover {
+    background: var(--bg);
+    color: var(--text);
+}
+
+.variable-history-delete {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.25rem;
+    margin-right: 0.25rem;
+    border-radius: var(--radius);
+    opacity: 0;
+}
+
+.variable-history-item:hover .variable-history-delete {
+    opacity: 1;
+}
+
+.variable-history-delete:hover {
+    color: var(--error);
+}
+
 .add-variable-form {
     display: flex;
     gap: 0.5rem;

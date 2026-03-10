@@ -102,24 +102,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function saveData(newData: AppData) {
-    setData(newData);
-    try {
-      await api.saveData(newData);
-      setError(null);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to save data";
-      setError(msg);
+  async function saveData(updater: (prev: AppData) => AppData) {
+    let newData: AppData | null = null;
+    setData((prev) => {
+      newData = updater(prev);
+      return newData;
+    });
+    if (newData) {
+      try {
+        await api.saveData(newData);
+        setError(null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to save data");
+      }
     }
+  }
+
+  async function updateActiveConnection(updater: (conn: Connection) => Connection) {
+    await saveData((prev) => {
+      const conn = prev.connections.find((c) => c.id === activeConnectionId);
+      if (!conn) return prev;
+      return {
+        ...prev,
+        connections: prev.connections.map((c) => (c.id === conn.id ? updater(c) : c)),
+      };
+    });
   }
 
   async function addConnection(connection: Connection) {
     await tryDisconnect();
-    await saveData({
-      ...data,
-      connections: [...data.connections, connection],
+    await saveData((prev) => ({
+      ...prev,
+      connections: [...prev.connections, connection],
       last_connection_id: connection.id,
-    });
+    }));
     setActiveConnectionId(connection.id);
     await tryAutoConnect(connection);
   }
@@ -133,22 +149,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function updateConnection(connection: Connection) {
-    await saveData({
-      ...data,
-      connections: data.connections.map((c) => (c.id === connection.id ? connection : c)),
-    });
+    await saveData((prev) => ({
+      ...prev,
+      connections: prev.connections.map((c) => (c.id === connection.id ? connection : c)),
+    }));
   }
 
   async function deleteConnection(id: string) {
-    const newConnections = data.connections.filter((c) => c.id !== id);
-    const newLastConnectionId =
-      data.last_connection_id === id ? newConnections[0]?.id : data.last_connection_id;
-
-    await saveData({ connections: newConnections, last_connection_id: newLastConnectionId });
+    let deletedConnections: Connection[] = [];
+    let deletedLastId: string | undefined;
+    await saveData((prev) => {
+      deletedConnections = prev.connections.filter((c) => c.id !== id);
+      deletedLastId =
+        prev.last_connection_id === id ? deletedConnections[0]?.id : prev.last_connection_id;
+      return { connections: deletedConnections, last_connection_id: deletedLastId };
+    });
 
     if (activeConnectionId === id) {
       await tryDisconnect();
-      const nextConnection = newConnections[0];
+      const nextConnection = deletedConnections[0];
       setActiveConnectionId(nextConnection?.id ?? null);
       await tryAutoConnect(nextConnection);
     }
@@ -158,49 +177,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (id === activeConnectionId) return;
 
     await tryDisconnect();
-    await saveData({ ...data, last_connection_id: id });
+    let conn: Connection | undefined;
+    await saveData((prev) => {
+      conn = prev.connections.find((c) => c.id === id);
+      return { ...prev, last_connection_id: id };
+    });
     setActiveConnectionId(id);
-    await tryAutoConnect(data.connections.find((c) => c.id === id));
+    await tryAutoConnect(conn);
   }
 
   async function addButton(button: Button) {
-    if (!activeConnection) return;
-    await updateConnection({
-      ...activeConnection,
-      buttons: [...activeConnection.buttons, button],
-    });
+    await updateActiveConnection((conn) => ({
+      ...conn,
+      buttons: [...conn.buttons, button],
+    }));
   }
 
   async function updateButton(button: Button) {
-    if (!activeConnection) return;
-    await updateConnection({
-      ...activeConnection,
-      buttons: activeConnection.buttons.map((b) => (b.id === button.id ? button : b)),
-    });
+    await updateActiveConnection((conn) => ({
+      ...conn,
+      buttons: conn.buttons.map((b) => (b.id === button.id ? button : b)),
+    }));
   }
 
   async function deleteButton(id: string) {
-    if (!activeConnection) return;
-    await updateConnection({
-      ...activeConnection,
-      buttons: activeConnection.buttons.filter((b) => b.id !== id),
-    });
+    await updateActiveConnection((conn) => ({
+      ...conn,
+      buttons: conn.buttons.filter((b) => b.id !== id),
+    }));
   }
 
   async function reorderButtons(buttons: Button[]) {
-    if (!activeConnection) return;
-    await updateConnection({
-      ...activeConnection,
-      buttons,
-    });
+    await updateActiveConnection((conn) => ({ ...conn, buttons }));
   }
 
   async function duplicateButton(sourceButton: Button, afterButtonId?: string): Promise<string> {
     const newId = crypto.randomUUID();
-    let newData: AppData | null = null;
-    setData((prev) => {
-      const conn = prev.connections.find((c) => c.id === activeConnectionId);
-      if (!conn) return prev;
+    await updateActiveConnection((conn) => {
       const buttons = [...conn.buttons];
       if (afterButtonId) {
         const idx = buttons.findIndex((b) => b.id === afterButtonId);
@@ -208,65 +221,61 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } else {
         buttons.push({ ...sourceButton, id: newId });
       }
-      newData = {
-        ...prev,
-        connections: prev.connections.map((c) =>
-          c.id === conn.id ? { ...c, buttons } : c
-        ),
-      };
-      return newData;
+      return { ...conn, buttons };
     });
-    if (newData) {
-      try {
-        await api.saveData(newData);
-        setError(null);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to save data");
-      }
-    }
     return newId;
   }
 
   async function addGroup(group: ButtonGroup) {
-    if (!activeConnection) return;
-    await updateConnection({
-      ...activeConnection,
-      groups: [...activeConnection.groups, group],
-    });
+    await updateActiveConnection((conn) => ({
+      ...conn,
+      groups: [...conn.groups, group],
+    }));
   }
 
   async function updateGroup(group: ButtonGroup) {
-    if (!activeConnection) return;
-    await updateConnection({
-      ...activeConnection,
-      groups: activeConnection.groups.map((g) => (g.id === group.id ? group : g)),
-    });
+    await updateActiveConnection((conn) => ({
+      ...conn,
+      groups: conn.groups.map((g) => (g.id === group.id ? group : g)),
+    }));
   }
 
   async function deleteGroup(id: string) {
-    if (!activeConnection) return;
-    await updateConnection({
-      ...activeConnection,
-      groups: activeConnection.groups.filter((g) => g.id !== id),
-      buttons: activeConnection.buttons.map((b) =>
-        b.groupId === id ? { ...b, groupId: undefined } : b
-      ),
-    });
+    await updateActiveConnection((conn) => ({
+      ...conn,
+      groups: conn.groups.filter((g) => g.id !== id),
+      buttons: conn.buttons.map((b) => (b.groupId === id ? { ...b, groupId: undefined } : b)),
+    }));
   }
 
   async function reorderGroups(groups: ButtonGroup[]) {
-    if (!activeConnection) return;
-    await updateConnection({ ...activeConnection, groups });
+    await updateActiveConnection((conn) => ({ ...conn, groups }));
   }
 
+  const MAX_VARIABLE_HISTORY = 5;
+
   async function updateVariables(variables: Record<string, string>) {
-    if (!activeConnection) return;
-    await updateConnection({ ...activeConnection, variables });
+    await updateActiveConnection((conn) => {
+      const history = { ...conn.variable_history };
+      for (const [key, newValue] of Object.entries(variables)) {
+        const oldValue = conn.variables[key];
+        if (oldValue !== undefined && oldValue !== newValue) {
+          const existing = history[key] || [];
+          history[key] = [oldValue, ...existing.filter((v) => v !== oldValue)].slice(
+            0,
+            MAX_VARIABLE_HISTORY
+          );
+        }
+      }
+      for (const key of Object.keys(history)) {
+        if (!(key in variables)) delete history[key];
+      }
+      return { ...conn, variables, variable_history: history };
+    });
   }
 
   async function updateSubscriptions(subscriptions: string[]) {
-    if (!activeConnection) return;
-    await updateConnection({ ...activeConnection, subscriptions });
+    await updateActiveConnection((conn) => ({ ...conn, subscriptions }));
   }
 
   async function connect() {
