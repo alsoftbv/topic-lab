@@ -18,6 +18,10 @@ export async function confirm(message: string, options?: ConfirmDialogOptions): 
 }
 
 export async function message(msg: string, options?: string | MessageDialogOptions): Promise<MessageDialogResult> {
-  if (window.__TAURI_E2E__) return "Yes";
+  if (window.__TAURI_E2E__) {
+    const buttons = typeof options === "object" ? options.buttons : undefined;
+    if (typeof buttons === "object" && "yes" in buttons && buttons.yes) return buttons.yes;
+    return "Yes";
+  }
   return nativeMessage(msg, options);
 }

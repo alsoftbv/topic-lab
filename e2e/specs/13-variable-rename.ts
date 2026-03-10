@@ -56,10 +56,8 @@ describe("Variable Rename", () => {
       if (el) el.textContent = "new_name";
     });
 
-    const saveBtn = await $("button[title='Save']");
-    await browser.execute((el: HTMLElement) => {
-      el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-    }, saveBtn as unknown as HTMLElement);
+    const editableEl = await $(".variable-key[contenteditable='true']");
+    await editableEl.addValue("\uE007");
 
     await browser.waitUntil(async () => await $(".variable-key=new_name").isExisting(), {
       timeout: 5000,
