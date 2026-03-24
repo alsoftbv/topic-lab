@@ -15,11 +15,8 @@ describe("Import & Export", () => {
     const exportBtn = await $("button=Export Connection");
     expect(await exportBtn.isExisting()).toBe(true);
 
-    // Close modal via overlay click
-    await browser.execute(() => {
-      const overlay = document.querySelector(".modal-overlay");
-      if (overlay) (overlay as HTMLElement).dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-    });
+    // Close modal via Escape
+    await browser.keys("Escape");
     await browser.pause(300);
   });
 
@@ -65,11 +62,8 @@ describe("Import & Export", () => {
     expect(modalText).toContain("Export Connection");
     expect(modalText).toContain("Delete Connection");
 
-    // Close modal
-    await browser.execute(() => {
-      const overlay = document.querySelector(".modal-overlay");
-      if (overlay) (overlay as HTMLElement).dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-    });
+    // Close modal via Escape
+    await browser.keys("Escape");
     await browser.pause(300);
   });
 });
