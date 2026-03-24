@@ -32,8 +32,8 @@ export function SettingsModal({
   };
 
   return (
-    <div className="modal-overlay" onMouseDown={onClose}>
-      <div className="modal modal-small" onMouseDown={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="modal modal-small">
         <div className="modal-header">
           <h2>Connection Settings</h2>
           <button className="btn-icon" onClick={onClose}>

@@ -114,8 +114,8 @@ export function ButtonEditor({ button, defaultGroupId, onClose }: ButtonEditorPr
   }, [onClose]);
 
   return (
-    <div className="modal-overlay" onMouseDown={onClose}>
-      <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="modal">
         <div className="modal-header">
           <h2>{isEditing ? "Edit Button" : "New Button"}</h2>
           <button className="btn-icon" onClick={onClose}>

@@ -3,11 +3,6 @@ set -e
 
 cd "$(dirname "$0")/.."
 
-if [[ -n $(git status --porcelain) ]]; then
-    echo "Working tree is dirty. Commit or stash changes first."
-    exit 1
-fi
-
 LATEST_TAG=$(git tag --sort=-v:refname | head -1)
 if [[ -z $LATEST_TAG ]]; then
     CURRENT="0.0.0"

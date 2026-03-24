@@ -98,8 +98,8 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
   };
 
   return (
-    <div className="modal-overlay" onMouseDown={onClose}>
-      <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="modal">
         <div className="modal-header">
           <h2>{isNew ? "New Connection" : "Edit Connection"}</h2>
           <button className="btn-icon" onClick={onClose}>
