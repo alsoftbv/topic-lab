@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { X } from "lucide-react";
 import { confirm } from "../utils/dialog";
 import * as api from "../utils/api";
@@ -30,6 +31,14 @@ export function SettingsModal({
   const handleExport = async () => {
     await api.exportConnection(connection);
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   return (
     <div className="modal-overlay">

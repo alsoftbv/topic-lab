@@ -34,15 +34,21 @@
 
 .checkbox-group label {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.5rem;
     cursor: pointer;
 }
 
 .checkbox-group input[type='checkbox'] {
+    -webkit-appearance: none;
     appearance: none;
     width: 18px;
+    min-width: 18px;
     height: 18px;
+    max-height: 18px;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
     border: 2px solid var(--border);
     border-radius: 4px;
     background: var(--bg);
@@ -117,8 +123,10 @@
 }
 
 .form-group-inline input[type='checkbox'] {
+    -webkit-appearance: none;
     appearance: none;
     width: 18px;
+    min-width: 18px;
     height: 18px;
     border: 2px solid var(--border);
     border-radius: 4px;

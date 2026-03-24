@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import type { Connection } from "../types";
 import { useApp } from "../contexts/AppContext";
@@ -96,6 +96,14 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   return (
     <div className="modal-overlay">

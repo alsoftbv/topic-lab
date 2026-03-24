@@ -90,13 +90,18 @@ export function ButtonGroupSection({
     sel?.addRange(range);
   }, [isRenaming]);
 
+  const stopRenaming = () => {
+    setIsRenaming(false);
+    window.getSelection()?.removeAllRanges();
+  };
+
   const handleSaveRename = () => {
     if (!nameRef.current || !group) return;
     const newName = (nameRef.current.textContent || "").trim();
     if (newName && newName !== group.name) {
       updateGroup({ ...group, name: newName });
     }
-    setIsRenaming(false);
+    stopRenaming();
   };
 
   const handleRenameKeyDown = (e: React.KeyboardEvent) => {
@@ -105,7 +110,7 @@ export function ButtonGroupSection({
       e.preventDefault();
       handleSaveRename();
     }
-    if (e.key === "Escape") setIsRenaming(false);
+    if (e.key === "Escape") stopRenaming();
   };
 
   const handleDelete = async () => {
@@ -151,10 +156,12 @@ export function ButtonGroupSection({
       onMouseEnter={handleGroupMouseEnter}
       onMouseMove={isGroupDragOver && !isGroupDragging ? handleGroupMouseMove : undefined}
     >
-      <button
+      <div
         className={`button-group-header ${isGroupSelected ? "group-selected" : ""}`}
         onClick={handleHeaderClick}
         title={`Toggle (${mod}T)`}
+        role="button"
+        tabIndex={0}
       >
         {collapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
         {isRenaming ? (
@@ -165,7 +172,7 @@ export function ButtonGroupSection({
             suppressContentEditableWarning
             onClick={(e) => e.stopPropagation()}
             onKeyDown={handleRenameKeyDown}
-            onBlur={() => setIsRenaming(false)}
+            onBlur={stopRenaming}
             spellCheck={false}
           />
         ) : (
@@ -217,7 +224,7 @@ export function ButtonGroupSection({
             <GripVertical size={14} />
           </span>
         )}
-      </button>
+      </div>
 
       {!collapsed && (
         <div className="button-group-content">
