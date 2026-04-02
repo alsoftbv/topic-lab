@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, GripVertical, Check } 
 import type { Button, ButtonGroup as ButtonGroupType } from "../types";
 import { useApp } from "../contexts/AppContext";
 import { ButtonCard } from "./ButtonCard";
+import { Editable } from "./Editable";
 
 const mod = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "\u2318\u2009" : "Ctrl+";
 
@@ -165,15 +166,13 @@ export function ButtonGroupSection({
       >
         {collapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
         {isRenaming ? (
-          <span
+          <Editable
             ref={nameRef}
             className="button-group-name"
             contentEditable
-            suppressContentEditableWarning
             onClick={(e) => e.stopPropagation()}
             onKeyDown={handleRenameKeyDown}
             onBlur={stopRenaming}
-            spellCheck={false}
           />
         ) : (
           <span className="button-group-name">{groupName}</span>

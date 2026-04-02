@@ -4,6 +4,7 @@ import { GripVertical, Pencil, Trash2, Repeat, CopyPlus, Check } from "lucide-re
 import type { Button } from "../types";
 import { useApp } from "../contexts/AppContext";
 import { substituteVariables } from "../utils/variables";
+import { Editable } from "./Editable";
 
 function formatInterval(ms: number): string {
   const parts: string[] = [];
@@ -305,11 +306,10 @@ export const ButtonCard = memo(function ButtonCard({
           <GripVertical size={16} />
         </div>
         <h3>
-          <span
+          <Editable
             ref={editingField === "name" ? editRef : undefined}
             className={editingField !== "name" ? "editable-name" : undefined}
             contentEditable={editingField === "name"}
-            suppressContentEditableWarning
             onClick={(e) => {
               if (editingField !== "name") startEditing("name", e);
               else e.stopPropagation();
@@ -321,10 +321,9 @@ export const ButtonCard = memo(function ButtonCard({
             onBlur={() => {
               if (editingField === "name") cancelEdit();
             }}
-            spellCheck={false}
           >
             {editingField !== "name" ? button.name : null}
-          </span>
+          </Editable>
           {editingField && (
             <button
               className="btn-icon inline-edit-save"
@@ -358,11 +357,11 @@ export const ButtonCard = memo(function ButtonCard({
       <div className="button-card-details">
         <div className="detail-row">
           <span className="detail-label">Topic:</span>
-          <code
+          <Editable
+            as="code"
             ref={editingField === "topic" ? editRef : undefined}
             className={`detail-value${editingField !== "topic" ? " detail-value-editable" : ""}`}
             contentEditable={editingField === "topic"}
-            suppressContentEditableWarning
             onClick={(e) => {
               if (editingField !== "topic") startEditing("topic", e);
               else e.stopPropagation();
@@ -374,19 +373,18 @@ export const ButtonCard = memo(function ButtonCard({
             onBlur={() => {
               if (editingField === "topic") cancelEdit();
             }}
-            spellCheck={false}
           >
             {editingField !== "topic" ? displayTopic : null}
-          </code>
+          </Editable>
         </div>
         {displayPayload || editingField === "payload" ? (
           <div className="detail-row">
             <span className="detail-label">Payload:</span>
-            <code
+            <Editable
+              as="code"
               ref={editingField === "payload" ? editRef : undefined}
               className={`detail-value${editingField !== "payload" ? " detail-value-editable" : ""}`}
               contentEditable={editingField === "payload"}
-              suppressContentEditableWarning
               onClick={(e) => {
                 if (editingField !== "payload") startEditing("payload", e);
                 else e.stopPropagation();
@@ -398,10 +396,9 @@ export const ButtonCard = memo(function ButtonCard({
               onBlur={() => {
                 if (editingField === "payload") cancelEdit();
               }}
-              spellCheck={false}
             >
               {editingField !== "payload" ? displayPayload : null}
-            </code>
+            </Editable>
           </div>
         ) : null}
         <div className="detail-row">

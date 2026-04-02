@@ -3,6 +3,7 @@ import { message } from "../utils/dialog";
 import { Trash2, Check, X } from "lucide-react";
 import { useApp } from "../contexts/AppContext";
 import { isBuiltinVariable } from "../utils/builtins";
+import { Editable } from "./Editable";
 
 export function VariablesPanel() {
   const { activeConnection, updateConnection, updateVariables } = useApp();
@@ -209,11 +210,11 @@ export function VariablesPanel() {
       <div className="variables-list">
         {Object.entries(variables).map(([key, value]) => (
           <div key={key} className="variable-row">
-            <code
+            <Editable
+              as="code"
               ref={isEditing(key, "key") ? editRef : undefined}
               className={`variable-key variable-key-editable`}
               contentEditable={isEditing(key, "key")}
-              suppressContentEditableWarning
               onClick={(e) => {
                 if (!isEditing(key, "key")) {
                   e.stopPropagation();
@@ -224,7 +225,7 @@ export function VariablesPanel() {
               onBlur={isEditing(key, "key") ? () => handleCancel(key, "key") : undefined}
             >
               {key}
-            </code>
+            </Editable>
             {isEditing(key, "key") && (
               <button
                 className="inline-edit-save"
@@ -238,11 +239,10 @@ export function VariablesPanel() {
               </button>
             )}
             <div className="variable-value-wrapper">
-              <span
+              <Editable
                 ref={isEditing(key, "value") ? editRef : undefined}
                 className={`variable-value variable-value-editable`}
                 contentEditable={isEditing(key, "value")}
-                suppressContentEditableWarning
                 onClick={(e) => {
                   if (!isEditing(key, "value")) {
                     e.stopPropagation();
@@ -258,7 +258,7 @@ export function VariablesPanel() {
                 onBlur={isEditing(key, "value") ? () => handleCancel(key, "value") : undefined}
               >
                 {value}
-              </span>
+              </Editable>
               {historyOpen === key && (variableHistory[key] || []).length > 0 && (
                 <div className="variable-history-dropdown" ref={historyRef}>
                   {variableHistory[key].map((histValue) => (

@@ -6,6 +6,7 @@ import * as api from "../utils/api";
 import { useApp } from "../contexts/AppContext";
 import { substituteVariables } from "../utils/variables";
 import { preferences } from "../utils/preferences";
+import { Editable } from "./Editable";
 
 const mod = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "\u2318\u2009" : "Ctrl+";
 
@@ -258,11 +259,11 @@ export function MessageViewer({ expanded, onToggle, showRawTemplates }: MessageV
               <div className="subscriptions-list">
                 {subscriptions.map((sub) => (
                   <div key={sub} className="subscription-item">
-                    <code
+                    <Editable
+                      as="code"
                       ref={editingSub === sub ? editSubRef : undefined}
                       className={editingSub !== sub ? "sub-editable" : undefined}
                       contentEditable={editingSub === sub}
-                      suppressContentEditableWarning
                       onClick={() => {
                         if (editingSub !== sub) setEditingSub(sub);
                       }}
@@ -277,14 +278,13 @@ export function MessageViewer({ expanded, onToggle, showRawTemplates }: MessageV
                       onBlur={() => {
                         if (editingSub === sub) setEditingSub(null);
                       }}
-                      spellCheck={false}
                     >
                       {editingSub !== sub
                         ? showRawTemplates
                           ? sub
                           : substituteVariables(sub, variables)
                         : null}
-                    </code>
+                    </Editable>
                     {editingSub === sub ? (
                       <button
                         className="btn-icon"
