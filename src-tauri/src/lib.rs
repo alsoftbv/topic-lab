@@ -134,14 +134,18 @@ pub fn run() {
             let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("MQTT Topic Lab")
                 .min_inner_size(MIN_WIDTH, MIN_HEIGHT)
-                .inner_size(placement.width, placement.height)
-                .visible(false);
+                .inner_size(placement.width, placement.height);
             if let Some((x, y)) = placement.position {
                 builder = builder.position(x, y);
             } else {
                 builder = builder.center();
             }
+            #[cfg(not(target_os = "linux"))]
+            {
+                builder = builder.visible(false);
+            }
             let webview = builder.build()?;
+            #[cfg(not(target_os = "linux"))]
             webview.show()?;
 
             if std::env::var("MQTT_TOPIC_LAB_DATA_DIR").is_ok() {
