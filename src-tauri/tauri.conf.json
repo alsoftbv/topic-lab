@@ -10,16 +10,7 @@
         "frontendDist": "../dist"
     },
     "app": {
-        "windows": [
-            {
-                "title": "MQTT Topic Lab",
-                "width": 1000,
-                "height": 700,
-                "minWidth": 550,
-                "minHeight": 450,
-                "visible": false
-            }
-        ],
+        "windows": [],
         "security": {
             "csp": null
         }

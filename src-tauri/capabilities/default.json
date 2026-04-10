@@ -10,7 +10,6 @@
     "fs:default",
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
-    "fs:scope-home-recursive",
-    "window-state:default"
+    "fs:scope-home-recursive"
   ]
 }

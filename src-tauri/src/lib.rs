@@ -1,16 +1,17 @@
 mod mqtt;
 mod storage;
 mod types;
+mod window_state;
 
 use log::info;
 use mqtt::{Message, MqttClient};
 use std::io::Write;
 use std::sync::Arc;
 use storage::Storage;
-use tauri::{Manager, State};
-use tauri_plugin_window_state::StateFlags;
+use tauri::{Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tokio::sync::RwLock;
 use types::{AppData, Connection, QoS};
+use window_state::{WindowStateStore, MIN_HEIGHT, MIN_WIDTH};
 
 struct AppState {
     storage: Storage,
@@ -115,27 +116,49 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(
-            tauri_plugin_window_state::Builder::new()
-                .with_state_flags(StateFlags::all())
-                .build(),
-        )
         .manage(AppState {
             storage,
             mqtt_client: Arc::clone(&mqtt_client),
         })
+        .manage(WindowStateStore::new())
         .setup(move |app| {
             let handle = app.handle().clone();
             let client = Arc::clone(&mqtt_client);
             tauri::async_runtime::block_on(async {
                 client.write().await.set_app_handle(handle);
             });
+
+            let store = app.state::<WindowStateStore>();
+            let placement = window_state::initial_placement(app, store.inner());
+
+            let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
+                .title("MQTT Topic Lab")
+                .min_inner_size(MIN_WIDTH, MIN_HEIGHT)
+                .inner_size(placement.width, placement.height)
+                .visible(false);
+            if let Some((x, y)) = placement.position {
+                builder = builder.position(x, y);
+            } else {
+                builder = builder.center();
+            }
+            let webview = builder.build()?;
+            webview.show()?;
+
             if std::env::var("MQTT_TOPIC_LAB_DATA_DIR").is_ok() {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.eval("window.__TAURI_E2E__ = true;");
-                }
+                let _ = webview.eval("window.__TAURI_E2E__ = true;");
             }
             Ok(())
+        })
+        .on_window_event(|window, event| match event {
+            WindowEvent::Resized(_) | WindowEvent::Moved(_) => {
+                if let Some(state) = window_state::capture(window) {
+                    window.state::<WindowStateStore>().update(state);
+                }
+            }
+            WindowEvent::CloseRequested { .. } => {
+                window.state::<WindowStateStore>().flush_and_freeze();
+            }
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             get_data,
@@ -150,6 +173,11 @@ pub fn run() {
             clear_messages,
             get_subscriptions,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let RunEvent::Exit = event {
+                app.state::<WindowStateStore>().flush();
+            }
+        });
 }
