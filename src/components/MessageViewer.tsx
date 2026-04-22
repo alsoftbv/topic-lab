@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { ChevronDown, ChevronRight, Plus, X, Trash2, Check } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, X, Trash2, Check, GripVertical } from "lucide-react";
 import type { Message, QoS } from "../types";
 import * as api from "../utils/api";
 import { useApp } from "../contexts/AppContext";
 import { substituteVariables } from "../utils/variables";
-import { preferences } from "../utils/preferences";
+import { preferences, type MessageViewerPosition } from "../utils/preferences";
 import { Editable } from "./Editable";
 
 const mod = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "\u2318\u2009" : "Ctrl+";
@@ -14,14 +14,24 @@ interface MessageViewerProps {
   expanded: boolean;
   onToggle: (expanded: boolean) => void;
   showRawTemplates?: boolean;
+  position: MessageViewerPosition;
+  onDragStart: (x: number, y: number) => void;
 }
 
-export function MessageViewer({ expanded, onToggle, showRawTemplates }: MessageViewerProps) {
+export function MessageViewer({
+  expanded,
+  onToggle,
+  showRawTemplates,
+  position,
+  onDragStart,
+}: MessageViewerProps) {
   const { connectionStatus, activeConnection, updateSubscriptions } = useApp();
   const [topic, setTopic] = useState("");
   const [subscriptions, setSubscriptions] = useState<string[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [height, setHeight] = useState(() => preferences.messageViewerHeight);
+  const [width, setWidth] = useState(() => preferences.messageViewerWidth);
+  const isVertical = position !== "top";
   const messagesListRef = useRef<HTMLDivElement>(null);
   const wasAtBottomRef = useRef(true);
 
@@ -185,41 +195,86 @@ export function MessageViewer({ expanded, onToggle, showRawTemplates }: MessageV
 
   const handleResize = (e: React.MouseEvent) => {
     e.preventDefault();
-    const startY = e.clientY;
-    const startHeight = height;
-    let newHeight = height;
+    e.stopPropagation();
 
-    document.body.style.cursor = "row-resize";
-    document.body.style.userSelect = "none";
+    if (position === "top") {
+      const startY = e.clientY;
+      const startHeight = height;
+      let newHeight = height;
 
-    const onMouseMove = (e: MouseEvent) => {
-      newHeight = Math.max(100, Math.min(600, startHeight + e.clientY - startY));
-      setHeight(newHeight);
-    };
+      document.body.style.cursor = "row-resize";
+      document.body.style.userSelect = "none";
 
-    const onMouseUp = () => {
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-      preferences.messageViewerHeight = newHeight;
-    };
+      const onMouseMove = (e: MouseEvent) => {
+        newHeight = Math.max(100, Math.min(600, startHeight + e.clientY - startY));
+        setHeight(newHeight);
+      };
 
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
+      const onMouseUp = () => {
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        preferences.messageViewerHeight = newHeight;
+      };
+
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+    } else {
+      const startX = e.clientX;
+      const startWidth = width;
+      const dir = position === "left" ? 1 : -1;
+      let newWidth = width;
+
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+
+      const onMouseMove = (e: MouseEvent) => {
+        newWidth = Math.max(260, Math.min(720, startWidth + (e.clientX - startX) * dir));
+        setWidth(newWidth);
+      };
+
+      const onMouseUp = () => {
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        preferences.messageViewerWidth = newWidth;
+      };
+
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+    }
+  };
+
+  const handleHeaderMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onDragStart(e.clientX, e.clientY);
   };
 
   const isConnected = connectionStatus === "connected";
 
+  const containerStyle: React.CSSProperties = isVertical
+    ? { width: expanded ? width : undefined }
+    : {};
+  const contentStyle: React.CSSProperties = isVertical ? {} : { height };
+  const positionClass = `mv-${position}`;
+
   return (
-    <div className="message-viewer">
-      <button
+    <div
+      className={`message-viewer ${positionClass}${expanded ? " expanded" : ""}`}
+      style={containerStyle}
+    >
+      <div
         className="message-viewer-header"
         onClick={() => onToggle(!expanded)}
         title={`Toggle (${mod}I)`}
+        role="button"
+        tabIndex={0}
       >
         {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-        <span>Message Viewer</span>
+        <span className="message-viewer-label">Message Viewer</span>
         {subscriptions.length > 0 && (
           <span className="badge">
             {subscriptions.length} sub{subscriptions.length !== 1 && "s"}
@@ -230,10 +285,18 @@ export function MessageViewer({ expanded, onToggle, showRawTemplates }: MessageV
             {messages.length} msg{messages.length !== 1 && "s"}
           </span>
         )}
-      </button>
+        <span
+          className="message-viewer-drag-handle"
+          title="Drag to reposition"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={handleHeaderMouseDown}
+        >
+          <GripVertical size={14} />
+        </span>
+      </div>
 
       {expanded && (
-        <div className="message-viewer-content" style={{ height }}>
+        <div className="message-viewer-content" style={contentStyle}>
           <div className="message-viewer-left">
             <form className="subscribe-form" onSubmit={handleSubscribe}>
               <input

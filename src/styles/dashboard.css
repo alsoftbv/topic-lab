@@ -67,11 +67,71 @@
 }
 
 .buttons-area {
+    position: relative;
     flex: 1;
     padding: 1.5rem;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+.buttons-area.mv-pos-left,
+.buttons-area.mv-pos-right {
+    flex-direction: row;
+    gap: 1rem;
+}
+
+.buttons-area.mv-pos-left .button-groups,
+.buttons-area.mv-pos-right .button-groups {
+    flex: 1;
+    min-width: 0;
+}
+
+.mv-drop-zones {
+    position: absolute;
+    inset: 0;
+    z-index: 200;
+    pointer-events: none;
+}
+
+.mv-drop-indicator {
+    position: absolute;
+    background: var(--primary);
+    border-radius: 2px;
+    pointer-events: none;
+}
+
+.mv-drop-indicator-top {
+    top: 0.5rem;
+    left: 1rem;
+    right: 1rem;
+    height: 3px;
+}
+
+.mv-drop-indicator-left {
+    top: 0.5rem;
+    bottom: 0.5rem;
+    left: 0.5rem;
+    width: 3px;
+}
+
+.mv-drop-indicator-right {
+    top: 0.5rem;
+    bottom: 0.5rem;
+    right: 0.5rem;
+    width: 3px;
+}
+
+.mv-drag-ghost {
+    padding: 0.4rem 0.75rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    opacity: 0.9;
 }
 
 .buttons-header {

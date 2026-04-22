@@ -1,7 +1,39 @@
 .message-viewer {
     background: var(--bg-secondary);
     border-radius: var(--radius);
+    position: relative;
+}
+
+.message-viewer.mv-top {
     margin-bottom: 1rem;
+}
+
+.message-viewer.mv-left,
+.message-viewer.mv-right {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.message-viewer-drag-handle {
+    cursor: grab;
+    color: var(--text-secondary);
+    opacity: 0.3;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+    padding: 0.125rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.message-viewer-drag-handle:hover {
+    opacity: 1;
+}
+
+.message-viewer-drag-handle:active {
+    cursor: grabbing;
 }
 
 .message-viewer-header {
@@ -29,13 +61,63 @@
 }
 
 .message-viewer-header .badge+.badge {
-    margin-left: 0.5rem;
+    margin-left: 0;
 }
 
 .message-viewer-content {
     display: flex;
     gap: 0.75rem;
     padding: 0.25rem 0.75rem 0.5rem;
+    min-height: 0;
+}
+
+.mv-left:not(.expanded),
+.mv-right:not(.expanded) {
+    width: auto !important;
+    align-self: flex-start;
+}
+
+.mv-left:not(.expanded) .message-viewer-header,
+.mv-right:not(.expanded) .message-viewer-header {
+    flex-direction: column;
+    gap: 0.375rem;
+    padding: 0.5rem 0.375rem;
+}
+
+.mv-left:not(.expanded) .message-viewer-label,
+.mv-right:not(.expanded) .message-viewer-label,
+.mv-left:not(.expanded) .badge,
+.mv-right:not(.expanded) .badge {
+    display: none;
+}
+
+.mv-left:not(.expanded) .message-viewer-drag-handle,
+.mv-right:not(.expanded) .message-viewer-drag-handle {
+    margin: 0;
+    opacity: 0.6;
+}
+
+.mv-left .message-viewer-content,
+.mv-right .message-viewer-content {
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.mv-left .message-viewer-left,
+.mv-right .message-viewer-left {
+    flex: 0 0 auto;
+}
+
+.mv-left .subscriptions-list,
+.mv-right .subscriptions-list {
+    max-height: 120px;
+}
+
+.mv-left .messages-area,
+.mv-right .messages-area {
+    flex: 1;
+    min-height: 0;
 }
 
 .resize-handle {
@@ -43,6 +125,25 @@
     cursor: row-resize;
     background: transparent;
     border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.mv-left>.resize-handle,
+.mv-right>.resize-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    height: auto;
+    cursor: col-resize;
+    border-radius: 0;
+}
+
+.mv-left>.resize-handle {
+    right: 0;
+}
+
+.mv-right>.resize-handle {
+    left: 0;
 }
 
 .resize-handle:hover {
@@ -175,5 +276,6 @@
     border-radius: 2px;
     font-family: 'SF Mono', Monaco, Consolas, monospace;
     font-size: 0.625rem;
-    white-space: pre;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }

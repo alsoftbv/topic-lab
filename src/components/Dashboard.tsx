@@ -4,7 +4,7 @@ import { Settings, Plus, X, Search } from "lucide-react";
 import * as api from "../utils/api";
 import { useApp } from "../contexts/AppContext";
 import { substituteVariables } from "../utils/variables";
-import { preferences } from "../utils/preferences";
+import { preferences, type MessageViewerPosition } from "../utils/preferences";
 import { useDashboardKeyboard } from "../hooks/useDashboardKeyboard";
 import { useButtonDrag } from "../hooks/useButtonDrag";
 import { useGroupDrag } from "../hooks/useGroupDrag";
@@ -40,6 +40,14 @@ export function Dashboard() {
   const [messageViewerExpanded, setMessageViewerExpanded] = useState(
     () => preferences.messageViewerExpanded
   );
+  const [messageViewerPosition, setMessageViewerPosition] = useState<MessageViewerPosition>(
+    () => preferences.messageViewerPosition
+  );
+  const [mvDragging, setMvDragging] = useState(false);
+  const [mvDragTarget, setMvDragTarget] = useState<MessageViewerPosition | null>(null);
+  const mvGhostRef = useRef<HTMLElement | null>(null);
+  const mvDragTargetRef = useRef<MessageViewerPosition | null>(null);
+  const buttonsAreaRef = useRef<HTMLElement | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sidebarWidth, setSidebarWidth] = useState(() => preferences.sidebarWidth);
@@ -176,6 +184,82 @@ export function Dashboard() {
       preferences.collapsedGroups = [...next];
       return next;
     });
+  };
+
+  useEffect(() => {
+    if (!mvDragging) return;
+
+    const setTarget = (pos: MessageViewerPosition | null) => {
+      if (mvDragTargetRef.current !== pos) {
+        mvDragTargetRef.current = pos;
+        setMvDragTarget(pos);
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (mvGhostRef.current) {
+        mvGhostRef.current.style.left = `${e.clientX + 8}px`;
+        mvGhostRef.current.style.top = `${e.clientY + 8}px`;
+      }
+      const area = buttonsAreaRef.current;
+      if (!area) return;
+      const rect = area.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      if (x < 0 || x > rect.width || y < 0 || y > rect.height) {
+        setTarget(null);
+        return;
+      }
+      const dTop = y / rect.height;
+      const dLeft = x / rect.width;
+      const dRight = (rect.width - x) / rect.width;
+      const candidates: { pos: MessageViewerPosition; d: number }[] = [];
+      if (dTop < 0.3) candidates.push({ pos: "top", d: dTop });
+      if (dLeft < 0.3) candidates.push({ pos: "left", d: dLeft });
+      if (dRight < 0.3) candidates.push({ pos: "right", d: dRight });
+      if (candidates.length === 0) {
+        setTarget(null);
+        return;
+      }
+      candidates.sort((a, b) => a.d - b.d);
+      setTarget(candidates[0].pos);
+    };
+
+    const handleMouseUp = () => {
+      const target = mvDragTargetRef.current;
+      if (target && target !== messageViewerPosition) {
+        setMessageViewerPosition(target);
+        preferences.messageViewerPosition = target;
+      }
+      if (mvGhostRef.current) {
+        mvGhostRef.current.remove();
+        mvGhostRef.current = null;
+      }
+      mvDragTargetRef.current = null;
+      setMvDragTarget(null);
+      setMvDragging(false);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [mvDragging, messageViewerPosition]);
+
+  const handleMvDragStart = (x: number, y: number) => {
+    setMvDragging(true);
+    const ghost = document.createElement("div");
+    ghost.className = "mv-drag-ghost";
+    ghost.textContent = "Message Viewer";
+    ghost.style.position = "fixed";
+    ghost.style.left = `${x + 8}px`;
+    ghost.style.top = `${y + 8}px`;
+    ghost.style.pointerEvents = "none";
+    ghost.style.zIndex = "1000";
+    document.body.appendChild(ghost);
+    mvGhostRef.current = ghost;
   };
 
   useEffect(() => {
@@ -356,15 +440,22 @@ export function Dashboard() {
             </button>
           </div>
         )}
-        <main className="buttons-area">
-          <MessageViewer
-            expanded={messageViewerExpanded}
-            onToggle={(v) => {
-              setMessageViewerExpanded(v);
-              preferences.messageViewerExpanded = v;
-            }}
-            showRawTemplates={showVariables}
-          />
+        <main
+          ref={buttonsAreaRef}
+          className={`buttons-area mv-pos-${messageViewerPosition}`}
+        >
+          {messageViewerPosition !== "right" && (
+            <MessageViewer
+              expanded={messageViewerExpanded}
+              onToggle={(v) => {
+                setMessageViewerExpanded(v);
+                preferences.messageViewerExpanded = v;
+              }}
+              showRawTemplates={showVariables}
+              position={messageViewerPosition}
+              onDragStart={handleMvDragStart}
+            />
+          )}
 
           <div className="button-groups">
             {groups.map((group) => {
@@ -484,6 +575,27 @@ export function Dashboard() {
               </button>
             )}
           </div>
+
+          {messageViewerPosition === "right" && (
+            <MessageViewer
+              expanded={messageViewerExpanded}
+              onToggle={(v) => {
+                setMessageViewerExpanded(v);
+                preferences.messageViewerExpanded = v;
+              }}
+              showRawTemplates={showVariables}
+              position={messageViewerPosition}
+              onDragStart={handleMvDragStart}
+            />
+          )}
+
+          {mvDragging && (
+            <div className="mv-drop-zones">
+              {mvDragTarget && (
+                <div className={`mv-drop-indicator mv-drop-indicator-${mvDragTarget}`} />
+              )}
+            </div>
+          )}
         </main>
 
         {showVariables && (
