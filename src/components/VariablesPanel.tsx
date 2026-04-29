@@ -314,7 +314,7 @@ export function VariablesPanel() {
       <form className="add-variable-form" onSubmit={handleAdd}>
         <input
           type="text"
-          placeholder="name"
+          placeholder="Name"
           value={newKey}
           onChange={(e) => setNewKey(e.target.value)}
           pattern="[a-zA-Z_][a-zA-Z0-9_]*"
