@@ -14,7 +14,7 @@ describe("Variables", () => {
   });
 
   it("adds a custom variable", async () => {
-    await setInputValue(".add-variable-form input[placeholder='name']", "device_id");
+    await setInputValue(".add-variable-form input[placeholder='Name']", "device_id");
     await setInputValue(".add-variable-form input[placeholder='Value']", "sensor-001");
 
     const addBtn = await $(".add-variable-form .btn");

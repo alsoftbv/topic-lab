@@ -17,7 +17,7 @@ describe("Variable History", () => {
     const panel = await $(selectors.variablesPanel);
     await panel.waitForExist({ timeout: 3000 });
 
-    await setInputValue(".add-variable-form input[placeholder='name']", "mac");
+    await setInputValue(".add-variable-form input[placeholder='Name']", "mac");
     await setInputValue(".add-variable-form input[placeholder='Value']", "AA:BB:CC");
 
     const addBtn = await $(".add-variable-form .btn");

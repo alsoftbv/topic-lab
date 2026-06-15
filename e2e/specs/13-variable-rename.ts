@@ -19,7 +19,7 @@ describe("Variable Rename", () => {
     const panel = await $(selectors.variablesPanel);
     await panel.waitForExist({ timeout: 3000 });
 
-    await setInputValue(".add-variable-form input[placeholder='name']", "old_name");
+    await setInputValue(".add-variable-form input[placeholder='Name']", "old_name");
     await setInputValue(".add-variable-form input[placeholder='Value']", "test_value");
 
     const addBtn = await $(".add-variable-form .btn");
