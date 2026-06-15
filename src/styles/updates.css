@@ -1,0 +1,94 @@
+.update-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.5rem;
+    background: rgba(255, 145, 0, 0.12);
+    border-bottom: 1px solid var(--primary);
+    color: var(--text);
+    font-size: 0.875rem;
+}
+
+.update-banner > span {
+    flex: 1;
+}
+
+.update-banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.update-banner-progress {
+    flex: 1;
+    height: 6px;
+    background: var(--bg-card);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.update-banner-progress-fill {
+    height: 100%;
+    background: var(--primary);
+    transition: width 0.15s linear;
+}
+
+.settings-section-title {
+    font-size: 0.9375rem;
+    margin: 0;
+}
+
+.update-settings > * + * {
+    margin-top: 1rem;
+}
+
+.update-settings .btn,
+.update-banner .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.update-autocheck {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.update-autocheck input {
+    width: auto;
+    margin: 0;
+    cursor: pointer;
+}
+
+.update-status-line {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+.update-status-available {
+    color: var(--primary);
+}
+
+.update-status-ok {
+    color: var(--success);
+}
+
+.update-status-error {
+    color: var(--error);
+}
+
+.update-spin {
+    animation: update-spin 1s linear infinite;
+}
+
+@keyframes update-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

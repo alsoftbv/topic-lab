@@ -70,7 +70,7 @@ export function SettingsModal({
               <p>{connection.use_tls ? "Enabled" : "Disabled"}</p>
             </div>
           </div>
-          <div className="button-row" style={{ marginTop: "1rem", justifyContent: "flex-start" }}>
+          <div className="button-row" style={{ justifyContent: "flex-start" }}>
             <button type="button" className="btn" onClick={onEditConnection}>
               Edit Connection
             </button>
@@ -79,12 +79,14 @@ export function SettingsModal({
             </button>
           </div>
           <hr />
-          <button type="button" className="btn btn-danger" onClick={handleDelete}>
-            Delete Connection
-          </button>
-          <p className="hint">
-            This will delete this connection, including its variables and its buttons
-          </p>
+          <div className="setting-item">
+            <button type="button" className="btn btn-danger" onClick={handleDelete}>
+              Delete Connection
+            </button>
+            <p className="hint">
+              This will delete this connection, including its variables and its buttons
+            </p>
+          </div>
         </div>
       </div>
     </div>

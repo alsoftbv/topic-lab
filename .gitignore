@@ -27,3 +27,7 @@ dist-ssr
 .env
 roadmap.txt
 CLAUDE.md
+
+# Tauri updater signing keys
+src-tauri/.tauri-signing-key
+src-tauri/.tauri-signing-key.pub

@@ -79,10 +79,7 @@ impl Storage {
             subscriptions: vec![],
         };
 
-        Ok(AppData {
-            connections: vec![connection],
-            last_connection_id: Some(connection_id),
-        })
+        Ok(AppData::new(vec![connection], Some(connection_id)))
     }
 
     pub fn save_data(&self, data: &AppData) -> Result<(), StorageError> {
@@ -190,10 +187,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let storage = create_test_storage(&temp_dir);
 
-        let data = AppData {
-            connections: vec![create_test_connection()],
-            last_connection_id: Some("test-id".to_string()),
-        };
+        let data = AppData::new(vec![create_test_connection()], Some("test-id".to_string()));
 
         storage.save_data(&data).unwrap();
 
@@ -232,10 +226,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let storage = create_test_storage(&temp_dir);
 
-        let data = AppData {
-            connections: vec![create_test_connection()],
-            last_connection_id: Some("test-id".to_string()),
-        };
+        let data = AppData::new(vec![create_test_connection()], Some("test-id".to_string()));
 
         storage.save_data(&data).unwrap();
         assert!(storage.data_path.exists());

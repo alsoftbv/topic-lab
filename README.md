@@ -15,6 +15,7 @@ A desktop application for sending saved MQTT commands via configurable buttons. 
 - **Import/Export**: Share connection configurations as JSON files
 - **Auto-connect**: Automatically connects to your MQTT broker on startup
 - **TLS Support**: Secure connections with TLS/SSL
+- **Automatic Updates**: Opt-in checks for new releases on GitHub, with one-click download & install
 - **Cross-platform**: Works on Windows, Linux, and macOS
 
 ## Variables
@@ -72,6 +73,8 @@ Modifiers are added with `:` after the variable name and can be combined.
 | `⌘/Ctrl + D` | Duplicate selected button |
 | `⌘/Ctrl + F` | Search buttons |
 | `⌘/Ctrl + T` | Toggle message viewer |
+| `⌘/Ctrl + ,` | Open Preferences |
+| `⌘/Ctrl + .` | Open Connection Settings |
 | `Delete / Backspace` | Delete selected button |
 
 ## Getting Started
@@ -100,6 +103,13 @@ cd src-tauri && cargo test  # Backend tests
 
 ```bash
 npm run tauri build
+```
+
+Release builds produce signed auto-updater artifacts, so `npm run tauri build` requires the updater signing key in the environment (`npm run tauri dev` does not):
+
+```bash
+export TAURI_SIGNING_PRIVATE_KEY="$(cat src-tauri/.tauri-signing-key)"
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="<your key password>"
 ```
 
 ## License

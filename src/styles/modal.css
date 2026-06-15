@@ -42,8 +42,12 @@
     padding: 1.5rem;
 }
 
-.setting-item {
-    padding: 0.75rem 0;
+/* Uniform vertical rhythm between settings rows, regardless of element type.
+   Group tightly-coupled elements (e.g. a button + its hint) inside one
+   .setting-item so they hug instead of taking a full row gap. */
+.settings-content > * + *,
+.setting-item > * + * {
+    margin-top: 1rem;
 }
 
 .setting-item strong {
@@ -53,19 +57,18 @@
 .setting-item p {
     color: var(--text-secondary);
     font-size: 0.8125rem;
+}
+
+.setting-item strong + p {
     margin-top: 0.25rem;
+}
+
+.setting-item .hint {
+    margin-top: 0.5rem;
 }
 
 .settings-content hr {
     border: none;
     border-top: 1px solid var(--border);
     margin: 1rem 0;
-}
-
-.settings-content .btn {
-    margin-top: 1rem;
-}
-
-.settings-content .hint {
-    margin-top: 0.5rem;
 }

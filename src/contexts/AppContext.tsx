@@ -1,6 +1,13 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
-import type { AppData, Connection, Button, ButtonGroup, ConnectionStatus } from "../types";
+import type {
+  AppData,
+  AppSettings,
+  Connection,
+  Button,
+  ButtonGroup,
+  ConnectionStatus,
+} from "../types";
 import * as api from "../utils/api";
 
 interface AppContextType {
@@ -25,6 +32,7 @@ interface AppContextType {
   reorderGroups: (groups: ButtonGroup[]) => Promise<void>;
   updateVariables: (variables: Record<string, string>) => Promise<void>;
   updateSubscriptions: (subscriptions: string[]) => Promise<void>;
+  updateSettings: (settings: Partial<AppSettings>) => Promise<void>;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   publishButton: (button: Button) => Promise<void>;
@@ -162,7 +170,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       deletedConnections = prev.connections.filter((c) => c.id !== id);
       deletedLastId =
         prev.last_connection_id === id ? deletedConnections[0]?.id : prev.last_connection_id;
-      return { connections: deletedConnections, last_connection_id: deletedLastId };
+      return { ...prev, connections: deletedConnections, last_connection_id: deletedLastId };
     });
 
     if (activeConnectionId === id) {
@@ -278,6 +286,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await updateActiveConnection((conn) => ({ ...conn, subscriptions }));
   }
 
+  async function updateSettings(settings: Partial<AppSettings>) {
+    await saveData((prev) => ({
+      ...prev,
+      settings: { ...prev.settings, ...settings },
+    }));
+  }
+
   async function connect() {
     if (!activeConnection) return;
     if (connectionStatus === "connecting" || connectionStatus === "connected") return;
@@ -353,6 +368,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         reorderGroups,
         updateVariables,
         updateSubscriptions,
+        updateSettings,
         connect,
         disconnect,
         publishButton,

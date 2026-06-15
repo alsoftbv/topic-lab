@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { confirm } from "../utils/dialog";
 import { Settings, Plus, X, Search } from "lucide-react";
+import { listen } from "@tauri-apps/api/event";
 import * as api from "../utils/api";
 import { useApp } from "../contexts/AppContext";
 import { substituteVariables } from "../utils/variables";
@@ -16,7 +17,12 @@ import { ButtonGroupSection } from "./ButtonGroup";
 import { VariablesPanel } from "./VariablesPanel";
 import { ConnectionEditor } from "./ConnectionEditor";
 import { SettingsModal } from "./SettingsModal";
+import { PreferencesModal } from "./PreferencesModal";
+import { useUpdater } from "../hooks/useUpdater";
+import { UpdateBanner, UpdateOptInModal } from "./UpdateNotice";
 import type { Button } from "../types";
+
+const mod = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘ " : "Ctrl+";
 
 export function Dashboard() {
   const {
@@ -35,6 +41,8 @@ export function Dashboard() {
   const [editorGroupId, setEditorGroupId] = useState<string | undefined>();
   const [showVariables, setShowVariables] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPreferences, setShowPreferences] = useState(false);
+  const updater = useUpdater();
   const [showConnectionEditor, setShowConnectionEditor] = useState(false);
   const [isAddingConnection, setIsAddingConnection] = useState(false);
   const [messageViewerExpanded, setMessageViewerExpanded] = useState(
@@ -138,7 +146,7 @@ export function Dashboard() {
     activeConnection,
     visibleButtons,
     groupNav,
-    modalsOpen: showEditor || showSettings || showConnectionEditor,
+    modalsOpen: showEditor || showSettings || showConnectionEditor || showPreferences,
     duplicateButton,
     onEdit: (button) => {
       setEditingButton(button);
@@ -271,9 +279,28 @@ export function Dashboard() {
   }, [showNewGroupInput]);
 
   useEffect(() => {
+    const unlisten = listen("open-preferences", () => setShowPreferences(true));
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleSettingsKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === ".") {
+        if (showEditor || showConnectionEditor || showPreferences) return;
+        e.preventDefault();
+        setShowSettings((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleSettingsKey);
+    return () => window.removeEventListener("keydown", handleSettingsKey);
+  }, [showEditor, showConnectionEditor, showPreferences]);
+
+  useEffect(() => {
     const handleSearchKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "f") {
-        if (showEditor || showSettings || showConnectionEditor) return;
+        if (showEditor || showSettings || showConnectionEditor || showPreferences) return;
         e.preventDefault();
         if (showSearch) {
           searchInputRef.current?.focus();
@@ -290,7 +317,7 @@ export function Dashboard() {
     };
     window.addEventListener("keydown", handleSearchKey, true);
     return () => window.removeEventListener("keydown", handleSearchKey, true);
-  }, [showSearch, showEditor, showSettings, showConnectionEditor]);
+  }, [showSearch, showEditor, showSettings, showConnectionEditor, showPreferences]);
 
   if (!activeConnection) return null;
 
@@ -395,12 +422,14 @@ export function Dashboard() {
           <button
             className="btn btn-small btn-secondary btn-icon-only"
             onClick={() => setShowSettings(!showSettings)}
-            title="Settings"
+            title={`Connection Settings (${mod}.)`}
           >
             <Settings size={16} />
           </button>
         </div>
       </header>
+
+      <UpdateBanner updater={updater} />
 
       {error && <div className="error-banner">{error}</div>}
 
@@ -635,6 +664,12 @@ export function Dashboard() {
           defaultGroupId={editorGroupId}
           onClose={handleCloseEditor}
         />
+      )}
+
+      <UpdateOptInModal updater={updater} />
+
+      {showPreferences && (
+        <PreferencesModal updater={updater} onClose={() => setShowPreferences(false)} />
       )}
 
       {showSettings && (

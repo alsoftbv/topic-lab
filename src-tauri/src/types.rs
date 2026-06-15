@@ -94,11 +94,30 @@ pub struct Connection {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettings {
+    #[serde(default)]
+    pub auto_check_updates: Option<bool>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppData {
     #[serde(default)]
     pub connections: Vec<Connection>,
     #[serde(default)]
     pub last_connection_id: Option<String>,
+    #[serde(default)]
+    pub settings: AppSettings,
+}
+
+impl AppData {
+    pub fn new(connections: Vec<Connection>, last_connection_id: Option<String>) -> Self {
+        Self {
+            connections,
+            last_connection_id,
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
