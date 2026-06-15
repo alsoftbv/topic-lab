@@ -26,6 +26,8 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
+          shared-key: linux-debug
+          cache-on-failure: true
 
       - name: Install Linux dependencies
         run: |
