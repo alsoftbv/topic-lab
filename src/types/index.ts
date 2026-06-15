@@ -37,9 +37,14 @@ export interface Connection {
   subscriptions: string[];
 }
 
+export interface AppSettings {
+  autoCheckUpdates?: boolean | null;
+}
+
 export interface AppData {
   connections: Connection[];
   last_connection_id?: string;
+  settings?: AppSettings;
 }
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";

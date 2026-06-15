@@ -8,7 +8,8 @@ use mqtt::{Message, MqttClient};
 use std::io::Write;
 use std::sync::Arc;
 use storage::Storage;
-use tauri::{Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::menu::{AboutMetadata, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+use tauri::{Emitter, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tokio::sync::RwLock;
 use types::{AppData, Connection, QoS};
 use window_state::{WindowStateStore, MIN_HEIGHT, MIN_WIDTH};
@@ -95,6 +96,78 @@ async fn get_subscriptions(state: State<'_, AppState>) -> Result<Vec<String>, St
     Ok(client.get_subscriptions().await)
 }
 
+fn build_menu(app: &mut tauri::App) -> tauri::Result<()> {
+    let preferences = MenuItemBuilder::with_id("preferences", "Preferences…")
+        .accelerator("CmdOrCtrl+,")
+        .build(app)?;
+
+    let about_metadata = AboutMetadata {
+        name: Some("MQTT Topic Lab".into()),
+        version: Some(env!("CARGO_PKG_VERSION").into()),
+        ..Default::default()
+    };
+
+    let mut menu = MenuBuilder::new(app);
+
+    #[cfg(target_os = "macos")]
+    {
+        let app_menu = SubmenuBuilder::new(app, "MQTT Topic Lab")
+            .about(Some(about_metadata))
+            .separator()
+            .item(&preferences)
+            .separator()
+            .services()
+            .separator()
+            .hide()
+            .hide_others()
+            .show_all()
+            .separator()
+            .quit()
+            .build()?;
+        let edit_menu = SubmenuBuilder::new(app, "Edit")
+            .undo()
+            .redo()
+            .separator()
+            .cut()
+            .copy()
+            .paste()
+            .select_all()
+            .build()?;
+        let window_menu = SubmenuBuilder::new(app, "Window")
+            .minimize()
+            .separator()
+            .close_window()
+            .build()?;
+        menu = menu.items(&[&app_menu, &edit_menu, &window_menu]);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let file_menu = SubmenuBuilder::new(app, "File")
+            .item(&preferences)
+            .separator()
+            .quit()
+            .build()?;
+        let edit_menu = SubmenuBuilder::new(app, "Edit")
+            .undo()
+            .redo()
+            .separator()
+            .cut()
+            .copy()
+            .paste()
+            .select_all()
+            .build()?;
+        let help_menu = SubmenuBuilder::new(app, "Help")
+            .about(Some(about_metadata))
+            .build()?;
+        menu = menu.items(&[&file_menu, &edit_menu, &help_menu]);
+    }
+
+    let menu = menu.build()?;
+    app.set_menu(menu)?;
+    Ok(())
+}
+
 pub fn run() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .format(|buf, record| {
@@ -116,17 +189,26 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState {
             storage,
             mqtt_client: Arc::clone(&mqtt_client),
         })
         .manage(WindowStateStore::new())
+        .on_menu_event(|app, event| {
+            if event.id() == "preferences" {
+                let _ = app.emit("open-preferences", ());
+            }
+        })
         .setup(move |app| {
             let handle = app.handle().clone();
             let client = Arc::clone(&mqtt_client);
             tauri::async_runtime::block_on(async {
                 client.write().await.set_app_handle(handle);
             });
+
+            build_menu(app)?;
 
             let store = app.state::<WindowStateStore>();
             let placement = window_state::initial_placement(app, store.inner());
