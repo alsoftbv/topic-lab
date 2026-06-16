@@ -58,11 +58,12 @@ select {
 
 *:focus {
     outline: none;
-    box-shadow: 0 0 0 2px var(--primary);
 }
 
-*:focus:not(:focus-visible) {
-    box-shadow: none;
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    box-shadow: 0 0 0 2px var(--primary);
 }
 
 html,

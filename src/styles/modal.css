@@ -42,9 +42,6 @@
     padding: 1.5rem;
 }
 
-/* Uniform vertical rhythm between settings rows, regardless of element type.
-   Group tightly-coupled elements (e.g. a button + its hint) inside one
-   .setting-item so they hug instead of taking a full row gap. */
 .settings-content > * + *,
 .setting-item > * + * {
     margin-top: 1rem;
