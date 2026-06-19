@@ -1,22 +1,43 @@
+mod cli;
+mod install;
 mod mqtt;
 mod storage;
 mod types;
+mod variables;
 mod window_state;
 
 use log::info;
-use mqtt::{Message, MqttClient};
+use mqtt::{Message, MqttClient, MqttEvents};
+use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
 use storage::Storage;
 use tauri::menu::{AboutMetadata, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
-use tauri::{Emitter, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{
+    AppHandle, Emitter, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder, WindowEvent,
+};
 use tokio::sync::RwLock;
-use types::{AppData, Connection, QoS};
+use types::{AppData, Button, Connection, QoS};
 use window_state::{WindowStateStore, MIN_HEIGHT, MIN_WIDTH};
 
 struct AppState {
     storage: Storage,
     mqtt_client: Arc<RwLock<MqttClient>>,
+    _gui_lock: Option<std::fs::File>,
+}
+
+struct TauriEvents {
+    app: AppHandle,
+}
+
+impl MqttEvents for TauriEvents {
+    fn on_status(&self, status: &str) {
+        let _ = self.app.emit("mqtt-status", status);
+    }
+
+    fn on_message(&self, message: &Message) {
+        let _ = self.app.emit("mqtt-message", message.clone());
+    }
 }
 
 #[tauri::command]
@@ -60,6 +81,48 @@ async fn publish(
         .publish(&topic, &payload, qos, retain)
         .await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn publish_button(
+    state: State<'_, AppState>,
+    button: Button,
+    variables: HashMap<String, String>,
+) -> Result<(), String> {
+    let topic = variables::substitute_variables(&button.topic, &variables);
+    let payload = button
+        .payload
+        .as_deref()
+        .map(|p| variables::substitute_variables(p, &variables))
+        .unwrap_or_default();
+    let client = state.mqtt_client.read().await;
+    client
+        .publish(&topic, &payload, button.qos, button.retain)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn resolve_template(template: String, variables: HashMap<String, String>) -> String {
+    variables::substitute_variables(&template, &variables)
+}
+
+#[tauri::command]
+fn resolve_templates(templates: Vec<String>, variables: HashMap<String, String>) -> Vec<String> {
+    templates
+        .iter()
+        .map(|t| variables::substitute_variables(t, &variables))
+        .collect()
+}
+
+#[tauri::command]
+fn get_builtin_names() -> Vec<String> {
+    variables::builtin_names()
+}
+
+#[tauri::command]
+fn install_cli() -> Result<install::InstallReport, String> {
+    install::install_for_gui()
 }
 
 #[tauri::command]
@@ -168,7 +231,28 @@ fn build_menu(app: &mut tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
+fn acquire_gui_lock(storage: &Storage) -> Option<std::fs::File> {
+    for _ in 0..10 {
+        match storage.acquire_write_lock() {
+            Ok(Some(file)) => return Some(file),
+            // Briefly held by another writer (e.g. an in-flight CLI write) — ride it out.
+            Ok(None) => std::thread::sleep(std::time::Duration::from_millis(50)),
+            Err(e) => {
+                log::warn!("Could not acquire instance lock: {e}");
+                return None;
+            }
+        }
+    }
+    log::warn!("Instance lock held by another process; running without config-write coordination");
+    None
+}
+
 pub fn run() {
+    if cli::is_cli_invocation() {
+        cli::run_cli();
+        return;
+    }
+
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .format(|buf, record| {
             writeln!(
@@ -183,6 +267,7 @@ pub fn run() {
     info!("Starting MQTT Topic Lab");
 
     let storage = Storage::new().expect("Failed to initialize storage");
+    let gui_lock = acquire_gui_lock(&storage);
     let mqtt_client = Arc::new(RwLock::new(MqttClient::new()));
 
     tauri::Builder::default()
@@ -194,6 +279,7 @@ pub fn run() {
         .manage(AppState {
             storage,
             mqtt_client: Arc::clone(&mqtt_client),
+            _gui_lock: gui_lock,
         })
         .manage(WindowStateStore::new())
         .on_menu_event(|app, event| {
@@ -205,7 +291,10 @@ pub fn run() {
             let handle = app.handle().clone();
             let client = Arc::clone(&mqtt_client);
             tauri::async_runtime::block_on(async {
-                client.write().await.set_app_handle(handle);
+                client
+                    .write()
+                    .await
+                    .set_events(Arc::new(TauriEvents { app: handle }));
             });
 
             build_menu(app)?;
@@ -253,6 +342,11 @@ pub fn run() {
             connect,
             disconnect,
             publish,
+            publish_button,
+            resolve_template,
+            resolve_templates,
+            get_builtin_names,
+            install_cli,
             subscribe,
             unsubscribe,
             get_messages,

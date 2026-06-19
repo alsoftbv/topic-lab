@@ -4,7 +4,6 @@ import { ChevronDown, ChevronRight, Plus, X, Trash2, Check, GripVertical } from 
 import type { Message, QoS } from "../types";
 import * as api from "../utils/api";
 import { useApp } from "../contexts/AppContext";
-import { substituteVariables } from "../utils/variables";
 import { preferences, type MessageViewerPosition } from "../utils/preferences";
 import { Editable } from "./Editable";
 
@@ -25,7 +24,8 @@ export function MessageViewer({
   position,
   onDragStart,
 }: MessageViewerProps) {
-  const { connectionStatus, activeConnection, updateSubscriptions } = useApp();
+  const { connectionStatus, activeConnection, updateSubscriptions, resolvedSubscriptions } =
+    useApp();
   const [topic, setTopic] = useState("");
   const [subscriptions, setSubscriptions] = useState<string[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -41,7 +41,7 @@ export function MessageViewer({
   async function resubscribeToSaved(topics: string[]) {
     const activeSubs: string[] = [];
     for (const t of topics) {
-      const resolved = substituteVariables(t, variables);
+      const resolved = await api.resolveTemplate(t, variables);
       try {
         await api.subscribe(resolved, "atmostonce" as QoS);
         activeSubs.push(t);
@@ -92,8 +92,8 @@ export function MessageViewer({
 
     (async () => {
       for (const t of subscriptions) {
-        const oldResolved = substituteVariables(t, prev);
-        const newResolved = substituteVariables(t, variables);
+        const oldResolved = await api.resolveTemplate(t, prev);
+        const newResolved = await api.resolveTemplate(t, variables);
         if (oldResolved === newResolved) continue;
         try {
           await api.unsubscribe(oldResolved);
@@ -120,7 +120,7 @@ export function MessageViewer({
       setTopic("");
       return;
     }
-    const resolved = substituteVariables(t, variables);
+    const resolved = await api.resolveTemplate(t, variables);
     try {
       await api.subscribe(resolved, "atmostonce" as QoS);
       const newSubs = [...subscriptions, t];
@@ -133,7 +133,7 @@ export function MessageViewer({
   };
 
   const handleUnsubscribe = async (t: string) => {
-    const resolved = substituteVariables(t, variables);
+    const resolved = await api.resolveTemplate(t, variables);
     try {
       await api.unsubscribe(resolved);
       const newSubs = subscriptions.filter((s) => s !== t);
@@ -166,8 +166,8 @@ export function MessageViewer({
     setEditingSub(null);
     if (!newTopic || newTopic === oldTopic) return;
 
-    const oldResolved = substituteVariables(oldTopic, variables);
-    const newResolved = substituteVariables(newTopic, variables);
+    const oldResolved = await api.resolveTemplate(oldTopic, variables);
+    const newResolved = await api.resolveTemplate(newTopic, variables);
     try {
       await api.unsubscribe(oldResolved);
       await api.subscribe(newResolved, "atmostonce" as QoS);
@@ -345,7 +345,7 @@ export function MessageViewer({
                       {editingSub !== sub
                         ? showRawTemplates
                           ? sub
-                          : substituteVariables(sub, variables)
+                          : resolvedSubscriptions[sub] ?? sub
                         : null}
                     </Editable>
                     {editingSub === sub ? (

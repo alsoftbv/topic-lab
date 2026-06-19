@@ -4,7 +4,6 @@ import { Settings, Plus, X, Search } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import * as api from "../utils/api";
 import { useApp } from "../contexts/AppContext";
-import { substituteVariables } from "../utils/variables";
 import { preferences, type MessageViewerPosition } from "../utils/preferences";
 import { useDashboardKeyboard } from "../hooks/useDashboardKeyboard";
 import { useButtonDrag } from "../hooks/useButtonDrag";
@@ -35,6 +34,7 @@ export function Dashboard() {
     importConnection,
     addGroup,
     reorderGroups,
+    resolvedButtons,
   } = useApp();
   const [showEditor, setShowEditor] = useState(false);
   const [editingButton, setEditingButton] = useState<Button | undefined>();
@@ -382,17 +382,15 @@ export function Dashboard() {
     setShowNewGroupInput(false);
   };
 
-  const variables = activeConnection.variables;
   const query = searchQuery.toLowerCase();
   const matchingButtonIds = new Set(
     query
       ? activeConnection.buttons
           .filter((b) => {
             const name = b.name.toLowerCase();
-            const topic = substituteVariables(b.topic, variables).toLowerCase();
-            const payload = b.payload
-              ? substituteVariables(b.payload, variables).toLowerCase()
-              : "";
+            const resolved = resolvedButtons[b.id];
+            const topic = (resolved?.topic ?? b.topic).toLowerCase();
+            const payload = (resolved?.payload ?? b.payload ?? "").toLowerCase();
             return name.includes(query) || topic.includes(query) || payload.includes(query);
           })
           .map((b) => b.id)

@@ -1,6 +1,8 @@
 use crate::types::{AppData, Connection, LegacyProject};
+use fs2::FileExt;
 use std::collections::HashMap;
 use std::fs;
+use std::fs::{File, OpenOptions};
 use std::path::PathBuf;
 use thiserror::Error;
 use uuid::Uuid;
@@ -18,6 +20,7 @@ pub enum StorageError {
 pub struct Storage {
     data_path: PathBuf,
     legacy_path: PathBuf,
+    lock_path: PathBuf,
 }
 
 impl Storage {
@@ -36,7 +39,25 @@ impl Storage {
         Ok(Self {
             data_path: app_dir.join("data.json"),
             legacy_path: app_dir.join("project.json"),
+            lock_path: app_dir.join("instance.lock"),
         })
+    }
+
+    /// Try to take the exclusive instance lock used to coordinate config writes
+    /// between the running GUI and the CLI. Returns `Ok(Some(file))` when acquired
+    /// (hold the file to keep the lock), or `Ok(None)` when another instance (the
+    /// GUI, or another writer) already holds it.
+    pub fn acquire_write_lock(&self) -> Result<Option<File>, StorageError> {
+        let file = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(&self.lock_path)?;
+        match file.try_lock_exclusive() {
+            Ok(()) => Ok(Some(file)),
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => Ok(None),
+            Err(e) => Err(StorageError::Io(e)),
+        }
     }
 
     pub fn load_data(&self) -> Result<AppData, StorageError> {
@@ -111,6 +132,7 @@ mod tests {
         Storage {
             data_path: app_dir.join("data.json"),
             legacy_path: app_dir.join("project.json"),
+            lock_path: app_dir.join("instance.lock"),
         }
     }
 
@@ -219,6 +241,27 @@ mod tests {
         assert!(loaded.last_connection_id.is_some());
         assert!(!storage.legacy_path.exists());
         assert!(storage.data_path.exists());
+    }
+
+    #[test]
+    fn test_write_lock_is_exclusive() {
+        let temp_dir = TempDir::new().unwrap();
+        let storage = create_test_storage(&temp_dir);
+
+        let held = storage.acquire_write_lock().unwrap();
+        assert!(held.is_some(), "first acquisition should succeed");
+
+        let other = create_test_storage(&temp_dir);
+        assert!(
+            other.acquire_write_lock().unwrap().is_none(),
+            "second acquisition should be blocked while the first is held"
+        );
+
+        drop(held);
+        assert!(
+            storage.acquire_write_lock().unwrap().is_some(),
+            "acquisition should succeed again after release"
+        );
     }
 
     #[test]

@@ -58,12 +58,14 @@ describe("Built-in Variables", () => {
   });
 
   it("shows substituted UUID in the payload", async () => {
-    const card = await findCardByName("UUID Test");
-    expect(card).not.toBeNull();
-
-    const payload = await getCardDetailValue(card!, "Payload");
-    expect(payload).toMatch(
-      /id=[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/
+    const uuidRe = /id=[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/;
+    await browser.waitUntil(
+      async () => {
+        const card = await findCardByName("UUID Test");
+        if (!card) return false;
+        return uuidRe.test(await getCardDetailValue(card, "Payload"));
+      },
+      { timeout: 5000, timeoutMsg: "card did not show a substituted UUID" }
     );
   });
 
@@ -87,11 +89,14 @@ describe("Built-in Variables", () => {
   });
 
   it("shows substituted unix timestamp", async () => {
-    const card = await findCardByName("Timestamp Test");
-    expect(card).not.toBeNull();
-
-    const payload = await getCardDetailValue(card!, "Payload");
-    expect(payload).toMatch(/ts=\d{10}/);
+    await browser.waitUntil(
+      async () => {
+        const card = await findCardByName("Timestamp Test");
+        if (!card) return false;
+        return /ts=\d{10}/.test(await getCardDetailValue(card, "Payload"));
+      },
+      { timeout: 5000, timeoutMsg: "card did not show a substituted unix timestamp" }
+    );
   });
 
   it("creates a button with {random:1-1000} in topic", async () => {
@@ -113,13 +118,18 @@ describe("Built-in Variables", () => {
   });
 
   it("shows substituted random number in the topic", async () => {
-    const card = await findCardByName("Random Test");
-    expect(card).not.toBeNull();
-
-    const topic = await getCardDetailValue(card!, "Topic");
-    const match = topic.match(/test\/random\/(\d+)/);
-    expect(match).not.toBeNull();
-    const num = parseInt(match![1]);
+    let num = 0;
+    await browser.waitUntil(
+      async () => {
+        const card = await findCardByName("Random Test");
+        if (!card) return false;
+        const match = (await getCardDetailValue(card, "Topic")).match(/test\/random\/(\d+)/);
+        if (!match) return false;
+        num = parseInt(match[1]);
+        return true;
+      },
+      { timeout: 5000, timeoutMsg: "card did not show a substituted random number" }
+    );
     expect(num).toBeGreaterThanOrEqual(1);
     expect(num).toBeLessThanOrEqual(1000);
   });

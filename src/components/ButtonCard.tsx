@@ -3,7 +3,6 @@ import { confirm } from "../utils/dialog";
 import { GripVertical, Pencil, Trash2, Repeat, CopyPlus, Check } from "lucide-react";
 import type { Button } from "../types";
 import { useApp } from "../contexts/AppContext";
-import { substituteVariables } from "../utils/variables";
 import { Editable } from "./Editable";
 
 function formatInterval(ms: number): string {
@@ -69,8 +68,7 @@ export const ButtonCard = memo(function ButtonCard({
   isDimmed,
   showRawTemplates,
 }: ButtonCardProps) {
-  const { activeConnection, publishButton, deleteButton, updateButton, connectionStatus } =
-    useApp();
+  const { publishButton, deleteButton, updateButton, connectionStatus, resolvedButtons } = useApp();
   const [publishing, setPublishing] = useState(false);
   const [lastResult, setLastResult] = useState<"success" | "error" | null>(null);
   const [isMultiSending, setIsMultiSending] = useState(false);
@@ -81,15 +79,11 @@ export const ButtonCard = memo(function ButtonCard({
   const intervalRef = useRef<number | null>(null);
   const timeoutRef = useRef<number | null>(null);
 
-  const variables = activeConnection?.variables || {};
-  const displayTopic = showRawTemplates
-    ? button.topic
-    : substituteVariables(button.topic, variables);
+  const resolved = resolvedButtons[button.id];
+  const displayTopic = showRawTemplates ? button.topic : resolved?.topic ?? button.topic;
   const displayPayload = showRawTemplates
     ? button.payload || ""
-    : button.payload
-      ? substituteVariables(button.payload, variables)
-      : "";
+    : resolved?.payload ?? (button.payload || "");
 
   function stopMultiSend() {
     if (intervalRef.current) {
