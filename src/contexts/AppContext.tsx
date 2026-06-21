@@ -9,6 +9,7 @@ import type {
   ConnectionStatus,
 } from "../types";
 import * as api from "../utils/api";
+import { templateHasBuiltin } from "../utils/builtins";
 
 interface AppContextType {
   data: AppData;
@@ -113,6 +114,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // previews (the live behavior the cards had before). Skips the state update when the
     // resolved output is unchanged, so connections without built-ins never re-render.
     lastResolvedRef.current = "";
+    const hasBuiltins = templates.some(templateHasBuiltin);
     const compute = () => {
       api
         .resolveTemplates(templates, variables)
@@ -135,10 +137,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .catch(() => {});
     };
     compute();
-    const interval = window.setInterval(compute, 1000);
+    // Only poll while there are built-ins to keep current; otherwise the resolved values
+    // are static, so one resolve is enough and we avoid all background work (which on slow
+    // machines made the first interaction after launch sluggish).
+    const interval = hasBuiltins ? window.setInterval(compute, 1000) : undefined;
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      if (interval !== undefined) clearInterval(interval);
     };
   }, [activeConnection?.buttons, activeConnection?.variables, activeConnection?.subscriptions]);
 

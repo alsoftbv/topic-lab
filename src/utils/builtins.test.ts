@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { isBuiltinVariable, getBuiltinNames, parseVariableExpression } from "./builtins";
+import {
+  isBuiltinVariable,
+  getBuiltinNames,
+  parseVariableExpression,
+  templateHasBuiltin,
+} from "./builtins";
 
 describe("isBuiltinVariable", () => {
   it("should return true for now", () => {
@@ -69,5 +74,20 @@ describe("parseVariableExpression", () => {
     const result = parseVariableExpression("now:utc:fmt:YYYY-MM-DD HH:mm:ss");
     expect(result.name).toBe("now");
     expect(result.modifiers).toEqual(["utc", "fmt:YYYY-MM-DD HH:mm:ss"]);
+  });
+});
+
+describe("templateHasBuiltin", () => {
+  it("detects built-in references", () => {
+    expect(templateHasBuiltin("logs/{now:unix}")).toBe(true);
+    expect(templateHasBuiltin("id={uuid}")).toBe(true);
+    expect(templateHasBuiltin("x/{random:1-10}")).toBe(true);
+    expect(templateHasBuiltin("a/{device_id}/b/{timestamp}")).toBe(true);
+  });
+
+  it("returns false for custom variables and plain text", () => {
+    expect(templateHasBuiltin("devices/{device_id}/cmd")).toBe(false);
+    expect(templateHasBuiltin("static/topic")).toBe(false);
+    expect(templateHasBuiltin("")).toBe(false);
   });
 });

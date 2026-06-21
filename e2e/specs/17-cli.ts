@@ -52,6 +52,20 @@ describe("CLI", () => {
             groups: [],
             subscriptions: [],
           },
+          {
+            id: "c2",
+            name: "cli2",
+            broker_url: "localhost",
+            port: 1883,
+            client_id: "mqtt-topic-lab-cli2-e2e",
+            use_tls: false,
+            auto_connect: false,
+            variables: {},
+            variable_history: {},
+            buttons: [],
+            groups: [],
+            subscriptions: [],
+          },
         ],
         last_connection_id: "c1",
       })
@@ -63,10 +77,25 @@ describe("CLI", () => {
   });
 
   it("lists connections from the running app's data dir (read)", () => {
-    const r = cli(["connections", "--json"]);
+    const r = cli(["connections", "list", "--json"]);
     expect(r.status).toBe(0);
     const conns = JSON.parse(r.stdout);
     expect(conns.some((c: any) => c.name === "E2E Test Connection")).toBe(true);
+  });
+
+  it("selects the active connection (write to a free data dir)", () => {
+    let r = cli(["connections", "select", "cli2"], tmpDir);
+    expect(r.status).toBe(0);
+    r = cli(["connections", "list", "--json"], tmpDir);
+    expect(r.status).toBe(0);
+    const active = JSON.parse(r.stdout).find((c: any) => c.active);
+    expect(active.name).toBe("cli2");
+  });
+
+  it("refuses selecting a connection while the app is running (instance lock)", () => {
+    const r = cli(["connections", "select", "E2E Test Connection"]);
+    expect(r.status).not.toBe(0);
+    expect((r.stderr || "").toLowerCase()).toContain("is open");
   });
 
   it("lists buttons (read)", () => {
@@ -146,7 +175,7 @@ describe("CLI", () => {
     const link = path.join(binDir, "topic-lab");
     expect(fs.existsSync(link)).toBe(true);
 
-    const viaLink = spawnSync(link, ["connections", "--json"], {
+    const viaLink = spawnSync(link, ["connections", "list", "--json"], {
       encoding: "utf-8",
       timeout: 20000,
       env: { ...process.env, MQTT_TOPIC_LAB_DATA_DIR: tmpDir },

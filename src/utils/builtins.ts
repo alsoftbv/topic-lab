@@ -4,6 +4,15 @@ export function isBuiltinVariable(name: string): boolean {
   return BUILTIN_NAMES.includes(name);
 }
 
+export function templateHasBuiltin(template: string): boolean {
+  const re = /\{([a-zA-Z_][a-zA-Z0-9_]*)(?::[^}]+)?\}/g;
+  let match;
+  while ((match = re.exec(template)) !== null) {
+    if (isBuiltinVariable(match[1])) return true;
+  }
+  return false;
+}
+
 export function getBuiltinNames(): string[] {
   return [...BUILTIN_NAMES];
 }

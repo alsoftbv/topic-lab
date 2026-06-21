@@ -42,11 +42,12 @@ Override the directory with the `MQTT_TOPIC_LAB_DATA_DIR` environment variable (
 
 ## Commands
 
-### List connections
+### List or select connections
 ```
-topic-lab connections --json
+topic-lab connections list --json
+topic-lab connections select <name|id>
 ```
-Returns each saved connection's `id`, `name`, `broker_url`, `port`, `use_tls`, and button count. Use the `name` or `id` as the `--connection` selector for other commands.
+`list` returns each saved connection's `id`, `name`, `broker_url`, `port`, `use_tls`, button count, and `active` flag. Use the `name` or `id` as the `--connection` selector for other commands. `select` sets the active connection (the one used when `--connection` is omitted); it writes config, so it is refused while the desktop app is running.
 
 ### List buttons
 ```

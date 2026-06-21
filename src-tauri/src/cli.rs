@@ -39,7 +39,7 @@ pub fn is_cli_invocation() -> bool {
 #[derive(Parser)]
 #[command(
     name = "topic-lab",
-    about = "MQTT Topic Lab — send saved MQTT commands from the command line",
+    about = "MQTT Topic Lab CLI: send saved MQTT commands from the command line",
     version
 )]
 struct Cli {
@@ -52,8 +52,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// List saved connections
-    Connections,
+    /// List saved connections, or select the active one
+    Connections {
+        #[command(subcommand)]
+        action: ConnectionCommand,
+    },
     /// List, add, edit, or delete saved buttons
     Buttons {
         #[command(subcommand)]
@@ -129,6 +132,17 @@ enum Command {
     },
     /// Print this CLI's agent skill to stdout
     Skill,
+}
+
+#[derive(Subcommand)]
+enum ConnectionCommand {
+    /// List saved connections (the active one is marked)
+    List,
+    /// Set the active connection used when --connection is omitted (refused while the app runs)
+    Select {
+        /// Connection name or id
+        connection: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -227,7 +241,12 @@ async fn run(cli: Cli) -> Result<(), String> {
     let data = storage.load_data().map_err(|e| e.to_string())?;
 
     match cli.command {
-        Command::Connections => list_connections(&data, json),
+        Command::Connections { action } => match action {
+            ConnectionCommand::List => list_connections(&data, json),
+            ConnectionCommand::Select { connection } => {
+                connection_select(&storage, &connection, json)
+            }
+        },
         Command::Buttons { action } => match action {
             ButtonCommand::List { connection } => list_buttons(&data, connection.as_deref(), json),
             ButtonCommand::Add {
@@ -330,6 +349,7 @@ async fn run(cli: Cli) -> Result<(), String> {
 }
 
 fn list_connections(data: &AppData, json: bool) -> Result<(), String> {
+    let active = data.last_connection_id.as_deref();
     if json {
         let rows: Vec<_> = data
             .connections
@@ -342,6 +362,7 @@ fn list_connections(data: &AppData, json: bool) -> Result<(), String> {
                     "port": c.port,
                     "use_tls": c.use_tls,
                     "buttons": c.buttons.len(),
+                    "active": active == Some(c.id.as_str()),
                 })
             })
             .collect();
@@ -350,9 +371,11 @@ fn list_connections(data: &AppData, json: bool) -> Result<(), String> {
         println!("no connections configured");
     } else {
         for c in &data.connections {
+            let marker = if active == Some(c.id.as_str()) { "*" } else { " " };
             let tls = if c.use_tls { " tls" } else { "" };
             println!(
-                "{}  {}:{}{}  ({} buttons)  [{}]",
+                "{} {}  {}:{}{}  ({} buttons)  [{}]",
+                marker,
                 c.name,
                 c.broker_url,
                 c.port,
@@ -361,6 +384,23 @@ fn list_connections(data: &AppData, json: bool) -> Result<(), String> {
                 c.id
             );
         }
+    }
+    Ok(())
+}
+
+fn connection_select(storage: &Storage, selector: &str, json: bool) -> Result<(), String> {
+    let _guard = acquire_write_or_refuse(storage)?;
+    let mut data = storage.load_data().map_err(|e| e.to_string())?;
+    let idx = find_connection_index(&data, Some(selector))?;
+    let id = data.connections[idx].id.clone();
+    let name = data.connections[idx].name.clone();
+    data.last_connection_id = Some(id.clone());
+    storage.save_data(&data).map_err(|e| e.to_string())?;
+
+    if json {
+        println!("{}", serde_json::json!({ "selected": true, "id": id, "name": name }));
+    } else {
+        println!("active connection: {name} [{id}]");
     }
     Ok(())
 }
@@ -469,7 +509,10 @@ async fn subscribe(
 
     let mut client = MqttClient::new();
     client.set_events(printer);
-    client.connect(conn).await.map_err(|e| e.to_string())?;
+    client
+        .connect(&cli_client(conn))
+        .await
+        .map_err(|e| e.to_string())?;
     wait_connected(&client).await?;
     client.subscribe(&topic, qos).await.map_err(|e| e.to_string())?;
     if !json {
@@ -504,7 +547,10 @@ async fn deliver(
     retain: bool,
 ) -> Result<(), String> {
     let mut client = MqttClient::new();
-    client.connect(conn).await.map_err(|e| e.to_string())?;
+    client
+        .connect(&cli_client(conn))
+        .await
+        .map_err(|e| e.to_string())?;
     wait_connected(&client).await?;
     client
         .publish(topic, payload, qos, retain)
@@ -578,7 +624,7 @@ fn acquire_write_or_refuse(storage: &Storage) -> Result<std::fs::File, String> {
     match storage.acquire_write_lock().map_err(|e| e.to_string())? {
         Some(guard) => Ok(guard),
         None => Err("MQTT Topic Lab is open (or another change is in progress); configuration \
-             changes are disabled while it runs. Quit the app — it takes precedence — and try again."
+             changes are disabled while it runs. Quit the app and try again."
             .into()),
     }
 }
@@ -803,6 +849,58 @@ fn merged_vars(conn: &Connection, overrides: HashMap<String, String>) -> HashMap
     let mut vars = conn.variables.clone();
     vars.extend(overrides);
     vars
+}
+
+// Use a distinct client id so a CLI connection doesn't kick the running app (or vice versa)
+// off the broker. MQTT brokers drop an existing client when another connects with the same id.
+fn cli_client(conn: &Connection) -> Connection {
+    let mut conn = conn.clone();
+    conn.client_id = format!("{}-cli", conn.client_id);
+    conn
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn conn(client_id: &str) -> Connection {
+        Connection {
+            id: "id".into(),
+            name: "n".into(),
+            broker_url: "localhost".into(),
+            port: 1883,
+            client_id: client_id.into(),
+            username: None,
+            password: None,
+            use_tls: false,
+            auto_connect: false,
+            variables: HashMap::new(),
+            variable_history: HashMap::new(),
+            buttons: vec![],
+            groups: vec![],
+            subscriptions: vec![],
+        }
+    }
+
+    #[test]
+    fn cli_client_suffixes_the_id() {
+        assert_eq!(cli_client(&conn("device-123")).client_id, "device-123-cli");
+    }
+
+    #[test]
+    fn qos_from_u8_maps_levels() {
+        assert!(matches!(qos_from_u8(0), QoS::AtMostOnce));
+        assert!(matches!(qos_from_u8(1), QoS::AtLeastOnce));
+        assert!(matches!(qos_from_u8(2), QoS::ExactlyOnce));
+    }
+
+    #[test]
+    fn parse_var_overrides_splits_on_first_equals() {
+        let map = parse_var_overrides(&["a=1".into(), "b=two=2".into()]).unwrap();
+        assert_eq!(map.get("a"), Some(&"1".to_string()));
+        assert_eq!(map.get("b"), Some(&"two=2".to_string()));
+        assert!(parse_var_overrides(&["nope".into()]).is_err());
+    }
 }
 
 fn qos_from_u8(qos: u8) -> QoS {
