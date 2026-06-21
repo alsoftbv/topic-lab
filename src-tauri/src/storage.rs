@@ -52,6 +52,7 @@ impl Storage {
             .create(true)
             .read(true)
             .write(true)
+            .truncate(false)
             .open(&self.lock_path)?;
         match file.try_lock_exclusive() {
             Ok(()) => Ok(Some(file)),

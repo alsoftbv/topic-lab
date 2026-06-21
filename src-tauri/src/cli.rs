@@ -859,6 +859,49 @@ fn cli_client(conn: &Connection) -> Connection {
     conn
 }
 
+fn qos_from_u8(qos: u8) -> QoS {
+    match qos {
+        1 => QoS::AtLeastOnce,
+        2 => QoS::ExactlyOnce,
+        _ => QoS::AtMostOnce,
+    }
+}
+
+struct CliPrinter {
+    json: bool,
+    counter: Arc<AtomicUsize>,
+}
+
+impl MqttEvents for CliPrinter {
+    fn on_status(&self, _status: &str) {}
+
+    fn on_message(&self, message: &Message) {
+        self.counter.fetch_add(1, Ordering::Relaxed);
+        if self.json {
+            if let Ok(line) = serde_json::to_string(message) {
+                println!("{line}");
+            }
+        } else {
+            println!("{}  {}", message.topic, message.payload);
+        }
+    }
+}
+
+#[cfg(windows)]
+mod win_console {
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn AttachConsole(process_id: u32) -> i32;
+    }
+
+    pub fn attach() {
+        const ATTACH_PARENT_PROCESS: u32 = u32::MAX;
+        unsafe {
+            let _ = AttachConsole(ATTACH_PARENT_PROCESS);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -900,48 +943,5 @@ mod tests {
         assert_eq!(map.get("a"), Some(&"1".to_string()));
         assert_eq!(map.get("b"), Some(&"two=2".to_string()));
         assert!(parse_var_overrides(&["nope".into()]).is_err());
-    }
-}
-
-fn qos_from_u8(qos: u8) -> QoS {
-    match qos {
-        1 => QoS::AtLeastOnce,
-        2 => QoS::ExactlyOnce,
-        _ => QoS::AtMostOnce,
-    }
-}
-
-struct CliPrinter {
-    json: bool,
-    counter: Arc<AtomicUsize>,
-}
-
-impl MqttEvents for CliPrinter {
-    fn on_status(&self, _status: &str) {}
-
-    fn on_message(&self, message: &Message) {
-        self.counter.fetch_add(1, Ordering::Relaxed);
-        if self.json {
-            if let Ok(line) = serde_json::to_string(message) {
-                println!("{line}");
-            }
-        } else {
-            println!("{}  {}", message.topic, message.payload);
-        }
-    }
-}
-
-#[cfg(windows)]
-mod win_console {
-    #[link(name = "kernel32")]
-    extern "system" {
-        fn AttachConsole(process_id: u32) -> i32;
-    }
-
-    pub fn attach() {
-        const ATTACH_PARENT_PROCESS: u32 = u32::MAX;
-        unsafe {
-            let _ = AttachConsole(ATTACH_PARENT_PROCESS);
-        }
     }
 }
