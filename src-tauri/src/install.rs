@@ -15,6 +15,7 @@ pub struct InstallReport {
 }
 
 pub enum InstallError {
+    #[cfg_attr(not(unix), allow(dead_code))]
     Permission {
         dir: PathBuf,
         link: PathBuf,
@@ -179,7 +180,7 @@ fn install_elevated_macos(target: &Path, link: &Path) -> Result<InstallReport, S
 pub fn default_bin_dir() -> PathBuf {
     dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("topic-lab")
+        .join(CLI_NAME)
         .join("bin")
 }
 
@@ -190,7 +191,7 @@ pub fn install(dir: Option<PathBuf>, force: bool) -> Result<InstallReport, Insta
     let dir = dir.unwrap_or_else(default_bin_dir);
     std::fs::create_dir_all(&dir)
         .map_err(|e| InstallError::Other(format!("cannot create {}: {e}", dir.display())))?;
-    let shim = dir.join("topic-lab.cmd");
+    let shim = dir.join(format!("{CLI_NAME}.cmd"));
     let script = format!("@\"{}\" %*\r\n", exe.display());
 
     if std::fs::symlink_metadata(&shim).is_ok() {
@@ -226,7 +227,7 @@ pub fn install(dir: Option<PathBuf>, force: bool) -> Result<InstallReport, Insta
 #[cfg(windows)]
 pub fn uninstall(dir: Option<PathBuf>) -> Result<PathBuf, String> {
     let dir = dir.unwrap_or_else(default_bin_dir);
-    let shim = dir.join("topic-lab.cmd");
+    let shim = dir.join(format!("{CLI_NAME}.cmd"));
     if std::fs::symlink_metadata(&shim).is_err() {
         return Err(format!("not installed at {}", shim.display()));
     }
