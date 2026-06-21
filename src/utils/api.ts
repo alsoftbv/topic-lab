@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 import type { AppData, Connection, Button, QoS, Message } from "../types";
-import { substituteVariables } from "./variables";
 
 export async function getData(): Promise<AppData> {
   return invoke<AppData>("get_data");
@@ -37,9 +36,36 @@ export async function publishButton(
   button: Button,
   variables: Record<string, string>
 ): Promise<void> {
-  const topic = substituteVariables(button.topic, variables);
-  const payload = button.payload ? substituteVariables(button.payload, variables) : "";
-  return publish(topic, payload, button.qos, button.retain);
+  return invoke("publish_button", { button, variables });
+}
+
+export async function resolveTemplate(
+  template: string,
+  variables: Record<string, string>
+): Promise<string> {
+  return invoke<string>("resolve_template", { template, variables });
+}
+
+export async function resolveTemplates(
+  templates: string[],
+  variables: Record<string, string>
+): Promise<string[]> {
+  return invoke<string[]>("resolve_templates", { templates, variables });
+}
+
+export async function getBuiltinNames(): Promise<string[]> {
+  return invoke<string[]>("get_builtin_names");
+}
+
+export interface InstallResult {
+  path: string;
+  target: string;
+  onPath: boolean;
+  already: boolean;
+}
+
+export async function installCli(): Promise<InstallResult> {
+  return invoke<InstallResult>("install_cli");
 }
 
 export async function subscribe(topic: string, qos: QoS): Promise<void> {

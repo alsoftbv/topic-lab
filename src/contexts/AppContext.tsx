@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import type {
   AppData,
@@ -16,6 +16,8 @@ interface AppContextType {
   connectionStatus: ConnectionStatus;
   loading: boolean;
   error: string | null;
+  resolvedButtons: Record<string, { topic: string; payload: string }>;
+  resolvedSubscriptions: Record<string, string>;
   addConnection: (connection: Connection) => Promise<void>;
   importConnection: (connection: Omit<Connection, "id">) => Promise<void>;
   updateConnection: (connection: Connection) => Promise<void>;
@@ -47,6 +49,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [resolvedButtons, setResolvedButtons] = useState<
+    Record<string, { topic: string; payload: string }>
+  >({});
+  const [resolvedSubscriptions, setResolvedSubscriptions] = useState<Record<string, string>>({});
 
   const activeConnection = data.connections.find((c) => c.id === activeConnectionId) ?? null;
 
@@ -82,6 +88,59 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       unlisten.then((fn) => fn());
     };
   }, []);
+
+  const lastResolvedRef = useRef<string>("");
+
+  useEffect(() => {
+    if (!activeConnection) {
+      setResolvedButtons({});
+      setResolvedSubscriptions({});
+      lastResolvedRef.current = "";
+      return;
+    }
+    const { buttons, variables, subscriptions } = activeConnection;
+    const templates: string[] = [];
+    for (const b of buttons) {
+      templates.push(b.topic, b.payload ?? "");
+    }
+    const subStart = templates.length;
+    for (const s of subscriptions) {
+      templates.push(s);
+    }
+
+    let cancelled = false;
+    // Re-resolve on a timer so built-in values like {now}/{uuid} stay current in the
+    // previews (the live behavior the cards had before). Skips the state update when the
+    // resolved output is unchanged, so connections without built-ins never re-render.
+    lastResolvedRef.current = "";
+    const compute = () => {
+      api
+        .resolveTemplates(templates, variables)
+        .then((resolved) => {
+          if (cancelled) return;
+          const key = JSON.stringify(resolved);
+          if (key === lastResolvedRef.current) return;
+          lastResolvedRef.current = key;
+          const btnMap: Record<string, { topic: string; payload: string }> = {};
+          buttons.forEach((b, i) => {
+            btnMap[b.id] = { topic: resolved[i * 2], payload: resolved[i * 2 + 1] };
+          });
+          const subMap: Record<string, string> = {};
+          subscriptions.forEach((s, i) => {
+            subMap[s] = resolved[subStart + i];
+          });
+          setResolvedButtons(btnMap);
+          setResolvedSubscriptions(subMap);
+        })
+        .catch(() => {});
+    };
+    compute();
+    const interval = window.setInterval(compute, 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [activeConnection?.buttons, activeConnection?.variables, activeConnection?.subscriptions]);
 
   async function loadData() {
     try {
@@ -352,6 +411,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         connectionStatus,
         loading,
         error,
+        resolvedButtons,
+        resolvedSubscriptions,
         addConnection,
         importConnection,
         updateConnection,

@@ -35,10 +35,13 @@ describe("Variables", () => {
     await setInputValue("#buttonName", "Variable Test");
     await setInputValue("#topic", "devices/{device_id}/cmd");
 
-    const preview = await $(".preview code");
-    if (await preview.isExisting()) {
-      expect(await getElText(preview)).toContain("sensor-001");
-    }
+    await browser.waitUntil(
+      async () => {
+        const preview = await $(".preview code");
+        return (await preview.isExisting()) && (await getElText(preview)).includes("sensor-001");
+      },
+      { timeout: 5000, timeoutMsg: "Topic preview did not resolve {device_id} to sensor-001" }
+    );
 
     const submitBtn = await $("button=Create");
     await submitBtn.click();

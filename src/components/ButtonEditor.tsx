@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import type { Button, QoS, ButtonColor } from "../types";
 import { useApp } from "../contexts/AppContext";
-import { substituteVariables, extractVariableNames } from "../utils/variables";
+import { extractVariableNames } from "../utils/variables";
+import * as api from "../utils/api";
 import { minifyJson, validateJson } from "../utils/json";
 
 const COLOR_OPTIONS: { value: ButtonColor; label: string }[] = [
@@ -60,10 +61,37 @@ export function ButtonEditor({ button, defaultGroupId, onClose }: ButtonEditorPr
   ];
   const missingVariables = usedVariables.filter((v) => !(v in variables));
 
-  const previewTopic = substituteVariables(topic, variables);
-  const previewPayload = substituteVariables(payload, variables);
+  const [previewTopic, setPreviewTopic] = useState(button?.topic || "");
+  const [previewPayload, setPreviewPayload] = useState(button?.payload || "");
+  const [previewReady, setPreviewReady] = useState(false);
+  const firstPreviewRef = useRef(true);
 
-  const jsonError = validateJson(previewPayload);
+  useEffect(() => {
+    let cancelled = false;
+    const resolve = () => {
+      api
+        .resolveTemplates([topic, payload], variables)
+        .then(([t, p]) => {
+          if (cancelled) return;
+          setPreviewTopic(t);
+          setPreviewPayload(p);
+          setPreviewReady(true);
+        })
+        .catch(() => {});
+    };
+    // Resolve immediately on first render, debounce subsequent edits.
+    const delay = firstPreviewRef.current ? 0 : 120;
+    firstPreviewRef.current = false;
+    const handle = window.setTimeout(resolve, delay);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [topic, payload, variables]);
+
+  // Validate only once the (async) substitution has produced the preview, so the raw
+  // template — which contains {placeholders} and isn't valid JSON — doesn't flash red.
+  const jsonError = previewReady ? validateJson(previewPayload) : null;
 
   const handleMinify = () => {
     const minified = minifyJson(payload);

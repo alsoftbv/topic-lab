@@ -38,6 +38,10 @@
     margin: 0;
 }
 
+.settings-section-title:not(:first-child) {
+    margin-top: 1.75rem;
+}
+
 .update-settings > * + * {
     margin-top: 1rem;
 }

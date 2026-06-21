@@ -5,11 +5,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter};
 use thiserror::Error;
 use tokio::sync::{mpsc, RwLock};
 
 const MAX_MESSAGES: usize = 100;
+
+pub trait MqttEvents: Send + Sync {
+    fn on_status(&self, status: &str);
+    fn on_message(&self, message: &Message);
+}
 
 #[derive(Error, Debug)]
 pub enum MqttError {
@@ -35,7 +39,7 @@ pub struct MqttClient {
     connection_info: Option<(String, String)>,
     messages: Arc<RwLock<VecDeque<Message>>>,
     subscriptions: Arc<RwLock<Vec<String>>>,
-    app_handle: Option<AppHandle>,
+    events: Option<Arc<dyn MqttEvents>>,
 }
 
 impl MqttClient {
@@ -47,12 +51,12 @@ impl MqttClient {
             connection_info: None,
             messages: Arc::new(RwLock::new(VecDeque::with_capacity(MAX_MESSAGES))),
             subscriptions: Arc::new(RwLock::new(Vec::new())),
-            app_handle: None,
+            events: None,
         }
     }
 
-    pub fn set_app_handle(&mut self, handle: AppHandle) {
-        self.app_handle = Some(handle);
+    pub fn set_events(&mut self, events: Arc<dyn MqttEvents>) {
+        self.events = Some(events);
     }
 
     pub async fn connect(&mut self, config: &Connection) -> Result<(), MqttError> {
@@ -66,8 +70,8 @@ impl MqttClient {
             config.name, config.broker_url, config.port
         );
         *self.status.write().await = ConnectionStatus::Connecting;
-        if let Some(ref handle) = self.app_handle {
-            let _ = handle.emit("mqtt-status", "connecting");
+        if let Some(ref events) = self.events {
+            events.on_status("connecting");
         }
         self.messages.write().await.clear();
         self.subscriptions.write().await.clear();
@@ -93,7 +97,7 @@ impl MqttClient {
 
         let status = Arc::clone(&self.status);
         let messages = Arc::clone(&self.messages);
-        let app_handle = self.app_handle.clone();
+        let events = self.events.clone();
         let (shutdown_tx, mut shutdown_rx) = mpsc::channel::<()>(1);
         self.shutdown_tx = Some(shutdown_tx);
 
@@ -112,8 +116,8 @@ impl MqttClient {
                                 info!("MQTT connected successfully");
                                 *status.write().await = ConnectionStatus::Connected;
                                 consecutive_errors = 0;
-                                if let Some(ref handle) = app_handle {
-                                    let _ = handle.emit("mqtt-status", "connected");
+                                if let Some(ref events) = events {
+                                    events.on_status("connected");
                                 }
                             }
                             Ok(Event::Incoming(Packet::Publish(publish))) => {
@@ -137,8 +141,8 @@ impl MqttClient {
                                     msgs.pop_front();
                                 }
                                 msgs.push_back(msg.clone());
-                                if let Some(ref handle) = app_handle {
-                                    let _ = handle.emit("mqtt-message", msg);
+                                if let Some(ref events) = events {
+                                    events.on_message(&msg);
                                 }
                             }
                             Ok(_) => {
@@ -152,8 +156,8 @@ impl MqttClient {
                                 );
 
                                 *status.write().await = ConnectionStatus::Error;
-                                if let Some(ref handle) = app_handle {
-                                    let _ = handle.emit("mqtt-status", "error");
+                                if let Some(ref events) = events {
+                                    events.on_status("error");
                                 }
 
                                 if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
@@ -190,8 +194,8 @@ impl MqttClient {
         self.subscriptions.write().await.clear();
         let info = self.connection_info.take();
         *self.status.write().await = ConnectionStatus::Disconnected;
-        if let Some(ref handle) = self.app_handle {
-            let _ = handle.emit("mqtt-status", "disconnected");
+        if let Some(ref events) = self.events {
+            events.on_status("disconnected");
         }
         debug!("Disconnected successfully");
         Ok(info)
@@ -244,7 +248,6 @@ impl MqttClient {
         Ok(())
     }
 
-    #[cfg(test)]
     pub async fn get_status(&self) -> ConnectionStatus {
         self.status.read().await.clone()
     }

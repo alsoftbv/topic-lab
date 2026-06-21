@@ -8,6 +8,7 @@
         "build": "tsc && vite build",
         "preview": "vite preview",
         "tauri": "tauri",
+        "tauri:build": "set -a && . ./.env && set +a && npm run tauri build",
         "test": "vitest",
         "test:run": "vitest run",
         "test:e2e": "cd e2e && npm test",
