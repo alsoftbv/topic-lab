@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 const SUBCOMMANDS: &[&str] = &[
     "connections",
     "buttons",
+    "variables",
     "send",
     "publish",
     "subscribe",
@@ -25,6 +26,7 @@ const SKILL_MD: &str = include_str!("../resources/skill.md");
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const FLUSH_GRACE: Duration = Duration::from_millis(300);
+const MAX_VARIABLE_HISTORY: usize = 5;
 
 pub fn is_cli_invocation() -> bool {
     match std::env::args().nth(1) {
@@ -61,6 +63,11 @@ enum Command {
     Buttons {
         #[command(subcommand)]
         action: ButtonCommand,
+    },
+    /// List, set, or unset a connection's variables
+    Variables {
+        #[command(subcommand)]
+        action: VariableCommand,
     },
     /// Send a saved button by name or id
     Send {
@@ -212,6 +219,34 @@ enum ButtonCommand {
     },
 }
 
+#[derive(Subcommand)]
+enum VariableCommand {
+    /// List a connection's variables
+    List {
+        /// Connection name or id (defaults to the last-used connection)
+        #[arg(short, long)]
+        connection: Option<String>,
+    },
+    /// Set a variable's value (refused while the desktop app is running)
+    Set {
+        /// Variable name
+        key: String,
+        /// Variable value
+        value: String,
+        /// Connection name or id (defaults to the last-used connection)
+        #[arg(short, long)]
+        connection: Option<String>,
+    },
+    /// Remove a variable (refused while the desktop app is running)
+    Unset {
+        /// Variable name
+        key: String,
+        /// Connection name or id (defaults to the last-used connection)
+        #[arg(short, long)]
+        connection: Option<String>,
+    },
+}
+
 pub fn run_cli() {
     #[cfg(windows)]
     win_console::attach();
@@ -295,6 +330,19 @@ async fn run(cli: Cli) -> Result<(), String> {
             ),
             ButtonCommand::Delete { button, connection } => {
                 button_delete(&storage, &button, connection.as_deref(), json)
+            }
+        },
+        Command::Variables { action } => match action {
+            VariableCommand::List { connection } => {
+                list_variables(&data, connection.as_deref(), json)
+            }
+            VariableCommand::Set {
+                key,
+                value,
+                connection,
+            } => variable_set(&storage, connection.as_deref(), &key, &value, json),
+            VariableCommand::Unset { key, connection } => {
+                variable_unset(&storage, connection.as_deref(), &key, json)
             }
         },
         Command::Send {
@@ -795,6 +843,86 @@ fn button_delete(
     Ok(())
 }
 
+fn list_variables(data: &AppData, selector: Option<&str>, json: bool) -> Result<(), String> {
+    let conn = resolve_connection(data, selector)?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&conn.variables).unwrap());
+    } else if conn.variables.is_empty() {
+        println!("no variables in connection '{}'", conn.name);
+    } else {
+        let mut keys: Vec<&String> = conn.variables.keys().collect();
+        keys.sort();
+        for key in keys {
+            println!("{key} = {}", conn.variables[key]);
+        }
+    }
+    Ok(())
+}
+
+fn push_variable_history(history: &mut HashMap<String, Vec<String>>, key: &str, old_value: &str) {
+    let entry = history.entry(key.to_string()).or_default();
+    entry.retain(|v| v != old_value);
+    entry.insert(0, old_value.to_string());
+    entry.truncate(MAX_VARIABLE_HISTORY);
+}
+
+fn variable_set(
+    storage: &Storage,
+    connection: Option<&str>,
+    key: &str,
+    value: &str,
+    json: bool,
+) -> Result<(), String> {
+    let _guard = acquire_write_or_refuse(storage)?;
+    let mut data = storage.load_data().map_err(|e| e.to_string())?;
+    let idx = find_connection_index(&data, connection)?;
+    let conn = &mut data.connections[idx];
+
+    if let Some(old_value) = conn.variables.get(key) {
+        if old_value != value {
+            let old_value = old_value.clone();
+            push_variable_history(&mut conn.variable_history, key, &old_value);
+        }
+    }
+    conn.variables.insert(key.to_string(), value.to_string());
+    storage.save_data(&data).map_err(|e| e.to_string())?;
+
+    if json {
+        println!(
+            "{}",
+            serde_json::json!({ "set": true, "key": key, "value": value })
+        );
+    } else {
+        println!("set {key} = {value}");
+    }
+    Ok(())
+}
+
+fn variable_unset(
+    storage: &Storage,
+    connection: Option<&str>,
+    key: &str,
+    json: bool,
+) -> Result<(), String> {
+    let _guard = acquire_write_or_refuse(storage)?;
+    let mut data = storage.load_data().map_err(|e| e.to_string())?;
+    let idx = find_connection_index(&data, connection)?;
+    let conn = &mut data.connections[idx];
+
+    if conn.variables.remove(key).is_none() {
+        return Err(format!("variable not found: {key}"));
+    }
+    conn.variable_history.remove(key);
+    storage.save_data(&data).map_err(|e| e.to_string())?;
+
+    if json {
+        println!("{}", serde_json::json!({ "unset": true, "key": key }));
+    } else {
+        println!("unset {key}");
+    }
+    Ok(())
+}
+
 fn cmd_install(path: Option<PathBuf>, force: bool, json: bool) -> Result<(), String> {
     let report = crate::install::install(path, force).map_err(|e| e.message())?;
     if json {
@@ -941,5 +1069,32 @@ mod tests {
         assert_eq!(map.get("a"), Some(&"1".to_string()));
         assert_eq!(map.get("b"), Some(&"two=2".to_string()));
         assert!(parse_var_overrides(&["nope".into()]).is_err());
+    }
+
+    #[test]
+    fn push_variable_history_prepends_old_value() {
+        let mut history = HashMap::new();
+        push_variable_history(&mut history, "mac", "11:22:33");
+        push_variable_history(&mut history, "mac", "44:55:66");
+        assert_eq!(history["mac"], vec!["44:55:66", "11:22:33"]);
+    }
+
+    #[test]
+    fn push_variable_history_dedupes_and_moves_to_front() {
+        let mut history = HashMap::new();
+        push_variable_history(&mut history, "mac", "a");
+        push_variable_history(&mut history, "mac", "b");
+        push_variable_history(&mut history, "mac", "a");
+        assert_eq!(history["mac"], vec!["a", "b"]);
+    }
+
+    #[test]
+    fn push_variable_history_caps_at_max() {
+        let mut history = HashMap::new();
+        for i in 0..(MAX_VARIABLE_HISTORY + 3) {
+            push_variable_history(&mut history, "k", &i.to_string());
+        }
+        assert_eq!(history["k"].len(), MAX_VARIABLE_HISTORY);
+        assert_eq!(history["k"][0], (MAX_VARIABLE_HISTORY + 2).to_string());
     }
 }

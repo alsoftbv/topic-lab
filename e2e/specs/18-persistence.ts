@@ -30,7 +30,7 @@ describe("Persistence", () => {
     await setInputValue("#buttonName", "Builtin Timer");
     await setInputValue("#topic", "logs/{now:unix}");
     await (await $("button=Create")).click();
-    await browser.waitUntil(async () => (await $$(selectors.buttonCard)).length > 0, {
+    await browser.waitUntil(async () => (await $$(selectors.buttonCard).length) > 0, {
       timeout: 5000,
       timeoutMsg: "built-in button was not created",
     });

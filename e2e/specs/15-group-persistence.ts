@@ -28,8 +28,8 @@ describe("Group Persistence After Duplication", () => {
   });
 
   it("duplicates a button in the ungrouped section", async () => {
+    const initialCount = await $$(selectors.buttonCard).length;
     const buttons = await $$(selectors.buttonCard);
-    const initialCount = buttons.length;
 
     const firstButton = buttons[0];
     await browser.execute((el: HTMLElement) => el.click(), firstButton as unknown as HTMLElement);
@@ -38,7 +38,7 @@ describe("Group Persistence After Duplication", () => {
     await sendShortcut("d", { ctrl: true });
 
     await browser.waitUntil(
-      async () => (await $$(selectors.buttonCard)).length === initialCount + 1,
+      async () => (await $$(selectors.buttonCard).length) === initialCount + 1,
       { timeout: 5000, timeoutMsg: "Button was not duplicated" }
     );
   });
@@ -49,8 +49,9 @@ describe("Group Persistence After Duplication", () => {
   });
 
   it("cleans up: deletes the duplicated button and the group", async () => {
+    const count = await $$(selectors.buttonCard).length;
     const buttons = await $$(selectors.buttonCard);
-    const lastButton = buttons[buttons.length - 1];
+    const lastButton = buttons[count - 1];
     await browser.execute((el: HTMLElement) => el.click(), lastButton as unknown as HTMLElement);
     await browser.pause(100);
 

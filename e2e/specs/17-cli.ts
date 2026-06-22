@@ -137,6 +137,44 @@ describe("CLI", () => {
     expect(JSON.parse(r.stdout).some((b: any) => b.name === "Created")).toBe(false);
   });
 
+  it("lists variables (read)", () => {
+    const r = cli(["variables", "list", "-c", "cli", "--json"], tmpDir);
+    expect(r.status).toBe(0);
+    expect(JSON.parse(r.stdout)).toEqual({ device_id: "sensor-1" });
+  });
+
+  it("refuses setting a variable while the app is running (instance lock)", () => {
+    const r = cli(["variables", "set", "device_id", "nope"]);
+    expect(r.status).not.toBe(0);
+    expect((r.stderr || "").toLowerCase()).toContain("is open");
+  });
+
+  it("sets, records history for, and unsets a variable (write)", () => {
+    let r = cli(["variables", "set", "device_id", "sensor-2", "-c", "cli"], tmpDir);
+    expect(r.status).toBe(0);
+    r = cli(["variables", "set", "region", "eu", "-c", "cli"], tmpDir);
+    expect(r.status).toBe(0);
+
+    r = cli(["variables", "list", "-c", "cli", "--json"], tmpDir);
+    expect(JSON.parse(r.stdout)).toEqual({ device_id: "sensor-2", region: "eu" });
+
+    const data = JSON.parse(fs.readFileSync(path.join(tmpDir, "data.json"), "utf-8"));
+    const conn = data.connections.find((c: any) => c.id === "c1");
+    expect(conn.variable_history.device_id).toEqual(["sensor-1"]);
+
+    r = cli(["variables", "unset", "region", "-c", "cli"], tmpDir);
+    expect(r.status).toBe(0);
+
+    cli(["variables", "set", "device_id", "sensor-1", "-c", "cli"], tmpDir);
+    r = cli(["variables", "list", "-c", "cli", "--json"], tmpDir);
+    expect(JSON.parse(r.stdout)).toEqual({ device_id: "sensor-1" });
+  });
+
+  it("fails to unset a missing variable", () => {
+    const r = cli(["variables", "unset", "does_not_exist", "-c", "cli"], tmpDir);
+    expect(r.status).not.toBe(0);
+  });
+
   it("rejects an out-of-range qos", () => {
     const r = cli(["publish", "-c", "cli", "-t", "x", "--qos", "5"], tmpDir);
     expect(r.status).not.toBe(0);

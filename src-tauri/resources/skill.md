@@ -1,6 +1,6 @@
 ---
 name: topic-lab
-description: Drive the MQTT Topic Lab CLI to list saved connections and buttons, send saved buttons, publish ad-hoc messages, and subscribe to topics. Use when an agent needs to send or receive MQTT messages using the connections, buttons, and variables already configured in the MQTT Topic Lab desktop app.
+description: Drive the MQTT Topic Lab CLI to list saved connections and buttons, send saved buttons, publish ad-hoc messages, subscribe to topics, and manage connection variables. Use when an agent needs to send or receive MQTT messages using the connections, buttons, and variables already configured in the MQTT Topic Lab desktop app.
 ---
 
 # MQTT Topic Lab CLI
@@ -9,7 +9,7 @@ MQTT Topic Lab is a desktop app for sending saved MQTT commands. The CLI is the 
 
 > This skill is embedded in the CLI: run `topic-lab skill` to print it to stdout.
 
-**The desktop app takes precedence.** Commands that change configuration (`buttons add`/`edit`/`delete`) work only when the app is **not** running — while it is open they are refused (coordinated via an OS advisory lock), so the CLI can never clobber the app's state. All other commands (listing, `send`, `publish`, `subscribe`) never modify `data.json` and are always available, even while the app is open.
+**The desktop app takes precedence.** Commands that change configuration (`connections select`, `buttons add`/`edit`/`delete`, `variables set`/`unset`) work only when the app is **not** running — while it is open they are refused (coordinated via an OS advisory lock), so the CLI can never clobber the app's state. All other commands (listing, `send`, `publish`, `subscribe`) never modify `data.json` and are always available, even while the app is open.
 
 ## Invoking the CLI
 
@@ -67,6 +67,17 @@ topic-lab buttons delete "Turn On" --connection prod
 - These store templates verbatim (`{variable}` is **not** expanded at write time — it is resolved when the button is sent).
 - If the desktop app is running, these print an error to stderr and exit non-zero without changing anything; close the app and retry.
 
+### List / set / unset variables
+```
+topic-lab variables list --connection prod --json
+topic-lab variables set device_id sensor-42 --connection prod
+topic-lab variables unset device_id --connection prod
+```
+- `list` prints the connection's saved variables (a `{"key": "value"}` object with `--json`, or `key = value` lines otherwise). Omit `--connection` to use the last-used connection.
+- `set` takes a `key` and `value` positionally and persists the variable on the connection. Changing an existing variable pushes its previous value onto that variable's history (most-recent first, capped at 5), matching the desktop app.
+- `unset` removes the variable and its history.
+- `set` and `unset` write config, so they are refused while the desktop app is running. To override a variable for a single command without persisting it, use `--var key=value` on `send`/`publish`/`subscribe` instead.
+
 ### Send a saved button
 ```
 topic-lab send "Turn On" --connection prod --var device_id=sensor-42
@@ -87,7 +98,7 @@ Connects, subscribes, and prints each incoming message (one JSON object per line
 
 ## Variables
 
-Topics and payloads use `{variable_name}` syntax. Custom variables come from the connection (override per-invocation with `--var`). Built-in dynamic variables are also supported:
+Topics and payloads use `{variable_name}` syntax. Custom variables come from the connection — list and edit them with `variables list`/`set`/`unset`, or override per-invocation (without persisting) with `--var`. Built-in dynamic variables are also supported:
 
 - `{now}` / `{timestamp}` — current time. Modifiers: format (`{now:unix}`, `{now:unixms}`, `{now:date}`, `{now:time}`, `{now:datetime}`, `{now:iso}`), timezone (`{now:utc}`), offset (`{now:+5m}`, `{now:-1h}`, units `s m h d w M y`).
 - `{uuid}` — a random v4 UUID.
