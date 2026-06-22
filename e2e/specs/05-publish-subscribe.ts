@@ -2,7 +2,7 @@ import {
   selectors,
   waitForDashboard,
   waitForConnectionStatus,
-  sendShortcut,
+  openButtonEditor,
   setInputValue,
   getElText,
 } from "../helpers.js";
@@ -55,10 +55,7 @@ describe("Publish & Subscribe", () => {
   });
 
   it("creates a button and verifies full round trip", async () => {
-    await sendShortcut("n", { ctrl: true });
-
-    const modal = await $(selectors.editorModal);
-    await modal.waitForExist({ timeout: 3000 });
+    await openButtonEditor();
 
     await setInputValue("#buttonName", "PubSub Test");
     await setInputValue("#topic", "test/e2e/roundtrip");

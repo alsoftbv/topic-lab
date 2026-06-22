@@ -2,7 +2,7 @@ import {
   selectors,
   waitForDashboard,
   waitForConnectionStatus,
-  sendShortcut,
+  openButtonEditor,
   setInputValue,
   getElText,
 } from "../helpers.js";
@@ -21,10 +21,7 @@ describe("Multi-Send Mode", () => {
   });
 
   it("creates a multi-send button", async () => {
-    await sendShortcut("n", { ctrl: true });
-
-    const modal = await $(selectors.editorModal);
-    await modal.waitForExist({ timeout: 3000 });
+    await openButtonEditor();
 
     await setInputValue("#buttonName", "Multi Send Test");
     await setInputValue("#topic", "test/multi");

@@ -157,6 +157,31 @@ export async function sendKey(key: string): Promise<void> {
   }, key);
 }
 
+export async function openEditorViaShortcut(
+  key: string,
+  modifiers: { ctrl?: boolean; shift?: boolean; alt?: boolean } = { ctrl: true },
+  timeout = 8000
+): Promise<void> {
+  const modal = await $(selectors.editorModal);
+  await browser.waitUntil(
+    async () => {
+      if (await modal.isExisting()) return true;
+      await sendShortcut(key, modifiers);
+      await browser.pause(100);
+      return await modal.isExisting();
+    },
+    { timeout, interval: 200, timeoutMsg: `Editor modal did not open via "${key}"` }
+  );
+}
+
+export function openButtonEditor(): Promise<void> {
+  return openEditorViaShortcut("n");
+}
+
+export function editSelectedButton(): Promise<void> {
+  return openEditorViaShortcut("e");
+}
+
 export async function sendShortcut(
   key: string,
   modifiers: { ctrl?: boolean; shift?: boolean; alt?: boolean } = {}

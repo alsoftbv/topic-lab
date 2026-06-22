@@ -1,4 +1,4 @@
-import { selectors, waitForDashboard, sendShortcut, sendKey } from "../helpers.js";
+import { selectors, waitForDashboard, sendShortcut, openButtonEditor, sendKey } from "../helpers.js";
 
 describe("Keyboard Shortcuts", () => {
   before(async () => {
@@ -7,10 +7,7 @@ describe("Keyboard Shortcuts", () => {
 
   it("Ctrl+N opens the new button editor", async () => {
     await browser.pause(500);
-    await sendShortcut("n", { ctrl: true });
-
-    const modal = await $(selectors.editorModal);
-    await modal.waitForExist({ timeout: 5000 });
+    await openButtonEditor();
 
     await sendKey("Escape");
     await browser.pause(300);

@@ -1,7 +1,7 @@
 import {
   selectors,
   waitForDashboard,
-  sendShortcut,
+  openButtonEditor,
   setInputValue,
   getElText,
 } from "../helpers.js";
@@ -17,10 +17,7 @@ describe("Drag & Drop Reorder", () => {
   });
 
   it("creates a second button for reordering", async () => {
-    await sendShortcut("n", { ctrl: true });
-
-    const modal = await $(selectors.editorModal);
-    await modal.waitForExist({ timeout: 3000 });
+    await openButtonEditor();
 
     await setInputValue("#buttonName", "Drag Target");
     await setInputValue("#topic", "test/drag");

@@ -2,6 +2,8 @@ import {
   selectors,
   waitForDashboard,
   sendShortcut,
+  openButtonEditor,
+  editSelectedButton,
   sendKey,
   setInputValue,
   getElText,
@@ -13,10 +15,7 @@ describe("Button CRUD", () => {
   });
 
   it("creates a new button via Ctrl+N", async () => {
-    await sendShortcut("n", { ctrl: true });
-
-    const modal = await $(selectors.editorModal);
-    await modal.waitForExist({ timeout: 3000 });
+    await openButtonEditor();
 
     await setInputValue("#buttonName", "Test Button 1");
     await setInputValue("#topic", "test/topic/1");
@@ -38,10 +37,7 @@ describe("Button CRUD", () => {
   });
 
   it("creates a second button", async () => {
-    await sendShortcut("n", { ctrl: true });
-
-    const modal = await $(selectors.editorModal);
-    await modal.waitForExist({ timeout: 3000 });
+    await openButtonEditor();
 
     await setInputValue("#buttonName", "Test Button 2");
     await setInputValue("#topic", "test/topic/2");
@@ -66,10 +62,7 @@ describe("Button CRUD", () => {
     const firstButton = await $(selectors.buttonCard);
     await firstButton.click();
 
-    await sendShortcut("e", { ctrl: true });
-
-    const modal = await $(selectors.editorModal);
-    await modal.waitForExist({ timeout: 3000 });
+    await editSelectedButton();
 
     await setInputValue("#buttonName", "Renamed Button");
 

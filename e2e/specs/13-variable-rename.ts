@@ -1,7 +1,8 @@
 import {
   selectors,
   waitForDashboard,
-  sendShortcut,
+  openButtonEditor,
+  editSelectedButton,
   sendKey,
   setInputValue,
   getElText,
@@ -32,10 +33,7 @@ describe("Variable Rename", () => {
   });
 
   it("creates a button using the variable in topic", async () => {
-    await sendShortcut("n", { ctrl: true });
-
-    const modal = await $(selectors.editorModal);
-    await modal.waitForExist({ timeout: 3000 });
+    await openButtonEditor();
 
     await setInputValue("#buttonName", "Rename Test");
     await setInputValue("#topic", "devices/{old_name}/status");
@@ -100,10 +98,7 @@ describe("Variable Rename", () => {
       { timeout: 3000, timeoutMsg: "Button was not selected" }
     );
 
-    await sendShortcut("e", { ctrl: true });
-
-    const modal = await $(selectors.editorModal);
-    await modal.waitForExist({ timeout: 5000 });
+    await editSelectedButton();
 
     const topicValue = await browser.execute(() => {
       const el = document.querySelector("#topic") as HTMLInputElement;

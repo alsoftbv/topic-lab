@@ -1,4 +1,4 @@
-import { selectors, waitForDashboard, sendShortcut, setInputValue, getElText } from "../helpers.js";
+import { selectors, waitForDashboard, openButtonEditor, setInputValue, getElText } from "../helpers.js";
 
 describe("Variables", () => {
   before(async () => {
@@ -27,10 +27,7 @@ describe("Variables", () => {
   });
 
   it("creates a button using the variable and verifies substitution", async () => {
-    await sendShortcut("n", { ctrl: true });
-
-    const modal = await $(selectors.editorModal);
-    await modal.waitForExist({ timeout: 3000 });
+    await openButtonEditor();
 
     await setInputValue("#buttonName", "Variable Test");
     await setInputValue("#topic", "devices/{device_id}/cmd");

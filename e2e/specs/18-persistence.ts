@@ -1,7 +1,7 @@
 import os from "os";
 import path from "path";
 import fs from "fs";
-import { selectors, waitForDashboard, setInputValue, sendShortcut } from "../helpers.js";
+import { selectors, waitForDashboard, setInputValue, openButtonEditor } from "../helpers.js";
 
 const dataDir =
   process.env.MQTT_TOPIC_LAB_DATA_DIR || path.join(os.tmpdir(), "mqtt-topic-lab-e2e");
@@ -24,9 +24,7 @@ describe("Persistence", () => {
   });
 
   it("persists a variable change to data.json while the live-preview timer runs", async () => {
-    await sendShortcut("n", { ctrl: true });
-    const modal = await $(selectors.editorModal);
-    await modal.waitForExist({ timeout: 5000 });
+    await openButtonEditor();
     await setInputValue("#buttonName", "Builtin Timer");
     await setInputValue("#topic", "logs/{now:unix}");
     await (await $("button=Create")).click();

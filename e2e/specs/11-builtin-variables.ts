@@ -1,7 +1,7 @@
 import {
   selectors,
   waitForDashboard,
-  sendShortcut,
+  openButtonEditor,
   setInputValue,
   getElText,
 } from "../helpers.js";
@@ -39,10 +39,7 @@ describe("Built-in Variables", () => {
   });
 
   it("creates a button with {uuid} in payload", async () => {
-    await sendShortcut("n", { ctrl: true });
-
-    const modal = await $(selectors.editorModal);
-    await modal.waitForExist({ timeout: 3000 });
+    await openButtonEditor();
 
     await setInputValue("#buttonName", "UUID Test");
     await setInputValue("#topic", "test/builtins");
@@ -70,10 +67,7 @@ describe("Built-in Variables", () => {
   });
 
   it("creates a button with {now:unix} in payload", async () => {
-    await sendShortcut("n", { ctrl: true });
-
-    const modal = await $(selectors.editorModal);
-    await modal.waitForExist({ timeout: 3000 });
+    await openButtonEditor();
 
     await setInputValue("#buttonName", "Timestamp Test");
     await setInputValue("#topic", "test/builtins/time");
@@ -100,10 +94,7 @@ describe("Built-in Variables", () => {
   });
 
   it("creates a button with {random:1-1000} in topic", async () => {
-    await sendShortcut("n", { ctrl: true });
-
-    const modal = await $(selectors.editorModal);
-    await modal.waitForExist({ timeout: 3000 });
+    await openButtonEditor();
 
     await setInputValue("#buttonName", "Random Test");
     await setInputValue("#topic", "test/random/{random:1-1000}");
