@@ -46,6 +46,7 @@ const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppData>({ connections: [] });
+  const dataRef = useRef(data);
   const [activeConnectionId, setActiveConnectionId] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [loading, setLoading] = useState(true);
@@ -82,6 +83,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+
+  useEffect(() => {
     const unlisten = listen<string>("mqtt-status", (event) => {
       setConnectionStatus(event.payload as ConnectionStatus);
     });
@@ -110,9 +115,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     let cancelled = false;
-    // Re-resolve on a timer so built-in values like {now}/{uuid} stay current in the
-    // previews (the live behavior the cards had before). Skips the state update when the
-    // resolved output is unchanged, so connections without built-ins never re-render.
     lastResolvedRef.current = "";
     const hasBuiltins = templates.some(templateHasBuiltin);
     const compute = () => {
@@ -137,9 +139,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .catch(() => {});
     };
     compute();
-    // Only poll while there are built-ins to keep current; otherwise the resolved values
-    // are static, so one resolve is enough and we avoid all background work (which on slow
-    // machines made the first interaction after launch sluggish).
     const interval = hasBuiltins ? window.setInterval(compute, 1000) : undefined;
     return () => {
       cancelled = true;
@@ -175,18 +174,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function saveData(updater: (prev: AppData) => AppData) {
-    let newData: AppData | null = null;
-    setData((prev) => {
-      newData = updater(prev);
-      return newData;
-    });
-    if (newData) {
-      try {
-        await api.saveData(newData);
-        setError(null);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to save data");
-      }
+    const newData = updater(dataRef.current);
+    dataRef.current = newData;
+    setData(newData);
+    try {
+      await api.saveData(newData);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save data");
     }
   }
 

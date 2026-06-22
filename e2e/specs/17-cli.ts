@@ -21,7 +21,6 @@ describe("CLI", () => {
   let tmpDir: string;
 
   before(async () => {
-    // Ensure the GUI is up so it holds the instance lock on the default data dir.
     await waitForDashboard();
 
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tlab-cli-"));

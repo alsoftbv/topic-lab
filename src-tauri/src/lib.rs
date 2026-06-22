@@ -235,7 +235,6 @@ fn acquire_gui_lock(storage: &Storage) -> Option<std::fs::File> {
     for _ in 0..10 {
         match storage.acquire_write_lock() {
             Ok(Some(file)) => return Some(file),
-            // Briefly held by another writer (e.g. an in-flight CLI write) — ride it out.
             Ok(None) => std::thread::sleep(std::time::Duration::from_millis(50)),
             Err(e) => {
                 log::warn!("Could not acquire instance lock: {e}");

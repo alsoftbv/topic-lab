@@ -38,8 +38,6 @@ impl InstallError {
     }
 }
 
-/// GUI entry point: install to the default location, and on macOS fall back to an
-/// admin-authenticated install (native password prompt) when the directory needs root.
 pub fn install_for_gui() -> Result<InstallReport, String> {
     match install(None, false) {
         Ok(report) => Ok(report),
@@ -65,7 +63,6 @@ pub fn dir_on_path(dir: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Symlink the running executable into `dir` (default `/usr/local/bin`) as `topic-lab`.
 #[cfg(unix)]
 pub fn install(dir: Option<PathBuf>, force: bool) -> Result<InstallReport, InstallError> {
     let target = std::env::current_exe()
@@ -141,8 +138,6 @@ pub fn uninstall(dir: Option<PathBuf>) -> Result<PathBuf, String> {
 #[cfg(target_os = "macos")]
 fn install_elevated_macos(target: &Path, link: &Path) -> Result<InstallReport, String> {
     let dir = link.parent().ok_or("invalid install path")?;
-    // The paths are wrapped in single quotes inside an AppleScript `do shell script`;
-    // refuse the rare case of a single quote to keep escaping unambiguous.
     if [target, link].iter().any(|p| p.to_string_lossy().contains('\'')) {
         return Err("path contains a single quote; please install manually".into());
     }
@@ -174,8 +169,6 @@ fn install_elevated_macos(target: &Path, link: &Path) -> Result<InstallReport, S
     })
 }
 
-// Windows: there are no symlinks-on-PATH conventions, so drop a `topic-lab.cmd` shim
-// into a per-user dir and add that dir to the user PATH (no admin needed).
 #[cfg(windows)]
 pub fn default_bin_dir() -> PathBuf {
     dirs::data_local_dir()
@@ -252,8 +245,6 @@ fn run_powershell(script: &str) -> Result<(), String> {
     }
 }
 
-// `[Environment]::SetEnvironmentVariable(..., 'User')` writes the per-user PATH
-// (preserving its registry type) and broadcasts WM_SETTINGCHANGE so new shells pick it up.
 #[cfg(windows)]
 fn add_to_user_path(dir: &Path) -> Result<(), String> {
     let d = dir.to_string_lossy().replace('\'', "''");

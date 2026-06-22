@@ -22,8 +22,6 @@ export function parseVariableExpression(expression: string): { name: string; mod
   const name = parts[0];
   const modifiers: string[] = [];
   for (let i = 1; i < parts.length; i++) {
-    // Everything from `fmt:` onward is a single modifier — the format pattern
-    // itself may contain colons (e.g. `fmt:HH:mm:ss`).
     if (parts[i] === "fmt") {
       modifiers.push(parts.slice(i).join(":"));
       break;

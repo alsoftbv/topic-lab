@@ -43,10 +43,6 @@ impl Storage {
         })
     }
 
-    /// Try to take the exclusive instance lock used to coordinate config writes
-    /// between the running GUI and the CLI. Returns `Ok(Some(file))` when acquired
-    /// (hold the file to keep the lock), or `Ok(None)` when another instance (the
-    /// GUI, or another writer) already holds it.
     pub fn acquire_write_lock(&self) -> Result<Option<File>, StorageError> {
         let file = OpenOptions::new()
             .create(true)

@@ -79,7 +79,6 @@ export function ButtonEditor({ button, defaultGroupId, onClose }: ButtonEditorPr
         })
         .catch(() => {});
     };
-    // Resolve immediately on first render, debounce subsequent edits.
     const delay = firstPreviewRef.current ? 0 : 120;
     firstPreviewRef.current = false;
     const handle = window.setTimeout(resolve, delay);
@@ -89,8 +88,6 @@ export function ButtonEditor({ button, defaultGroupId, onClose }: ButtonEditorPr
     };
   }, [topic, payload, variables]);
 
-  // Validate only once the (async) substitution has produced the preview, so the raw
-  // template — which contains {placeholders} and isn't valid JSON — doesn't flash red.
   const jsonError = previewReady ? validateJson(previewPayload) : null;
 
   const handleMinify = () => {

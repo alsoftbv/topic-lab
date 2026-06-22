@@ -851,8 +851,6 @@ fn merged_vars(conn: &Connection, overrides: HashMap<String, String>) -> HashMap
     vars
 }
 
-// Use a distinct client id so a CLI connection doesn't kick the running app (or vice versa)
-// off the broker. MQTT brokers drop an existing client when another connects with the same id.
 fn cli_client(conn: &Connection) -> Connection {
     let mut conn = conn.clone();
     conn.client_id = format!("{}-cli", conn.client_id);

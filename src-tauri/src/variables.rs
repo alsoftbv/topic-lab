@@ -24,8 +24,6 @@ fn parse_variable_expression(expression: &str) -> (String, Vec<String>) {
     let mut modifiers = Vec::new();
     let mut i = 1;
     while i < parts.len() {
-        // Everything from `fmt:` onward is a single modifier — the format pattern
-        // itself may contain colons (e.g. `fmt:HH:mm:ss`).
         if parts[i] == "fmt" {
             modifiers.push(parts[i..].join(":"));
             break;
