@@ -126,6 +126,19 @@ fn clamp_size(width: f64, height: f64) -> (f64, f64) {
     (width.max(MIN_WIDTH), height.max(MIN_HEIGHT))
 }
 
+#[derive(Clone, Copy, Debug)]
+struct Rect {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
+fn rects_overlap(a: Rect, b: Rect) -> bool {
+    a.x.max(b.x) < (a.x + a.width).min(b.x + b.width)
+        && a.y.max(b.y) < (a.y + a.height).min(b.y + b.height)
+}
+
 fn position_visible<R: Runtime, M: Manager<R>>(
     app: &M,
     x: f64,
@@ -138,36 +151,26 @@ fn position_visible<R: Runtime, M: Manager<R>>(
         Ok(m) => m,
         Err(_) => return false,
     };
-    if monitors.is_empty() {
-        return false;
-    }
-    let scale = handle
-        .primary_monitor()
-        .ok()
-        .flatten()
-        .map(|m| m.scale_factor())
-        .unwrap_or(1.0);
-
-    let phys_x = (x * scale) as i32;
-    let phys_y = (y * scale) as i32;
-    let phys_w = (width * scale) as i32;
-    let phys_h = (height * scale) as i32;
-
-    for monitor in &monitors {
+    let window = Rect {
+        x,
+        y,
+        width,
+        height,
+    };
+    monitors.iter().any(|monitor| {
+        let scale = monitor.scale_factor();
         let pos: PhysicalPosition<i32> = *monitor.position();
         let size = monitor.size();
-        let mx = pos.x;
-        let my = pos.y;
-        let mw = size.width as i32;
-        let mh = size.height as i32;
-
-        let overlap_x = phys_x.max(mx) < (phys_x + phys_w).min(mx + mw);
-        let overlap_y = phys_y.max(my) < (phys_y + phys_h).min(my + mh);
-        if overlap_x && overlap_y {
-            return true;
-        }
-    }
-    false
+        rects_overlap(
+            window,
+            Rect {
+                x: pos.x as f64 / scale,
+                y: pos.y as f64 / scale,
+                width: size.width as f64 / scale,
+                height: size.height as f64 / scale,
+            },
+        )
+    })
 }
 
 pub fn capture(window: &Window) -> Option<WindowState> {
@@ -185,4 +188,108 @@ pub fn capture(window: &Window) -> Option<WindowState> {
         x: pos.x as f64 / scale,
         y: pos.y as f64 / scale,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn store_in(temp: &TempDir) -> WindowStateStore {
+        WindowStateStore {
+            path: temp.path().join("window-state.json"),
+            inner: Mutex::new(StoreInner::default()),
+        }
+    }
+
+    #[test]
+    fn clamp_size_enforces_minimums() {
+        assert_eq!(clamp_size(100.0, 100.0), (MIN_WIDTH, MIN_HEIGHT));
+        assert_eq!(clamp_size(1200.0, 800.0), (1200.0, 800.0));
+    }
+
+    #[test]
+    fn rects_overlap_detects_intersection_and_separation() {
+        let monitor = Rect {
+            x: 0.0,
+            y: 0.0,
+            width: 1920.0,
+            height: 1080.0,
+        };
+        let inside = Rect {
+            x: 100.0,
+            y: 100.0,
+            width: 800.0,
+            height: 600.0,
+        };
+        let off_right = Rect {
+            x: 2000.0,
+            y: 100.0,
+            width: 800.0,
+            height: 600.0,
+        };
+        let touching_edge = Rect {
+            x: 1920.0,
+            y: 0.0,
+            width: 800.0,
+            height: 600.0,
+        };
+        let partial = Rect {
+            x: -700.0,
+            y: -500.0,
+            width: 800.0,
+            height: 600.0,
+        };
+        assert!(rects_overlap(inside, monitor));
+        assert!(!rects_overlap(off_right, monitor));
+        assert!(!rects_overlap(touching_edge, monitor));
+        assert!(rects_overlap(partial, monitor));
+    }
+
+    #[test]
+    fn store_round_trips_state() {
+        let temp = TempDir::new().unwrap();
+        let store = store_in(&temp);
+        store.update(WindowState {
+            width: 900.0,
+            height: 650.0,
+            x: 40.0,
+            y: 60.0,
+        });
+        store.flush();
+        let loaded = store.load().unwrap();
+        assert_eq!(loaded.width, 900.0);
+        assert_eq!(loaded.height, 650.0);
+        assert_eq!(loaded.x, 40.0);
+        assert_eq!(loaded.y, 60.0);
+    }
+
+    #[test]
+    fn frozen_store_ignores_further_updates() {
+        let temp = TempDir::new().unwrap();
+        let store = store_in(&temp);
+        store.update(WindowState {
+            width: 900.0,
+            height: 650.0,
+            x: 40.0,
+            y: 60.0,
+        });
+        store.flush_and_freeze();
+        store.update(WindowState {
+            width: 1.0,
+            height: 1.0,
+            x: 0.0,
+            y: 0.0,
+        });
+        store.flush();
+        let loaded = store.load().unwrap();
+        assert_eq!(loaded.width, 900.0);
+    }
+
+    #[test]
+    fn load_returns_none_without_file() {
+        let temp = TempDir::new().unwrap();
+        let store = store_in(&temp);
+        assert!(store.load().is_none());
+    }
 }

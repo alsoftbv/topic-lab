@@ -1,10 +1,17 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import {
   isBuiltinVariable,
   getBuiltinNames,
+  setBuiltinNames,
   parseVariableExpression,
   templateHasBuiltin,
 } from "./builtins";
+
+const DEFAULT_NAMES = getBuiltinNames();
+
+afterEach(() => {
+  setBuiltinNames(DEFAULT_NAMES);
+});
 
 describe("isBuiltinVariable", () => {
   it("should return true for now", () => {
@@ -42,6 +49,30 @@ describe("getBuiltinNames", () => {
     expect(names).toContain("uuid");
     expect(names).toContain("random");
     expect(names).toContain("rand");
+  });
+});
+
+describe("setBuiltinNames", () => {
+  it("replaces the list used by the helpers", () => {
+    setBuiltinNames(["now", "custom_builtin"]);
+    expect(isBuiltinVariable("custom_builtin")).toBe(true);
+    expect(isBuiltinVariable("uuid")).toBe(false);
+    expect(templateHasBuiltin("x/{custom_builtin}")).toBe(true);
+    expect(templateHasBuiltin("x/{uuid}")).toBe(false);
+    expect(getBuiltinNames()).toEqual(["now", "custom_builtin"]);
+  });
+
+  it("ignores an empty list", () => {
+    setBuiltinNames([]);
+    expect(getBuiltinNames()).toEqual(DEFAULT_NAMES);
+    expect(isBuiltinVariable("now")).toBe(true);
+  });
+
+  it("copies the given list", () => {
+    const names = ["now", "extra"];
+    setBuiltinNames(names);
+    names.push("mutated");
+    expect(getBuiltinNames()).toEqual(["now", "extra"]);
   });
 });
 

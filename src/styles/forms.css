@@ -39,7 +39,8 @@
     cursor: pointer;
 }
 
-.checkbox-group input[type='checkbox'] {
+.checkbox-group input[type='checkbox'],
+.form-group-inline input[type='checkbox'] {
     -webkit-appearance: none;
     appearance: none;
     width: 18px;
@@ -48,7 +49,6 @@
     max-height: 18px;
     margin: 0;
     padding: 0;
-    box-sizing: border-box;
     border: 2px solid var(--border);
     border-radius: 4px;
     background: var(--bg);
@@ -58,12 +58,14 @@
     transition: all 0.15s ease;
 }
 
-.checkbox-group input[type='checkbox']:checked {
+.checkbox-group input[type='checkbox']:checked,
+.form-group-inline input[type='checkbox']:checked {
     background: var(--primary);
     border-color: var(--primary);
 }
 
-.checkbox-group input[type='checkbox']:checked::after {
+.checkbox-group input[type='checkbox']:checked::after,
+.form-group-inline input[type='checkbox']:checked::after {
     content: '';
     position: absolute;
     left: 50%;
@@ -120,44 +122,6 @@
 
 .form-group-inline select {
     min-width: 150px;
-}
-
-.form-group-inline input[type='checkbox'] {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 18px;
-    min-width: 18px;
-    height: 18px;
-    border: 2px solid var(--border);
-    border-radius: 4px;
-    background: var(--bg);
-    cursor: pointer;
-    position: relative;
-    flex-shrink: 0;
-    transition: all 0.15s ease;
-}
-
-.form-group-inline input[type='checkbox']:checked {
-    background: var(--primary);
-    border-color: var(--primary);
-}
-
-.form-group-inline input[type='checkbox']:checked::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: 45%;
-    width: 5px;
-    height: 9px;
-    border: solid white;
-    border-width: 0 2px 2px 0;
-    transform: translate(-50%, -50%) rotate(45deg);
-}
-
-.inline-controls {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
 }
 
 .input-with-suffix {
@@ -219,7 +183,7 @@ textarea.json-invalid {
 
 textarea.json-invalid:focus {
     border-color: var(--error);
-    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.3);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--error) 30%, transparent);
 }
 
 .json-error {

@@ -53,6 +53,12 @@ impl Storage {
         match file.try_lock_exclusive() {
             Ok(()) => Ok(Some(file)),
             Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => Ok(None),
+            Err(ref e)
+                if e.raw_os_error().is_some()
+                    && e.raw_os_error() == fs2::lock_contended_error().raw_os_error() =>
+            {
+                Ok(None)
+            }
             Err(e) => Err(StorageError::Io(e)),
         }
     }
@@ -102,7 +108,12 @@ impl Storage {
 
     pub fn save_data(&self, data: &AppData) -> Result<(), StorageError> {
         let content = serde_json::to_string_pretty(data)?;
-        fs::write(&self.data_path, content)?;
+        let tmp_path = self.data_path.with_extension("json.tmp");
+        fs::write(&tmp_path, content)?;
+        if let Err(e) = fs::rename(&tmp_path, &self.data_path) {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(StorageError::Io(e));
+        }
         Ok(())
     }
 
@@ -259,6 +270,38 @@ mod tests {
             storage.acquire_write_lock().unwrap().is_some(),
             "acquisition should succeed again after release"
         );
+    }
+
+    #[test]
+    fn test_save_data_leaves_no_temp_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let storage = create_test_storage(&temp_dir);
+
+        let data = AppData::new(vec![create_test_connection()], Some("test-id".to_string()));
+        storage.save_data(&data).unwrap();
+
+        assert!(storage.data_path.exists());
+        assert!(!storage.data_path.with_extension("json.tmp").exists());
+        let loaded = storage.load_data().unwrap();
+        assert_eq!(loaded.connections.len(), 1);
+    }
+
+    #[test]
+    fn test_save_data_overwrites_atomically() {
+        let temp_dir = TempDir::new().unwrap();
+        let storage = create_test_storage(&temp_dir);
+
+        let first = AppData::new(vec![create_test_connection()], Some("test-id".to_string()));
+        storage.save_data(&first).unwrap();
+
+        let mut second_connection = create_test_connection();
+        second_connection.name = "Updated".to_string();
+        let second = AppData::new(vec![second_connection], Some("test-id".to_string()));
+        storage.save_data(&second).unwrap();
+
+        let loaded = storage.load_data().unwrap();
+        assert_eq!(loaded.connections[0].name, "Updated");
+        assert!(!storage.data_path.with_extension("json.tmp").exists());
     }
 
     #[test]

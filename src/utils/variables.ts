@@ -12,10 +12,3 @@ export function extractVariableNames(template: string): string[] {
   }
   return names;
 }
-
-export function getMissingVariables(template: string, variables: Record<string, string>): string[] {
-  const needed = extractVariableNames(template);
-  return needed.filter((name) => !(name in variables));
-}
-
-export { getBuiltinNames } from "./builtins";

@@ -154,6 +154,10 @@
 }
 
 
+.button-group-empty.drop-target {
+    position: relative;
+}
+
 .button-group-empty.drop-target::before {
     content: '';
     position: absolute;
@@ -163,14 +167,6 @@
     width: 4px;
     background: var(--primary);
     border-radius: 2px;
-}
-
-.button-group-empty.drop-target::before {
-    left: 2px;
-}
-
-.button-group-empty.drop-target {
-    position: relative;
 }
 
 .new-group-area {

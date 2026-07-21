@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { X, CheckCircle2 } from "lucide-react";
 import { UpdateSettingsSection } from "./UpdateNotice";
-import * as api from "../utils/api";
-import type { Updater } from "../hooks/useUpdater";
+import * as api from "@/utils/api";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
+import type { Updater } from "@/hooks/useUpdater";
 
 interface PreferencesModalProps {
   updater: Updater;
@@ -42,13 +43,7 @@ function CliToolSection() {
           </p>
         </div>
         <button className="btn btn-small" onClick={handleInstall} disabled={busy}>
-          {busy
-            ? isWindows
-              ? "Adding…"
-              : "Installing…"
-            : isWindows
-              ? "Add to PATH"
-              : "Install"}
+          {busy ? (isWindows ? "Adding…" : "Installing…") : isWindows ? "Add to PATH" : "Install"}
         </button>
       </div>
       {result &&
@@ -67,13 +62,7 @@ function CliToolSection() {
 }
 
 export function PreferencesModal({ updater, onClose }: PreferencesModalProps) {
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  useEscapeClose(onClose);
 
   return (
     <div className="modal-overlay">

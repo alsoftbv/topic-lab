@@ -17,7 +17,7 @@ vi.mock("@tauri-apps/plugin-fs", () => ({
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { exportConnection, importConnection } from "./api";
-import type { Connection } from "../types";
+import type { Connection } from "@/types";
 
 const mockConnection: Connection = {
   id: "test-uuid-123",
@@ -25,6 +25,8 @@ const mockConnection: Connection = {
   broker_url: "broker.example.com",
   port: 1883,
   client_id: "test-client",
+  username: "test-user",
+  password: "super-secret",
   use_tls: false,
   auto_connect: true,
   variables: { device_id: "abc123" },
@@ -79,6 +81,17 @@ describe("exportConnection", () => {
     expect(writtenData.broker_url).toBe("broker.example.com");
     expect(writtenData.variables).toEqual({ device_id: "abc123" });
     expect(writtenData.buttons).toHaveLength(1);
+  });
+
+  it("should strip the password but keep the username", async () => {
+    vi.mocked(save).mockResolvedValue("/path/to/file.json");
+    vi.mocked(writeTextFile).mockResolvedValue(undefined);
+
+    await exportConnection(mockConnection);
+
+    const writtenData = JSON.parse(vi.mocked(writeTextFile).mock.calls[0][1] as string);
+    expect(writtenData).not.toHaveProperty("password");
+    expect(writtenData.username).toBe("test-user");
   });
 
   it("should use connection name as default filename", async () => {
@@ -181,6 +194,74 @@ describe("importConnection", () => {
     expect(result?.password).toBe("pass");
     expect(result?.client_id).toMatch(/^mqtt-topic-lab-[a-z0-9]+$/);
   });
+
+  it("should throw on unparseable JSON", async () => {
+    vi.mocked(open).mockResolvedValue("/path/to/import.json");
+    vi.mocked(readTextFile).mockResolvedValue("not json {");
+
+    await expect(importConnection()).rejects.toThrow("Invalid JSON file");
+  });
+
+  it("should throw on JSON that is not an object", async () => {
+    vi.mocked(open).mockResolvedValue("/path/to/import.json");
+
+    for (const content of ['["a"]', '"text"', "42", "null"]) {
+      vi.mocked(readTextFile).mockResolvedValue(content);
+      await expect(importConnection()).rejects.toThrow("Invalid connection file");
+    }
+  });
+
+  it("should throw when name is missing or empty", async () => {
+    vi.mocked(open).mockResolvedValue("/path/to/import.json");
+
+    vi.mocked(readTextFile).mockResolvedValue(
+      JSON.stringify({ broker_url: "broker.example.com", port: 1883 })
+    );
+    await expect(importConnection()).rejects.toThrow("Invalid connection file");
+
+    vi.mocked(readTextFile).mockResolvedValue(
+      JSON.stringify({ name: "   ", broker_url: "broker.example.com", port: 1883 })
+    );
+    await expect(importConnection()).rejects.toThrow("Invalid connection file");
+  });
+
+  it("should throw when broker_url is missing or not a string", async () => {
+    vi.mocked(open).mockResolvedValue("/path/to/import.json");
+
+    vi.mocked(readTextFile).mockResolvedValue(JSON.stringify({ name: "A", port: 1883 }));
+    await expect(importConnection()).rejects.toThrow("Invalid connection file");
+
+    vi.mocked(readTextFile).mockResolvedValue(
+      JSON.stringify({ name: "A", broker_url: 5, port: 1883 })
+    );
+    await expect(importConnection()).rejects.toThrow("Invalid connection file");
+  });
+
+  it("should throw when port is missing or invalid", async () => {
+    vi.mocked(open).mockResolvedValue("/path/to/import.json");
+
+    for (const port of [undefined, "1883", 0, -1, 1.5, 70000]) {
+      vi.mocked(readTextFile).mockResolvedValue(
+        JSON.stringify({ name: "A", broker_url: "broker.example.com", port })
+      );
+      await expect(importConnection()).rejects.toThrow("Invalid connection file");
+    }
+  });
+
+  it("should default missing collections on a minimal valid file", async () => {
+    vi.mocked(open).mockResolvedValue("/path/to/import.json");
+    vi.mocked(readTextFile).mockResolvedValue(
+      JSON.stringify({ name: "Minimal", broker_url: "broker.example.com", port: 1883 })
+    );
+
+    const result = await importConnection();
+
+    expect(result?.name).toBe("Minimal");
+    expect(result?.variables).toEqual({});
+    expect(result?.buttons).toEqual([]);
+    expect(result?.groups).toEqual([]);
+    expect(result?.subscriptions).toEqual([]);
+  });
 });
 
 describe("export/import roundtrip", () => {
@@ -200,9 +281,11 @@ describe("export/import roundtrip", () => {
     const imported = await importConnection();
 
     expect(imported).not.toHaveProperty("id");
+    expect(imported).not.toHaveProperty("password");
     expect(imported?.name).toBe(mockConnection.name);
     expect(imported?.broker_url).toBe(mockConnection.broker_url);
     expect(imported?.port).toBe(mockConnection.port);
+    expect(imported?.username).toBe(mockConnection.username);
     expect(imported?.client_id).toMatch(/^mqtt-topic-lab-[a-z0-9]+$/);
     expect(imported?.client_id).not.toBe(mockConnection.client_id);
     expect(imported?.use_tls).toBe(mockConnection.use_tls);

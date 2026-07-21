@@ -64,23 +64,8 @@ async fn connect(state: State<'_, AppState>, connection: Connection) -> Result<(
 #[tauri::command]
 async fn disconnect(state: State<'_, AppState>) -> Result<(), String> {
     let mut client = state.mqtt_client.write().await;
-    client.disconnect().await.map_err(|e| e.to_string())?;
+    client.disconnect().await;
     Ok(())
-}
-
-#[tauri::command]
-async fn publish(
-    state: State<'_, AppState>,
-    topic: String,
-    payload: String,
-    qos: QoS,
-    retain: bool,
-) -> Result<(), String> {
-    let client = state.mqtt_client.read().await;
-    client
-        .publish(&topic, &payload, qos, retain)
-        .await
-        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -89,12 +74,7 @@ async fn publish_button(
     button: Button,
     variables: HashMap<String, String>,
 ) -> Result<(), String> {
-    let topic = variables::substitute_variables(&button.topic, &variables);
-    let payload = button
-        .payload
-        .as_deref()
-        .map(|p| variables::substitute_variables(p, &variables))
-        .unwrap_or_default();
+    let (topic, payload) = variables::resolve_button(&button, &variables);
     let client = state.mqtt_client.read().await;
     client
         .publish(&topic, &payload, button.qos, button.retain)
@@ -151,12 +131,6 @@ async fn clear_messages(state: State<'_, AppState>) -> Result<(), String> {
     let client = state.mqtt_client.read().await;
     client.clear_messages().await;
     Ok(())
-}
-
-#[tauri::command]
-async fn get_subscriptions(state: State<'_, AppState>) -> Result<Vec<String>, String> {
-    let client = state.mqtt_client.read().await;
-    Ok(client.get_subscriptions().await)
 }
 
 fn build_menu(app: &mut tauri::App) -> tauri::Result<()> {
@@ -340,7 +314,6 @@ pub fn run() {
             delete_data,
             connect,
             disconnect,
-            publish,
             publish_button,
             resolve_template,
             resolve_templates,
@@ -350,7 +323,6 @@ pub fn run() {
             unsubscribe,
             get_messages,
             clear_messages,
-            get_subscriptions,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

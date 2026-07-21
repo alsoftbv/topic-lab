@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { ChevronDown, Plus, Upload, Download, Wifi, WifiOff, Loader } from "lucide-react";
-import type { Connection } from "../types";
-import { useApp } from "../contexts/AppContext";
-import * as api from "../utils/api";
+import type { Connection } from "@/types";
+import { useApp } from "@/contexts/AppContext";
+import * as api from "@/utils/api";
 
 interface ConnectionSwitcherProps {
   onAddNew: () => void;

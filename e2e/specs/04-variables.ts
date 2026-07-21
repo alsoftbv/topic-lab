@@ -80,6 +80,10 @@ describe("Variables", () => {
     const deleteBtn = await variableRow.$("button[title='Delete']");
     await deleteBtn.click();
 
+    const confirmBtn = await variableRow.$(".variable-delete-yes");
+    await confirmBtn.waitForExist({ timeout: 3000 });
+    await confirmBtn.click();
+
     await browser.waitUntil(async () => !(await $(".variable-key=device_id").isExisting()), {
       timeout: 5000,
       timeoutMsg: "Variable 'device_id' was not deleted",

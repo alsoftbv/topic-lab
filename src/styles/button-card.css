@@ -191,11 +191,6 @@ body:has(.button-card.dragging) .button-card {
     gap: 0.375rem;
 }
 
-.multi-send-icon {
-    color: var(--text-secondary);
-    opacity: 0.6;
-}
-
 .button-card.multi-send-active {
     animation: multi-send-pulse 1.5s ease-in-out infinite;
 }

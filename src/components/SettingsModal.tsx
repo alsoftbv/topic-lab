@@ -1,8 +1,8 @@
-import { useEffect } from "react";
 import { X } from "lucide-react";
-import { confirm } from "../utils/dialog";
-import * as api from "../utils/api";
-import type { Connection } from "../types";
+import { confirm } from "@/utils/dialog";
+import * as api from "@/utils/api";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
+import type { Connection } from "@/types";
 
 interface SettingsModalProps {
   connection: Connection;
@@ -32,13 +32,7 @@ export function SettingsModal({
     await api.exportConnection(connection);
   };
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  useEscapeClose(onClose);
 
   return (
     <div className="modal-overlay">

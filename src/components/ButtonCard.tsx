@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect, memo } from "react";
-import { confirm } from "../utils/dialog";
+import { useState, useRef, useEffect } from "react";
+import { confirm } from "@/utils/dialog";
 import { GripVertical, Pencil, Trash2, Repeat, CopyPlus, Check } from "lucide-react";
-import type { Button } from "../types";
-import { useApp } from "../contexts/AppContext";
+import type { Button } from "@/types";
+import { useApp } from "@/contexts/AppContext";
+import { modKey } from "@/utils/platform";
 import { Editable } from "./Editable";
 
 function formatInterval(ms: number): string {
@@ -34,24 +35,12 @@ interface ButtonCardProps {
   isSelected: boolean;
   isAnimating: boolean;
   keyboardSent: boolean;
+  keyboardSendNonce: number;
   isDimmed: boolean;
   showRawTemplates?: boolean;
 }
 
-const propsAreEqual = (prev: ButtonCardProps, next: ButtonCardProps) =>
-  prev.button === next.button &&
-  prev.index === next.index &&
-  prev.isDragging === next.isDragging &&
-  prev.isDragOver === next.isDragOver &&
-  prev.isSelected === next.isSelected &&
-  prev.isAnimating === next.isAnimating &&
-  prev.keyboardSent === next.keyboardSent &&
-  prev.isDimmed === next.isDimmed &&
-  prev.showRawTemplates === next.showRawTemplates;
-
-const mod = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "\u2318\u2009" : "Ctrl+";
-
-export const ButtonCard = memo(function ButtonCard({
+export function ButtonCard({
   button,
   index,
   onEdit,
@@ -65,6 +54,7 @@ export const ButtonCard = memo(function ButtonCard({
   isSelected,
   isAnimating,
   keyboardSent,
+  keyboardSendNonce,
   isDimmed,
   showRawTemplates,
 }: ButtonCardProps) {
@@ -80,10 +70,10 @@ export const ButtonCard = memo(function ButtonCard({
   const timeoutRef = useRef<number | null>(null);
 
   const resolved = resolvedButtons[button.id];
-  const displayTopic = showRawTemplates ? button.topic : resolved?.topic ?? button.topic;
+  const displayTopic = showRawTemplates ? button.topic : (resolved?.topic ?? button.topic);
   const displayPayload = showRawTemplates
     ? button.payload || ""
-    : resolved?.payload ?? (button.payload || "");
+    : (resolved?.payload ?? (button.payload || ""));
 
   function stopMultiSend() {
     if (intervalRef.current) {
@@ -134,13 +124,13 @@ export const ButtonCard = memo(function ButtonCard({
     };
   }, []);
 
-  const prevKeyboardSent = useRef(false);
+  const lastKeyboardNonceRef = useRef(0);
   useEffect(() => {
-    if (keyboardSent && !prevKeyboardSent.current) {
+    if (keyboardSendNonce && keyboardSendNonce !== lastKeyboardNonceRef.current) {
+      lastKeyboardNonceRef.current = keyboardSendNonce;
       handlePublish();
     }
-    prevKeyboardSent.current = keyboardSent;
-  }, [keyboardSent]);
+  }, [keyboardSendNonce]);
 
   const singlePublish = async () => {
     setPublishing(true);
@@ -335,11 +325,15 @@ export const ButtonCard = memo(function ButtonCard({
           <button
             className="btn-icon"
             onClick={() => onDuplicate(button.id, index)}
-            title={`Duplicate (${mod}D)`}
+            title={`Duplicate (${modKey}D)`}
           >
             <CopyPlus size={16} />
           </button>
-          <button className="btn-icon" onClick={() => onEdit(button.id)} title={`Edit (${mod}E)`}>
+          <button
+            className="btn-icon"
+            onClick={() => onEdit(button.id)}
+            title={`Edit (${modKey}E)`}
+          >
             <Pencil size={16} />
           </button>
           <button className="btn-icon" onClick={handleDelete} title="Delete (⌫)">
@@ -419,4 +413,4 @@ export const ButtonCard = memo(function ButtonCard({
       </button>
     </div>
   );
-}, propsAreEqual);
+}

@@ -136,6 +136,10 @@ describe("Variable Rename", () => {
     const deleteBtn = await variableRow.$("button[title='Delete']");
     await deleteBtn.click();
 
+    const confirmBtn = await variableRow.$(".variable-delete-yes");
+    await confirmBtn.waitForExist({ timeout: 3000 });
+    await confirmBtn.click();
+
     await browser.waitUntil(async () => !(await $(".variable-key=new_name").isExisting()), {
       timeout: 5000,
     });

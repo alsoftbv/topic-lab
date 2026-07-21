@@ -7,9 +7,9 @@ import type {
   Button,
   ButtonGroup,
   ConnectionStatus,
-} from "../types";
-import * as api from "../utils/api";
-import { templateHasBuiltin } from "../utils/builtins";
+} from "@/types";
+import * as api from "@/utils/api";
+import { setBuiltinNames, templateHasBuiltin } from "@/utils/builtins";
 
 interface AppContextType {
   data: AppData;
@@ -56,15 +56,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   >({});
   const [resolvedSubscriptions, setResolvedSubscriptions] = useState<Record<string, string>>({});
 
+  const connectionStatusRef = useRef<ConnectionStatus>("disconnected");
+
   const activeConnection = data.connections.find((c) => c.id === activeConnectionId) ?? null;
+
+  function updateConnectionStatus(status: ConnectionStatus) {
+    connectionStatusRef.current = status;
+    setConnectionStatus(status);
+  }
 
   async function tryAutoConnect(connection: Connection | undefined) {
     if (!connection?.auto_connect) return;
     try {
-      setConnectionStatus("connecting");
+      updateConnectionStatus("connecting");
       await api.connect(connection);
     } catch (e) {
-      setConnectionStatus("error");
+      updateConnectionStatus("error");
       console.error("Auto-connect failed:", e);
     }
   }
@@ -75,7 +82,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       console.error("Disconnect failed:", e);
     }
-    setConnectionStatus("disconnected");
+    updateConnectionStatus("disconnected");
   }
 
   useEffect(() => {
@@ -88,7 +95,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unlisten = listen<string>("mqtt-status", (event) => {
-      setConnectionStatus(event.payload as ConnectionStatus);
+      updateConnectionStatus(event.payload as ConnectionStatus);
     });
     return () => {
       unlisten.then((fn) => fn());
@@ -149,6 +156,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function loadData() {
     try {
       setLoading(true);
+      try {
+        setBuiltinNames(await api.getBuiltinNames());
+      } catch (e) {
+        console.error("Fetching builtin names failed:", e);
+      }
       const loaded = await api.getData();
       setData(loaded);
 
@@ -158,10 +170,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const initialConnection = loaded.connections.find((c) => c.id === initialConnectionId);
         if (initialConnection?.auto_connect) {
           try {
-            setConnectionStatus("connecting");
+            updateConnectionStatus("connecting");
             await api.connect(initialConnection);
           } catch (e) {
-            setConnectionStatus("error");
+            updateConnectionStatus("error");
             console.error("Auto-connect failed:", e);
           }
         }
@@ -174,13 +186,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function saveData(updater: (prev: AppData) => AppData) {
-    const newData = updater(dataRef.current);
+    const prevData = dataRef.current;
+    const newData = updater(prevData);
     dataRef.current = newData;
     setData(newData);
     try {
       await api.saveData(newData);
       setError(null);
     } catch (e) {
+      dataRef.current = prevData;
+      setData(prevData);
       setError(e instanceof Error ? e.message : "Failed to save data");
     }
   }
@@ -353,13 +368,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function connect() {
-    if (!activeConnection) return;
-    if (connectionStatus === "connecting" || connectionStatus === "connected") return;
+    const conn = dataRef.current.connections.find((c) => c.id === activeConnectionId);
+    if (!conn) return;
+    if (connectionStatusRef.current === "connecting" || connectionStatusRef.current === "connected")
+      return;
     try {
-      setConnectionStatus("connecting");
-      await api.connect(activeConnection);
+      updateConnectionStatus("connecting");
+      await api.connect(conn);
     } catch (e) {
-      setConnectionStatus("error");
+      updateConnectionStatus("error");
       console.error("Connection failed:", e);
     }
   }
@@ -367,7 +384,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function disconnect() {
     try {
       await api.disconnect();
-      setConnectionStatus("disconnected");
+      updateConnectionStatus("disconnected");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to disconnect");
     }
@@ -387,7 +404,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   function resetAll() {
     setData({ connections: [] });
     setActiveConnectionId(null);
-    setConnectionStatus("disconnected");
+    updateConnectionStatus("disconnected");
     setError(null);
     (async () => {
       try {

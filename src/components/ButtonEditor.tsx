@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { X } from "lucide-react";
-import type { Button, QoS, ButtonColor } from "../types";
-import { useApp } from "../contexts/AppContext";
-import { extractVariableNames } from "../utils/variables";
-import * as api from "../utils/api";
-import { minifyJson, validateJson } from "../utils/json";
+import type { Button, QoS, ButtonColor } from "@/types";
+import { useApp } from "@/contexts/AppContext";
+import { extractVariableNames } from "@/utils/variables";
+import * as api from "@/utils/api";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
+import { minifyJson, validateJson } from "@/utils/json";
 
 const COLOR_OPTIONS: { value: ButtonColor; label: string }[] = [
   { value: "orange", label: "Orange" },
@@ -130,13 +131,7 @@ export function ButtonEditor({ button, defaultGroupId, onClose }: ButtonEditorPr
     }
   };
 
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleEsc);
-    return () => window.removeEventListener("keydown", handleEsc);
-  }, [onClose]);
+  useEscapeClose(onClose);
 
   return (
     <div className="modal-overlay">

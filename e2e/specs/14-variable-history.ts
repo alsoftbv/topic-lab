@@ -112,6 +112,10 @@ describe("Variable History", () => {
     await deleteBtn.waitForExist({ timeout: 3000, timeoutMsg: "Delete button not found" });
     await deleteBtn.click();
 
+    const confirmBtn = await variableRow.$(".variable-delete-yes");
+    await confirmBtn.waitForExist({ timeout: 3000 });
+    await confirmBtn.click();
+
     await browser.waitUntil(async () => !(await $(".variable-key=mac").isExisting()), {
       timeout: 5000,
     });

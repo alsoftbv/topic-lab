@@ -21,25 +21,25 @@
 }
 
 .color-orange {
-    background: #ff9100;
+    background: var(--btn-orange);
 }
 
 .color-green {
-    background: #16a34a;
+    background: var(--btn-green);
 }
 
 .color-blue {
-    background: #3b82f6;
+    background: var(--btn-blue);
 }
 
 .color-purple {
-    background: #8b5cf6;
+    background: var(--btn-purple);
 }
 
 .color-red {
-    background: #dc2626;
+    background: var(--btn-red);
 }
 
 .color-teal {
-    background: #14b8a6;
+    background: var(--btn-teal);
 }

@@ -62,7 +62,7 @@ topic-lab buttons edit "Turn On" --connection prod --payload "OFF" --retain true
 topic-lab buttons delete "Turn On" --connection prod
 ```
 - `add` flags: `--name` and `--topic` are required; `--payload`, `--qos 0|1|2`, `--retain`, `--color orange|green|blue|purple|red|teal`, `--group <name|id>` are optional.
-- `edit` takes the button `name` or `id` as a positional argument, then only the flags you want to change (`--name`, `--topic`, `--payload`, `--qos`, `--retain true|false`, `--color`, `--group`).
+- `edit` takes the button `name` or `id` as a positional argument, then only the flags you want to change (`--name`, `--topic`, `--payload`, `--qos`, `--retain true|false`, `--color`, `--group`). To unset an optional field, use `--clear-payload`, `--clear-color`, or `--clear-group`.
 - `delete` takes the button `name` or `id`.
 - These store templates verbatim (`{variable}` is **not** expanded at write time — it is resolved when the button is sent).
 - If the desktop app is running, these print an error to stderr and exit non-zero without changing anything; close the app and retry.

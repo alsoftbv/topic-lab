@@ -1,5 +1,5 @@
 import { Download, X, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
-import type { Updater } from "../hooks/useUpdater";
+import type { Updater } from "@/hooks/useUpdater";
 
 export function UpdateOptInModal({ updater }: { updater: Updater }) {
   if (!updater.showOptIn) return null;
@@ -79,7 +79,7 @@ export function UpdateSettingsSection({ updater }: { updater: Updater }) {
       </div>
 
       <div className="setting-item">
-        <label className="update-autocheck">
+        <label className="update-autocheck checkbox-group">
           <input
             type="checkbox"
             checked={autoCheck}

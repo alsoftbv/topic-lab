@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { useApp } from "../contexts/AppContext";
+import { useApp } from "@/contexts/AppContext";
 import {
   checkForUpdate,
   downloadAndInstall,
   getCurrentVersion,
   type Update,
-} from "../utils/updater";
+} from "@/utils/updater";
 
 export type UpdateStatus =
   | "idle"

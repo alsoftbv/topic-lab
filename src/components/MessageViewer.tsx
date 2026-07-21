@@ -1,13 +1,19 @@
 import { useState, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { ChevronDown, ChevronRight, Plus, X, Trash2, Check, GripVertical } from "lucide-react";
-import type { Message, QoS } from "../types";
-import * as api from "../utils/api";
-import { useApp } from "../contexts/AppContext";
-import { preferences, type MessageViewerPosition } from "../utils/preferences";
+import type { Message, QoS } from "@/types";
+import * as api from "@/utils/api";
+import { useApp } from "@/contexts/AppContext";
+import { preferences, type MessageViewerPosition } from "@/utils/preferences";
+import { modKey } from "@/utils/platform";
 import { Editable } from "./Editable";
 
-const mod = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "\u2318\u2009" : "Ctrl+";
+const EMPTY_SUBSCRIPTIONS: string[] = [];
+const EMPTY_VARIABLES: Record<string, string> = {};
+
+function messageKey(m: Message): string {
+  return `${m.timestamp}|${m.topic}|${m.payload}`;
+}
 
 interface MessageViewerProps {
   expanded: boolean;
@@ -27,46 +33,25 @@ export function MessageViewer({
   const { connectionStatus, activeConnection, updateSubscriptions, resolvedSubscriptions } =
     useApp();
   const [topic, setTopic] = useState("");
-  const [subscriptions, setSubscriptions] = useState<string[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [height, setHeight] = useState(() => preferences.messageViewerHeight);
   const [width, setWidth] = useState(() => preferences.messageViewerWidth);
   const isVertical = position !== "top";
   const messagesListRef = useRef<HTMLDivElement>(null);
   const wasAtBottomRef = useRef(true);
+  const activeResolvedRef = useRef(new Map<string, string>());
+  const reconcileGenRef = useRef(0);
 
-  const savedSubscriptions = activeConnection?.subscriptions ?? [];
-  const variables = activeConnection?.variables ?? {};
-
-  async function resubscribeToSaved(topics: string[]) {
-    const activeSubs: string[] = [];
-    for (const t of topics) {
-      const resolved = await api.resolveTemplate(t, variables);
-      try {
-        await api.subscribe(resolved, "atmostonce" as QoS);
-        activeSubs.push(t);
-      } catch (err) {
-        console.error("Resubscribe failed for", t, err);
-      }
-    }
-    setSubscriptions(activeSubs);
-  }
-
-  const prevVariablesRef = useRef(variables);
+  const subscriptions = activeConnection?.subscriptions ?? EMPTY_SUBSCRIPTIONS;
+  const variables = activeConnection?.variables ?? EMPTY_VARIABLES;
 
   useEffect(() => {
     if (connectionStatus !== "connected") {
-      setSubscriptions([]);
       setMessages([]);
       return;
     }
 
-    api
-      .getMessages()
-      .then(setMessages)
-      .catch(() => {});
-    resubscribeToSaved(savedSubscriptions);
-
+    let cancelled = false;
     const unlisten = listen<Message>("mqtt-message", (event) => {
       const list = messagesListRef.current;
       if (list) {
@@ -80,30 +65,65 @@ export function MessageViewer({
       });
     });
 
+    api
+      .getMessages()
+      .then((history) => {
+        if (cancelled) return;
+        setMessages((prev) => {
+          const seen = new Set(prev.map(messageKey));
+          const merged = [...history.filter((m) => !seen.has(messageKey(m))), ...prev];
+          return merged.slice(-100);
+        });
+      })
+      .catch(() => {});
+
     return () => {
+      cancelled = true;
       unlisten.then((fn) => fn());
     };
-  }, [connectionStatus, savedSubscriptions]);
+  }, [connectionStatus]);
 
   useEffect(() => {
-    if (connectionStatus !== "connected" || subscriptions.length === 0) return;
-    const prev = prevVariablesRef.current;
-    prevVariablesRef.current = variables;
+    const current = activeResolvedRef.current;
+    if (connectionStatus !== "connected") {
+      current.clear();
+      return;
+    }
+
+    const gen = ++reconcileGenRef.current;
+    const isStale = () => gen !== reconcileGenRef.current;
 
     (async () => {
+      const desired = new Map<string, string>();
       for (const t of subscriptions) {
-        const oldResolved = await api.resolveTemplate(t, prev);
-        const newResolved = await api.resolveTemplate(t, variables);
-        if (oldResolved === newResolved) continue;
+        const resolved = await api.resolveTemplate(t, variables).catch(() => t);
+        if (isStale()) return;
+        desired.set(t, resolved);
+      }
+
+      for (const [t, resolved] of Array.from(current)) {
+        if (desired.get(t) === resolved) continue;
+        current.delete(t);
         try {
-          await api.unsubscribe(oldResolved);
-        } catch {}
+          await api.unsubscribe(resolved);
+        } catch (err) {
+          console.error("Unsubscribe failed for", t, err);
+        }
+        if (isStale()) return;
+      }
+
+      for (const [t, resolved] of desired) {
+        if (current.get(t) === resolved) continue;
         try {
-          await api.subscribe(newResolved, "atmostonce" as QoS);
-        } catch {}
+          await api.subscribe(resolved, "atmostonce" as QoS);
+          current.set(t, resolved);
+        } catch (err) {
+          console.error("Subscribe failed for", t, err);
+        }
+        if (isStale()) return;
       }
     })();
-  }, [JSON.stringify(variables)]);
+  }, [connectionStatus, subscriptions, variables]);
 
   useEffect(() => {
     const list = messagesListRef.current;
@@ -116,32 +136,14 @@ export function MessageViewer({
     e.preventDefault();
     if (!topic.trim() || connectionStatus !== "connected") return;
     const t = topic.trim();
-    if (subscriptions.includes(t)) {
-      setTopic("");
-      return;
+    if (!subscriptions.includes(t)) {
+      await updateSubscriptions([...subscriptions, t]);
     }
-    const resolved = await api.resolveTemplate(t, variables);
-    try {
-      await api.subscribe(resolved, "atmostonce" as QoS);
-      const newSubs = [...subscriptions, t];
-      setSubscriptions(newSubs);
-      await updateSubscriptions(newSubs);
-      setTopic("");
-    } catch (err) {
-      console.error("Subscribe failed:", err);
-    }
+    setTopic("");
   };
 
   const handleUnsubscribe = async (t: string) => {
-    const resolved = await api.resolveTemplate(t, variables);
-    try {
-      await api.unsubscribe(resolved);
-      const newSubs = subscriptions.filter((s) => s !== t);
-      setSubscriptions(newSubs);
-      await updateSubscriptions(newSubs);
-    } catch (err) {
-      console.error("Unsubscribe failed:", err);
-    }
+    await updateSubscriptions(subscriptions.filter((s) => s !== t));
   };
 
   const [editingSub, setEditingSub] = useState<string | null>(null);
@@ -166,17 +168,7 @@ export function MessageViewer({
     setEditingSub(null);
     if (!newTopic || newTopic === oldTopic) return;
 
-    const oldResolved = await api.resolveTemplate(oldTopic, variables);
-    const newResolved = await api.resolveTemplate(newTopic, variables);
-    try {
-      await api.unsubscribe(oldResolved);
-      await api.subscribe(newResolved, "atmostonce" as QoS);
-      const newSubs = subscriptions.map((s) => (s === oldTopic ? newTopic : s));
-      setSubscriptions(newSubs);
-      await updateSubscriptions(newSubs);
-    } catch (err) {
-      console.error("Edit subscription failed:", err);
-    }
+    await updateSubscriptions(subscriptions.map((s) => (s === oldTopic ? newTopic : s)));
   };
 
   const handleClear = async () => {
@@ -269,7 +261,13 @@ export function MessageViewer({
       <div
         className="message-viewer-header"
         onClick={() => onToggle(!expanded)}
-        title={`Toggle (${mod}I)`}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          e.preventDefault();
+          e.stopPropagation();
+          onToggle(!expanded);
+        }}
+        title={`Toggle (${modKey}I)`}
         role="button"
         tabIndex={0}
       >
@@ -345,7 +343,7 @@ export function MessageViewer({
                       {editingSub !== sub
                         ? showRawTemplates
                           ? sub
-                          : resolvedSubscriptions[sub] ?? sub
+                          : (resolvedSubscriptions[sub] ?? sub)
                         : null}
                     </Editable>
                     {editingSub === sub ? (

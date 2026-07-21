@@ -11,6 +11,22 @@
     border-radius: 50%;
 }
 
+.status-indicator.disconnected {
+    background: var(--text-secondary);
+}
+
+.status-indicator.connecting {
+    background: var(--warning);
+}
+
+.status-indicator.connected {
+    background: var(--success);
+}
+
+.status-indicator.error {
+    background: var(--error);
+}
+
 .status-label {
     color: var(--text-secondary);
 }

@@ -42,7 +42,7 @@
 }
 
 .btn-danger:hover {
-    background: #b91c1c;
+    background: var(--error-hover);
 }
 
 .btn-icon {
@@ -106,49 +106,49 @@
 
 /* Button Colors */
 .btn-color-orange {
-    background: #ff9100;
+    background: var(--btn-orange);
 }
 
 .btn-color-orange:hover {
-    background: #e68200;
+    background: var(--btn-orange-hover);
 }
 
 .btn-color-green {
-    background: #16a34a;
+    background: var(--btn-green);
 }
 
 .btn-color-green:hover {
-    background: #15803d;
+    background: var(--btn-green-hover);
 }
 
 .btn-color-blue {
-    background: #3b82f6;
+    background: var(--btn-blue);
 }
 
 .btn-color-blue:hover {
-    background: #2563eb;
+    background: var(--btn-blue-hover);
 }
 
 .btn-color-purple {
-    background: #8b5cf6;
+    background: var(--btn-purple);
 }
 
 .btn-color-purple:hover {
-    background: #7c3aed;
+    background: var(--btn-purple-hover);
 }
 
 .btn-color-red {
-    background: #dc2626;
+    background: var(--btn-red);
 }
 
 .btn-color-red:hover {
-    background: #b91c1c;
+    background: var(--btn-red-hover);
 }
 
 .btn-color-teal {
-    background: #14b8a6;
+    background: var(--btn-teal);
 }
 
 .btn-color-teal:hover {
-    background: #0d9488;
+    background: var(--btn-teal-hover);
 }

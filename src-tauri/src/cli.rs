@@ -1,6 +1,6 @@
 use crate::mqtt::{Message, MqttClient, MqttEvents};
 use crate::storage::Storage;
-use crate::types::{AppData, Button, ButtonColor, Connection, ConnectionStatus, QoS};
+use crate::types::{AppData, Button, ButtonColor, Connection, QoS};
 use crate::variables;
 use clap::{Parser, Subcommand};
 use std::collections::HashMap;
@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tokio::sync::Notify;
 
 const SUBCOMMANDS: &[&str] = &[
     "connections",
@@ -208,6 +209,15 @@ enum ButtonCommand {
         color: Option<String>,
         #[arg(long)]
         group: Option<String>,
+        /// Remove the payload
+        #[arg(long, conflicts_with = "payload")]
+        clear_payload: bool,
+        /// Reset the color to the default
+        #[arg(long, conflicts_with = "color")]
+        clear_color: bool,
+        /// Move the button out of its group
+        #[arg(long, conflicts_with = "group")]
+        clear_group: bool,
     },
     /// Delete a button by name or id (refused while the desktop app is running)
     Delete {
@@ -273,17 +283,19 @@ pub fn run_cli() {
 async fn run(cli: Cli) -> Result<(), String> {
     let json = cli.json;
     let storage = Storage::new().map_err(|e| e.to_string())?;
-    let data = storage.load_data().map_err(|e| e.to_string())?;
+    let load = || storage.load_data().map_err(|e| e.to_string());
 
     match cli.command {
         Command::Connections { action } => match action {
-            ConnectionCommand::List => list_connections(&data, json),
+            ConnectionCommand::List => list_connections(&load()?, json),
             ConnectionCommand::Select { connection } => {
                 connection_select(&storage, &connection, json)
             }
         },
         Command::Buttons { action } => match action {
-            ButtonCommand::List { connection } => list_buttons(&data, connection.as_deref(), json),
+            ButtonCommand::List { connection } => {
+                list_buttons(&load()?, connection.as_deref(), json)
+            }
             ButtonCommand::Add {
                 connection,
                 name,
@@ -296,13 +308,15 @@ async fn run(cli: Cli) -> Result<(), String> {
             } => button_add(
                 &storage,
                 connection.as_deref(),
-                name,
-                topic,
-                payload,
-                qos,
-                retain,
-                color.as_deref(),
-                group.as_deref(),
+                NewButton {
+                    name,
+                    topic,
+                    payload,
+                    qos,
+                    retain,
+                    color: color.as_deref().map(parse_color).transpose()?,
+                    group,
+                },
                 json,
             ),
             ButtonCommand::Edit {
@@ -315,17 +329,25 @@ async fn run(cli: Cli) -> Result<(), String> {
                 retain,
                 color,
                 group,
+                clear_payload,
+                clear_color,
+                clear_group,
             } => button_edit(
                 &storage,
                 &button,
                 connection.as_deref(),
-                name,
-                topic,
-                payload,
-                qos,
-                retain,
-                color.as_deref(),
-                group.as_deref(),
+                ButtonEdits {
+                    name,
+                    topic,
+                    payload,
+                    qos,
+                    retain,
+                    color: color.as_deref().map(parse_color).transpose()?,
+                    group,
+                    clear_payload,
+                    clear_color,
+                    clear_group,
+                },
                 json,
             ),
             ButtonCommand::Delete { button, connection } => {
@@ -334,7 +356,7 @@ async fn run(cli: Cli) -> Result<(), String> {
         },
         Command::Variables { action } => match action {
             VariableCommand::List { connection } => {
-                list_variables(&data, connection.as_deref(), json)
+                list_variables(&load()?, connection.as_deref(), json)
             }
             VariableCommand::Set {
                 key,
@@ -349,7 +371,7 @@ async fn run(cli: Cli) -> Result<(), String> {
             button,
             connection,
             vars,
-        } => send(&data, &button, connection.as_deref(), &vars, json).await,
+        } => send(&load()?, &button, connection.as_deref(), &vars, json).await,
         Command::Publish {
             connection,
             topic,
@@ -359,13 +381,15 @@ async fn run(cli: Cli) -> Result<(), String> {
             vars,
         } => {
             publish(
-                &data,
+                &load()?,
                 connection.as_deref(),
-                &topic,
-                &payload,
-                qos,
-                retain,
-                &vars,
+                PublishRequest {
+                    topic,
+                    payload,
+                    qos,
+                    retain,
+                    vars,
+                },
                 json,
             )
             .await
@@ -379,13 +403,15 @@ async fn run(cli: Cli) -> Result<(), String> {
             vars,
         } => {
             subscribe(
-                &data,
+                &load()?,
                 connection.as_deref(),
-                &topic,
-                qos,
-                count,
-                timeout,
-                &vars,
+                SubscribeRequest {
+                    topic,
+                    qos,
+                    count,
+                    timeout,
+                    vars,
+                },
                 json,
             )
             .await
@@ -437,13 +463,12 @@ fn list_connections(data: &AppData, json: bool) -> Result<(), String> {
 }
 
 fn connection_select(storage: &Storage, selector: &str, json: bool) -> Result<(), String> {
-    let _guard = acquire_write_or_refuse(storage)?;
-    let mut data = storage.load_data().map_err(|e| e.to_string())?;
-    let idx = find_connection_index(&data, Some(selector))?;
-    let id = data.connections[idx].id.clone();
-    let name = data.connections[idx].name.clone();
-    data.last_connection_id = Some(id.clone());
-    storage.save_data(&data).map_err(|e| e.to_string())?;
+    let (id, name) = with_locked_data(storage, Some(selector), |data, idx| {
+        let id = data.connections[idx].id.clone();
+        let name = data.connections[idx].name.clone();
+        data.last_connection_id = Some(id.clone());
+        Ok((id, name))
+    })?;
 
     if json {
         println!("{}", serde_json::json!({ "selected": true, "id": id, "name": name }));
@@ -499,60 +524,71 @@ async fn send(
         .ok_or_else(|| format!("button not found: {button_selector}"))?;
 
     let vars = merged_vars(conn, parse_var_overrides(var_overrides)?);
-    let topic = variables::substitute_variables(&button.topic, &vars);
-    let payload = button
-        .payload
-        .as_deref()
-        .map(|p| variables::substitute_variables(p, &vars))
-        .unwrap_or_default();
+    let (topic, payload) = variables::resolve_button(button, &vars);
 
     deliver(conn, &topic, &payload, button.qos, button.retain).await?;
     report_publish(&topic, &payload, button.qos, button.retain, json);
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
+struct PublishRequest {
+    topic: String,
+    payload: String,
+    qos: u8,
+    retain: bool,
+    vars: Vec<String>,
+}
+
 async fn publish(
     data: &AppData,
     connection: Option<&str>,
-    topic: &str,
-    payload: &str,
-    qos: u8,
-    retain: bool,
-    var_overrides: &[String],
+    req: PublishRequest,
     json: bool,
 ) -> Result<(), String> {
     let conn = resolve_connection(data, connection)?;
-    let vars = merged_vars(conn, parse_var_overrides(var_overrides)?);
-    let topic = variables::substitute_variables(topic, &vars);
-    let payload = variables::substitute_variables(payload, &vars);
-    let qos = qos_from_u8(qos);
+    let vars = merged_vars(conn, parse_var_overrides(&req.vars)?);
+    let topic = variables::substitute_variables(&req.topic, &vars);
+    let payload = variables::substitute_variables(&req.payload, &vars);
+    let qos = qos_from_u8(req.qos);
 
-    deliver(conn, &topic, &payload, qos, retain).await?;
-    report_publish(&topic, &payload, qos, retain, json);
+    deliver(conn, &topic, &payload, qos, req.retain).await?;
+    report_publish(&topic, &payload, qos, req.retain, json);
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn subscribe(
-    data: &AppData,
-    connection: Option<&str>,
-    topic: &str,
+struct SubscribeRequest {
+    topic: String,
     qos: u8,
     count: usize,
     timeout: u64,
-    var_overrides: &[String],
+    vars: Vec<String>,
+}
+
+async fn subscribe(
+    data: &AppData,
+    connection: Option<&str>,
+    req: SubscribeRequest,
     json: bool,
 ) -> Result<(), String> {
+    let SubscribeRequest {
+        topic,
+        qos,
+        count,
+        timeout,
+        vars,
+    } = req;
     let conn = resolve_connection(data, connection)?;
-    let vars = merged_vars(conn, parse_var_overrides(var_overrides)?);
-    let topic = variables::substitute_variables(topic, &vars);
+    let vars = merged_vars(conn, parse_var_overrides(&vars)?);
+    let topic = variables::substitute_variables(&topic, &vars);
     let qos = qos_from_u8(qos);
 
     let counter = Arc::new(AtomicUsize::new(0));
+    let done = Arc::new(Notify::new());
     let printer = Arc::new(CliPrinter {
         json,
         counter: Arc::clone(&counter),
+        limit: count,
+        done: Arc::clone(&done),
     });
 
     let mut client = MqttClient::new();
@@ -561,7 +597,10 @@ async fn subscribe(
         .connect(&cli_client(conn))
         .await
         .map_err(|e| e.to_string())?;
-    wait_connected(&client).await?;
+    client
+        .wait_connected(CONNECT_TIMEOUT)
+        .await
+        .map_err(|e| e.to_string())?;
     client.subscribe(&topic, qos).await.map_err(|e| e.to_string())?;
     if !json {
         eprintln!("subscribed to {topic} (ctrl-c to stop)");
@@ -577,13 +616,18 @@ async fn subscribe(
                 break;
             }
         }
+        if !client.is_running() {
+            client.disconnect().await;
+            return Err("connection lost".into());
+        }
         tokio::select! {
             _ = tokio::time::sleep(Duration::from_millis(100)) => {}
+            _ = done.notified() => break,
             _ = tokio::signal::ctrl_c() => break,
         }
     }
 
-    client.disconnect().await.map_err(|e| e.to_string())?;
+    client.disconnect().await;
     Ok(())
 }
 
@@ -599,29 +643,17 @@ async fn deliver(
         .connect(&cli_client(conn))
         .await
         .map_err(|e| e.to_string())?;
-    wait_connected(&client).await?;
+    client
+        .wait_connected(CONNECT_TIMEOUT)
+        .await
+        .map_err(|e| e.to_string())?;
     client
         .publish(topic, payload, qos, retain)
         .await
         .map_err(|e| e.to_string())?;
     tokio::time::sleep(FLUSH_GRACE).await;
-    client.disconnect().await.map_err(|e| e.to_string())?;
+    client.disconnect().await;
     Ok(())
-}
-
-async fn wait_connected(client: &MqttClient) -> Result<(), String> {
-    let deadline = Instant::now() + CONNECT_TIMEOUT;
-    loop {
-        match client.get_status().await {
-            ConnectionStatus::Connected => return Ok(()),
-            ConnectionStatus::Error => return Err("connection failed".into()),
-            _ => {}
-        }
-        if Instant::now() >= deadline {
-            return Err("timed out waiting for connection".into());
-        }
-        tokio::time::sleep(Duration::from_millis(50)).await;
-    }
 }
 
 fn report_publish(topic: &str, payload: &str, qos: QoS, retain: bool, json: bool) {
@@ -677,6 +709,19 @@ fn acquire_write_or_refuse(storage: &Storage) -> Result<std::fs::File, String> {
     }
 }
 
+fn with_locked_data<T>(
+    storage: &Storage,
+    connection: Option<&str>,
+    f: impl FnOnce(&mut AppData, usize) -> Result<T, String>,
+) -> Result<T, String> {
+    let _guard = acquire_write_or_refuse(storage)?;
+    let mut data = storage.load_data().map_err(|e| e.to_string())?;
+    let idx = find_connection_index(&data, connection)?;
+    let out = f(&mut data, idx)?;
+    storage.save_data(&data).map_err(|e| e.to_string())?;
+    Ok(out)
+}
+
 fn parse_color(value: &str) -> Result<ButtonColor, String> {
     match value.to_lowercase().as_str() {
         "orange" => Ok(ButtonColor::Orange),
@@ -706,48 +751,45 @@ fn find_button_index(conn: &Connection, selector: &str) -> Result<usize, String>
         .ok_or_else(|| format!("button not found: {selector}"))
 }
 
-#[allow(clippy::too_many_arguments)]
-fn button_add(
-    storage: &Storage,
-    connection: Option<&str>,
+struct NewButton {
     name: String,
     topic: String,
     payload: Option<String>,
     qos: u8,
     retain: bool,
-    color: Option<&str>,
-    group: Option<&str>,
+    color: Option<ButtonColor>,
+    group: Option<String>,
+}
+
+fn button_add(
+    storage: &Storage,
+    connection: Option<&str>,
+    new: NewButton,
     json: bool,
 ) -> Result<(), String> {
-    let _guard = acquire_write_or_refuse(storage)?;
-    let mut data = storage.load_data().map_err(|e| e.to_string())?;
-    let idx = find_connection_index(&data, connection)?;
-
-    let color = match color {
-        Some(c) => Some(parse_color(c)?),
-        None => None,
-    };
-    let group_id = match group {
-        Some(g) => Some(resolve_group(&data.connections[idx], g)?),
-        None => None,
-    };
-
-    let button = Button {
-        id: uuid::Uuid::new_v4().to_string(),
-        name,
-        topic,
-        payload,
-        qos: qos_from_u8(qos),
-        retain,
-        color,
-        multi_send_enabled: None,
-        multi_send_interval: None,
-        group_id,
-    };
-    let id = button.id.clone();
-    let name = button.name.clone();
-    data.connections[idx].buttons.push(button);
-    storage.save_data(&data).map_err(|e| e.to_string())?;
+    let (id, name) = with_locked_data(storage, connection, |data, idx| {
+        let group_id = new
+            .group
+            .as_deref()
+            .map(|g| resolve_group(&data.connections[idx], g))
+            .transpose()?;
+        let button = Button {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: new.name,
+            topic: new.topic,
+            payload: new.payload,
+            qos: qos_from_u8(new.qos),
+            retain: new.retain,
+            color: new.color,
+            multi_send_enabled: None,
+            multi_send_interval: None,
+            group_id,
+        };
+        let id = button.id.clone();
+        let name = button.name.clone();
+        data.connections[idx].buttons.push(button);
+        Ok((id, name))
+    })?;
 
     if json {
         println!("{}", serde_json::json!({ "added": true, "id": id, "name": name }));
@@ -757,59 +799,67 @@ fn button_add(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-fn button_edit(
-    storage: &Storage,
-    button_selector: &str,
-    connection: Option<&str>,
+struct ButtonEdits {
     name: Option<String>,
     topic: Option<String>,
     payload: Option<String>,
     qos: Option<u8>,
     retain: Option<bool>,
-    color: Option<&str>,
-    group: Option<&str>,
+    color: Option<ButtonColor>,
+    group: Option<String>,
+    clear_payload: bool,
+    clear_color: bool,
+    clear_group: bool,
+}
+
+fn button_edit(
+    storage: &Storage,
+    button_selector: &str,
+    connection: Option<&str>,
+    edits: ButtonEdits,
     json: bool,
 ) -> Result<(), String> {
-    let _guard = acquire_write_or_refuse(storage)?;
-    let mut data = storage.load_data().map_err(|e| e.to_string())?;
-    let idx = find_connection_index(&data, connection)?;
+    let (id, name) = with_locked_data(storage, connection, |data, idx| {
+        let new_group_id = edits
+            .group
+            .as_deref()
+            .map(|g| resolve_group(&data.connections[idx], g))
+            .transpose()?;
+        let bidx = find_button_index(&data.connections[idx], button_selector)?;
 
-    let new_color = match color {
-        Some(c) => Some(parse_color(c)?),
-        None => None,
-    };
-    let new_group_id = match group {
-        Some(g) => Some(resolve_group(&data.connections[idx], g)?),
-        None => None,
-    };
-    let bidx = find_button_index(&data.connections[idx], button_selector)?;
-
-    let button = &mut data.connections[idx].buttons[bidx];
-    if let Some(n) = name {
-        button.name = n;
-    }
-    if let Some(t) = topic {
-        button.topic = t;
-    }
-    if let Some(p) = payload {
-        button.payload = Some(p);
-    }
-    if let Some(q) = qos {
-        button.qos = qos_from_u8(q);
-    }
-    if let Some(r) = retain {
-        button.retain = r;
-    }
-    if let Some(c) = new_color {
-        button.color = Some(c);
-    }
-    if let Some(gid) = new_group_id {
-        button.group_id = Some(gid);
-    }
-    let id = button.id.clone();
-    let name = button.name.clone();
-    storage.save_data(&data).map_err(|e| e.to_string())?;
+        let button = &mut data.connections[idx].buttons[bidx];
+        if let Some(n) = edits.name {
+            button.name = n;
+        }
+        if let Some(t) = edits.topic {
+            button.topic = t;
+        }
+        if let Some(p) = edits.payload {
+            button.payload = Some(p);
+        }
+        if edits.clear_payload {
+            button.payload = None;
+        }
+        if let Some(q) = edits.qos {
+            button.qos = qos_from_u8(q);
+        }
+        if let Some(r) = edits.retain {
+            button.retain = r;
+        }
+        if let Some(c) = edits.color {
+            button.color = Some(c);
+        }
+        if edits.clear_color {
+            button.color = None;
+        }
+        if let Some(gid) = new_group_id {
+            button.group_id = Some(gid);
+        }
+        if edits.clear_group {
+            button.group_id = None;
+        }
+        Ok((button.id.clone(), button.name.clone()))
+    })?;
 
     if json {
         println!("{}", serde_json::json!({ "updated": true, "id": id, "name": name }));
@@ -825,12 +875,10 @@ fn button_delete(
     connection: Option<&str>,
     json: bool,
 ) -> Result<(), String> {
-    let _guard = acquire_write_or_refuse(storage)?;
-    let mut data = storage.load_data().map_err(|e| e.to_string())?;
-    let idx = find_connection_index(&data, connection)?;
-    let bidx = find_button_index(&data.connections[idx], button_selector)?;
-    let removed = data.connections[idx].buttons.remove(bidx);
-    storage.save_data(&data).map_err(|e| e.to_string())?;
+    let removed = with_locked_data(storage, connection, |data, idx| {
+        let bidx = find_button_index(&data.connections[idx], button_selector)?;
+        Ok(data.connections[idx].buttons.remove(bidx))
+    })?;
 
     if json {
         println!(
@@ -873,19 +921,17 @@ fn variable_set(
     value: &str,
     json: bool,
 ) -> Result<(), String> {
-    let _guard = acquire_write_or_refuse(storage)?;
-    let mut data = storage.load_data().map_err(|e| e.to_string())?;
-    let idx = find_connection_index(&data, connection)?;
-    let conn = &mut data.connections[idx];
-
-    if let Some(old_value) = conn.variables.get(key) {
-        if old_value != value {
-            let old_value = old_value.clone();
-            push_variable_history(&mut conn.variable_history, key, &old_value);
+    with_locked_data(storage, connection, |data, idx| {
+        let conn = &mut data.connections[idx];
+        if let Some(old_value) = conn.variables.get(key) {
+            if old_value != value {
+                let old_value = old_value.clone();
+                push_variable_history(&mut conn.variable_history, key, &old_value);
+            }
         }
-    }
-    conn.variables.insert(key.to_string(), value.to_string());
-    storage.save_data(&data).map_err(|e| e.to_string())?;
+        conn.variables.insert(key.to_string(), value.to_string());
+        Ok(())
+    })?;
 
     if json {
         println!(
@@ -904,16 +950,14 @@ fn variable_unset(
     key: &str,
     json: bool,
 ) -> Result<(), String> {
-    let _guard = acquire_write_or_refuse(storage)?;
-    let mut data = storage.load_data().map_err(|e| e.to_string())?;
-    let idx = find_connection_index(&data, connection)?;
-    let conn = &mut data.connections[idx];
-
-    if conn.variables.remove(key).is_none() {
-        return Err(format!("variable not found: {key}"));
-    }
-    conn.variable_history.remove(key);
-    storage.save_data(&data).map_err(|e| e.to_string())?;
+    with_locked_data(storage, connection, |data, idx| {
+        let conn = &mut data.connections[idx];
+        if conn.variables.remove(key).is_none() {
+            return Err(format!("variable not found: {key}"));
+        }
+        conn.variable_history.remove(key);
+        Ok(())
+    })?;
 
     if json {
         println!("{}", serde_json::json!({ "unset": true, "key": key }));
@@ -924,7 +968,7 @@ fn variable_unset(
 }
 
 fn cmd_install(path: Option<PathBuf>, force: bool, json: bool) -> Result<(), String> {
-    let report = crate::install::install(path, force).map_err(|e| e.message())?;
+    let report = crate::install::install(path, force).map_err(|e| e.to_string())?;
     if json {
         println!("{}", serde_json::to_string(&report).unwrap());
     } else {
@@ -996,19 +1040,27 @@ fn qos_from_u8(qos: u8) -> QoS {
 struct CliPrinter {
     json: bool,
     counter: Arc<AtomicUsize>,
+    limit: usize,
+    done: Arc<Notify>,
 }
 
 impl MqttEvents for CliPrinter {
     fn on_status(&self, _status: &str) {}
 
     fn on_message(&self, message: &Message) {
-        self.counter.fetch_add(1, Ordering::Relaxed);
+        let seen = self.counter.fetch_add(1, Ordering::Relaxed) + 1;
+        if self.limit > 0 && seen > self.limit {
+            return;
+        }
         if self.json {
             if let Ok(line) = serde_json::to_string(message) {
                 println!("{line}");
             }
         } else {
             println!("{}  {}", message.topic, message.payload);
+        }
+        if self.limit > 0 && seen == self.limit {
+            self.done.notify_one();
         }
     }
 }

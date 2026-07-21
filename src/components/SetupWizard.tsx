@@ -1,7 +1,7 @@
 import { useState } from "react";
-import type { Connection } from "../types";
-import { useApp } from "../contexts/AppContext";
-import { importConnection } from "../utils/api";
+import type { Connection } from "@/types";
+import { useApp } from "@/contexts/AppContext";
+import { importConnection } from "@/utils/api";
 
 export function SetupWizard() {
   const { addConnection } = useApp();
@@ -99,7 +99,7 @@ export function SetupWizard() {
 
         <form onSubmit={handleSubmit}>
           {step === 1 && (
-            <div className="form-step">
+            <div>
               <h2>Connection Details</h2>
 
               <div className="form-group">
@@ -168,7 +168,7 @@ export function SetupWizard() {
           )}
 
           {step === 2 && (
-            <div className="form-step">
+            <div>
               <h2>Authentication (Optional)</h2>
 
               <div className="form-group">

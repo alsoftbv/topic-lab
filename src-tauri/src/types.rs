@@ -43,19 +43,19 @@ pub struct Button {
     pub id: String,
     pub name: String,
     pub topic: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub payload: Option<String>,
     #[serde(default)]
     pub qos: QoS,
     #[serde(default)]
     pub retain: bool,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<ButtonColor>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub multi_send_enabled: Option<bool>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub multi_send_interval: Option<u64>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group_id: Option<String>,
 }
 
@@ -73,9 +73,9 @@ pub struct Connection {
     pub broker_url: String,
     pub port: u16,
     pub client_id: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub username: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
     #[serde(default)]
     pub use_tls: bool,
@@ -96,7 +96,7 @@ pub struct Connection {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_check_updates: Option<bool>,
 }
 
@@ -104,7 +104,7 @@ pub struct AppSettings {
 pub struct AppData {
     #[serde(default)]
     pub connections: Vec<Connection>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_connection_id: Option<String>,
     #[serde(default)]
     pub settings: AppSettings,

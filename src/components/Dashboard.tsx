@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import { confirm } from "../utils/dialog";
+import { confirm } from "@/utils/dialog";
 import { Settings, Plus, X, Search } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
-import * as api from "../utils/api";
-import { useApp } from "../contexts/AppContext";
-import { preferences, type MessageViewerPosition } from "../utils/preferences";
-import { useDashboardKeyboard } from "../hooks/useDashboardKeyboard";
-import { useButtonDrag } from "../hooks/useButtonDrag";
-import { useGroupDrag } from "../hooks/useGroupDrag";
+import * as api from "@/utils/api";
+import { useApp } from "@/contexts/AppContext";
+import { preferences, type MessageViewerPosition } from "@/utils/preferences";
+import { useDashboardKeyboard } from "@/hooks/useDashboardKeyboard";
+import { useButtonDrag } from "@/hooks/useButtonDrag";
+import { useGroupDrag } from "@/hooks/useGroupDrag";
 import { ConnectionSwitcher } from "./ConnectionSwitcher";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { MessageViewer } from "./MessageViewer";
@@ -17,11 +17,10 @@ import { VariablesPanel } from "./VariablesPanel";
 import { ConnectionEditor } from "./ConnectionEditor";
 import { SettingsModal } from "./SettingsModal";
 import { PreferencesModal } from "./PreferencesModal";
-import { useUpdater } from "../hooks/useUpdater";
+import { useUpdater } from "@/hooks/useUpdater";
 import { UpdateBanner, UpdateOptInModal } from "./UpdateNotice";
-import type { Button } from "../types";
-
-const mod = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘ " : "Ctrl+";
+import { modKey } from "@/utils/platform";
+import type { Button } from "@/types";
 
 export function Dashboard() {
   const {
@@ -58,6 +57,7 @@ export function Dashboard() {
   const buttonsAreaRef = useRef<HTMLElement | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [importError, setImportError] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(() => preferences.sidebarWidth);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     () => new Set(preferences.collapsedGroups)
@@ -134,12 +134,22 @@ export function Dashboard() {
     reorderGroups,
   });
 
+  const toggleGroupCollapse = (groupId: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      preferences.collapsedGroups = [...next];
+      return next;
+    });
+  };
+
   const {
     selectedIndex,
     setSelectedIndex,
     selectedGroupId,
     setSelectedGroupId,
-    keyboardSentId,
+    keyboardSend,
     animatingId,
     setAnimatingId,
   } = useDashboardKeyboard({
@@ -173,26 +183,8 @@ export function Dashboard() {
         preferences.messageViewerExpanded = next;
         return next;
       }),
-    onToggleGroup: (groupId: string) => {
-      setCollapsedGroups((prev) => {
-        const next = new Set(prev);
-        if (next.has(groupId)) next.delete(groupId);
-        else next.add(groupId);
-        preferences.collapsedGroups = [...next];
-        return next;
-      });
-    },
+    onToggleGroup: toggleGroupCollapse,
   });
-
-  const toggleGroupCollapse = (groupId: string) => {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(groupId)) next.delete(groupId);
-      else next.add(groupId);
-      preferences.collapsedGroups = [...next];
-      return next;
-    });
-  };
 
   useEffect(() => {
     if (!mvDragging) return;
@@ -368,9 +360,14 @@ export function Dashboard() {
   };
 
   const handleImport = async () => {
-    const connectionData = await api.importConnection();
-    if (connectionData) {
-      await importConnection(connectionData);
+    setImportError(null);
+    try {
+      const connectionData = await api.importConnection();
+      if (connectionData) {
+        await importConnection(connectionData);
+      }
+    } catch (e) {
+      setImportError(e instanceof Error ? e.message : "Failed to import connection");
     }
   };
 
@@ -420,7 +417,7 @@ export function Dashboard() {
           <button
             className="btn btn-small btn-secondary btn-icon-only"
             onClick={() => setShowSettings(!showSettings)}
-            title={`Connection Settings (${mod}.)`}
+            title={`Connection Settings (${modKey}.)`}
           >
             <Settings size={16} />
           </button>
@@ -430,6 +427,8 @@ export function Dashboard() {
       <UpdateBanner updater={updater} />
 
       {error && <div className="error-banner">{error}</div>}
+
+      {importError && <div className="error-banner">{importError}</div>}
 
       <div
         className="dashboard-content"
@@ -467,10 +466,7 @@ export function Dashboard() {
             </button>
           </div>
         )}
-        <main
-          ref={buttonsAreaRef}
-          className={`buttons-area mv-pos-${messageViewerPosition}`}
-        >
+        <main ref={buttonsAreaRef} className={`buttons-area mv-pos-${messageViewerPosition}`}>
           {messageViewerPosition !== "right" && (
             <MessageViewer
               expanded={messageViewerExpanded}
@@ -513,7 +509,7 @@ export function Dashboard() {
                   dragOverIndex={dragOverIndex}
                   selectedIndex={selectedIndex}
                   animatingId={animatingId}
-                  keyboardSentId={keyboardSentId}
+                  keyboardSend={keyboardSend}
                   matchingButtonIds={matchingButtonIds}
                   globalIndexOffset={offset}
                   onGroupDragStart={handleGroupDragStart}
@@ -547,7 +543,7 @@ export function Dashboard() {
                 dragOverIndex={dragOverIndex}
                 selectedIndex={selectedIndex}
                 animatingId={animatingId}
-                keyboardSentId={keyboardSentId}
+                keyboardSend={keyboardSend}
                 matchingButtonIds={matchingButtonIds}
                 globalIndexOffset={globalIndexCounter}
                 onGroupDragStart={() => {}}

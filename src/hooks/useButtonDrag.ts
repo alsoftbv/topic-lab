@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import type { Button, Connection } from "../types";
+import type { Button, Connection } from "@/types";
 
 interface UseButtonDragOptions {
   activeConnection: Connection | null;
@@ -50,8 +50,8 @@ export function useButtonDrag({
 
           if (targetGroupId != null && fromGlobalIdx !== -1) {
             const resolvedGroupId = targetGroupId === "__ungrouped__" ? undefined : targetGroupId;
-            const [dragged] = buttons.splice(fromGlobalIdx, 1);
-            dragged.groupId = resolvedGroupId;
+            const [removed] = buttons.splice(fromGlobalIdx, 1);
+            const dragged = { ...removed, groupId: resolvedGroupId };
             let insertIdx = -1;
             for (let i = buttons.length - 1; i >= 0; i--) {
               if (buttons[i].groupId === resolvedGroupId) {
@@ -65,8 +65,8 @@ export function useButtonDrag({
             const toButton = visible[toIndex];
             const side = dragOverSideRef.current;
             if (toButton && fromGlobalIdx !== -1) {
-              const [dragged] = buttons.splice(fromGlobalIdx, 1);
-              dragged.groupId = toButton.groupId;
+              const [removed] = buttons.splice(fromGlobalIdx, 1);
+              const dragged = { ...removed, groupId: toButton.groupId };
               const newToIdx = buttons.findIndex((b) => b.id === toButton.id);
               buttons.splice(side === "right" ? newToIdx + 1 : newToIdx, 0, dragged);
               reorderButtons(buttons);

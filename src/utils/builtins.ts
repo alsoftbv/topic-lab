@@ -1,7 +1,17 @@
-const BUILTIN_NAMES = ["now", "timestamp", "uuid", "random", "rand"];
+const DEFAULT_BUILTIN_NAMES = ["now", "timestamp", "uuid", "random", "rand"];
+
+let builtinNames = DEFAULT_BUILTIN_NAMES;
+
+export function setBuiltinNames(names: string[]) {
+  if (names.length > 0) builtinNames = [...names];
+}
+
+export function getBuiltinNames(): string[] {
+  return [...builtinNames];
+}
 
 export function isBuiltinVariable(name: string): boolean {
-  return BUILTIN_NAMES.includes(name);
+  return builtinNames.includes(name);
 }
 
 export function templateHasBuiltin(template: string): boolean {
@@ -11,10 +21,6 @@ export function templateHasBuiltin(template: string): boolean {
     if (isBuiltinVariable(match[1])) return true;
   }
   return false;
-}
-
-export function getBuiltinNames(): string[] {
-  return [...BUILTIN_NAMES];
 }
 
 export function parseVariableExpression(expression: string): { name: string; modifiers: string[] } {

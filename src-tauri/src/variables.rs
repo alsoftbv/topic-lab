@@ -1,3 +1,4 @@
+use crate::types::Button;
 use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, Timelike, Utc};
 use regex::{Captures, Regex};
 use std::collections::HashMap;
@@ -69,12 +70,22 @@ pub fn substitute_variables(template: &str, variables: &HashMap<String, String>)
 }
 
 pub fn resolve_builtin(name: &str, modifiers: &[String]) -> Option<String> {
-    match name.to_lowercase().as_str() {
+    match name {
         "now" | "timestamp" => Some(handle_now(modifiers)),
         "uuid" => Some(handle_uuid()),
         "random" | "rand" => Some(handle_random(modifiers)),
         _ => None,
     }
+}
+
+pub fn resolve_button(button: &Button, variables: &HashMap<String, String>) -> (String, String) {
+    let topic = substitute_variables(&button.topic, variables);
+    let payload = button
+        .payload
+        .as_deref()
+        .map(|p| substitute_variables(p, variables))
+        .unwrap_or_default();
+    (topic, payload)
 }
 
 fn handle_uuid() -> String {
@@ -590,5 +601,49 @@ mod tests {
     #[test]
     fn resolve_builtin_returns_none_for_unknown() {
         assert!(resolve_builtin("device_id", &[]).is_none());
+    }
+
+    #[test]
+    fn resolve_builtin_is_case_sensitive_like_is_builtin() {
+        assert!(resolve_builtin("NOW", &[]).is_none());
+        assert!(resolve_builtin("Uuid", &[]).is_none());
+    }
+
+    #[test]
+    fn resolve_button_substitutes_topic_and_payload() {
+        let button = Button {
+            id: "b1".to_string(),
+            name: "Test".to_string(),
+            topic: "devices/{device_id}/cmd".to_string(),
+            payload: Some("{\"id\": \"{device_id}\"}".to_string()),
+            qos: crate::types::QoS::AtMostOnce,
+            retain: false,
+            color: None,
+            multi_send_enabled: None,
+            multi_send_interval: None,
+            group_id: None,
+        };
+        let (topic, payload) = resolve_button(&button, &vars(&[("device_id", "sensor-001")]));
+        assert_eq!(topic, "devices/sensor-001/cmd");
+        assert_eq!(payload, "{\"id\": \"sensor-001\"}");
+    }
+
+    #[test]
+    fn resolve_button_without_payload_returns_empty_string() {
+        let button = Button {
+            id: "b1".to_string(),
+            name: "Test".to_string(),
+            topic: "t".to_string(),
+            payload: None,
+            qos: crate::types::QoS::AtMostOnce,
+            retain: false,
+            color: None,
+            multi_send_enabled: None,
+            multi_send_interval: None,
+            group_id: None,
+        };
+        let (topic, payload) = resolve_button(&button, &vars(&[]));
+        assert_eq!(topic, "t");
+        assert_eq!(payload, "");
     }
 }

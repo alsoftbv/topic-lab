@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect } from "react";
-import { confirm } from "../utils/dialog";
+import { confirm } from "@/utils/dialog";
 import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, GripVertical, Check } from "lucide-react";
-import type { Button, ButtonGroup as ButtonGroupType } from "../types";
-import { useApp } from "../contexts/AppContext";
+import type { Button, ButtonGroup as ButtonGroupType } from "@/types";
+import { useApp } from "@/contexts/AppContext";
 import { ButtonCard } from "./ButtonCard";
+import { modKey } from "@/utils/platform";
 import { Editable } from "./Editable";
-
-const mod = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "\u2318\u2009" : "Ctrl+";
 
 interface ButtonGroupProps {
   group: ButtonGroupType | null;
@@ -26,7 +25,7 @@ interface ButtonGroupProps {
   dragOverIndex: number | null;
   selectedIndex: number | null;
   animatingId: string | null;
-  keyboardSentId: string | null;
+  keyboardSend: { id: string; nonce: number } | null;
   matchingButtonIds: Set<string>;
   globalIndexOffset: number;
   onGroupDragStart: (groupId: string) => void;
@@ -58,7 +57,7 @@ export function ButtonGroupSection({
   dragOverIndex,
   selectedIndex,
   animatingId,
-  keyboardSentId,
+  keyboardSend,
   matchingButtonIds,
   globalIndexOffset,
   onGroupDragStart,
@@ -160,7 +159,14 @@ export function ButtonGroupSection({
       <div
         className={`button-group-header ${isGroupSelected ? "group-selected" : ""}`}
         onClick={handleHeaderClick}
-        title={`Toggle (${mod}T)`}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          if (isRenaming) return;
+          e.preventDefault();
+          e.stopPropagation();
+          onToggle();
+        }}
+        title={`Toggle (${modKey}T)`}
         role="button"
         tabIndex={0}
       >
@@ -181,7 +187,7 @@ export function ButtonGroupSection({
           <button
             className="btn-icon"
             onClick={() => onAddButton(group?.id)}
-            title={`Add button (${mod}N)`}
+            title={`Add button (${modKey}N)`}
           >
             <Plus size={14} />
           </button>
@@ -253,7 +259,8 @@ export function ButtonGroupSection({
                     isDragOver={dragOverIndex === globalIndex}
                     isSelected={selectedIndex === globalIndex}
                     isAnimating={animatingId === button.id}
-                    keyboardSent={keyboardSentId === button.id}
+                    keyboardSent={keyboardSend?.id === button.id}
+                    keyboardSendNonce={keyboardSend?.id === button.id ? keyboardSend.nonce : 0}
                     isDimmed={!matchingButtonIds.has(button.id)}
                     showRawTemplates={showRawTemplates}
                   />

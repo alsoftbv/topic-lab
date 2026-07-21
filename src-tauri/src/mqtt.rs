@@ -23,6 +23,12 @@ pub enum MqttError {
     Connection(#[from] rumqttc::ConnectionError),
     #[error("Not connected")]
     NotConnected,
+    #[error("Connection failed")]
+    ConnectionFailed,
+    #[error("Timed out waiting for connection")]
+    Timeout,
+    #[error("WebSocket brokers are not supported; use mqtt:// or mqtts://")]
+    WebsocketUnsupported,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -38,8 +44,9 @@ pub struct MqttClient {
     shutdown_tx: Option<mpsc::Sender<()>>,
     connection_info: Option<(String, String)>,
     messages: Arc<RwLock<VecDeque<Message>>>,
-    subscriptions: Arc<RwLock<Vec<String>>>,
+    subscriptions: Arc<RwLock<Vec<(String, QoS)>>>,
     events: Option<Arc<dyn MqttEvents>>,
+    eventloop_task: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl MqttClient {
@@ -52,6 +59,7 @@ impl MqttClient {
             messages: Arc::new(RwLock::new(VecDeque::with_capacity(MAX_MESSAGES))),
             subscriptions: Arc::new(RwLock::new(Vec::new())),
             events: None,
+            eventloop_task: None,
         }
     }
 
@@ -61,8 +69,16 @@ impl MqttClient {
 
     pub async fn connect(&mut self, config: &Connection) -> Result<(), MqttError> {
         if self.client.is_some() {
-            debug!("Already connected, skipping connect");
-            return Ok(());
+            if self.is_running() {
+                debug!("Already connected, skipping connect");
+                return Ok(());
+            }
+            self.disconnect().await;
+        }
+
+        let broker_url = config.broker_url.trim();
+        if broker_url.starts_with("ws://") || broker_url.starts_with("wss://") {
+            return Err(MqttError::WebsocketUnsupported);
         }
 
         info!(
@@ -97,11 +113,13 @@ impl MqttClient {
 
         let status = Arc::clone(&self.status);
         let messages = Arc::clone(&self.messages);
+        let subscriptions = Arc::clone(&self.subscriptions);
+        let resub_client = self.client.clone().unwrap();
         let events = self.events.clone();
         let (shutdown_tx, mut shutdown_rx) = mpsc::channel::<()>(1);
         self.shutdown_tx = Some(shutdown_tx);
 
-        tokio::spawn(async move {
+        let task = tokio::spawn(async move {
             let mut consecutive_errors = 0;
             const MAX_CONSECUTIVE_ERRORS: u32 = 5;
 
@@ -118,6 +136,22 @@ impl MqttClient {
                                 consecutive_errors = 0;
                                 if let Some(ref events) = events {
                                     events.on_status("connected");
+                                }
+                                let subs = subscriptions.read().await.clone();
+                                if !subs.is_empty() {
+                                    let client = resub_client.clone();
+                                    tokio::spawn(async move {
+                                        for (topic, qos) in subs {
+                                            if let Err(e) =
+                                                client.subscribe(&topic, qos.into()).await
+                                            {
+                                                warn!(
+                                                    "Failed to restore subscription '{}': {}",
+                                                    topic, e
+                                                );
+                                            }
+                                        }
+                                    });
                                 }
                             }
                             Ok(Event::Incoming(Packet::Publish(publish))) => {
@@ -172,13 +206,34 @@ impl MqttClient {
                 }
             }
         });
-
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        self.eventloop_task = Some(task);
 
         Ok(())
     }
 
-    pub async fn disconnect(&mut self) -> Result<Option<(String, String)>, MqttError> {
+    pub fn is_running(&self) -> bool {
+        self.eventloop_task
+            .as_ref()
+            .is_some_and(|task| !task.is_finished())
+    }
+
+    pub async fn wait_connected(&self, timeout: Duration) -> Result<(), MqttError> {
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            if self.get_status().await == ConnectionStatus::Connected {
+                return Ok(());
+            }
+            if !self.is_running() {
+                return Err(MqttError::ConnectionFailed);
+            }
+            if tokio::time::Instant::now() >= deadline {
+                return Err(MqttError::Timeout);
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    }
+
+    pub async fn disconnect(&mut self) {
         if let Some((name, url)) = &self.connection_info {
             info!("Disconnecting from {} ({})", name, url);
         }
@@ -191,14 +246,14 @@ impl MqttClient {
             let _ = client.disconnect().await;
         }
 
+        self.eventloop_task = None;
         self.subscriptions.write().await.clear();
-        let info = self.connection_info.take();
+        self.connection_info = None;
         *self.status.write().await = ConnectionStatus::Disconnected;
         if let Some(ref events) = self.events {
             events.on_status("disconnected");
         }
         debug!("Disconnected successfully");
-        Ok(info)
     }
 
     pub async fn subscribe(&self, topic: &str, qos: QoS) -> Result<(), MqttError> {
@@ -206,8 +261,10 @@ impl MqttClient {
         let client = self.client.as_ref().ok_or(MqttError::NotConnected)?;
         client.subscribe(topic, qos.into()).await?;
         let mut subs = self.subscriptions.write().await;
-        if !subs.contains(&topic.to_string()) {
-            subs.push(topic.to_string());
+        if let Some(existing) = subs.iter_mut().find(|(t, _)| t == topic) {
+            existing.1 = qos;
+        } else {
+            subs.push((topic.to_string(), qos));
         }
         info!("Subscribed to '{}'", topic);
         Ok(())
@@ -217,7 +274,7 @@ impl MqttClient {
         debug!("Unsubscribing from '{}'", topic);
         let client = self.client.as_ref().ok_or(MqttError::NotConnected)?;
         client.unsubscribe(topic).await?;
-        self.subscriptions.write().await.retain(|t| t != topic);
+        self.subscriptions.write().await.retain(|(t, _)| t != topic);
         info!("Unsubscribed from '{}'", topic);
         Ok(())
     }
@@ -260,9 +317,6 @@ impl MqttClient {
         self.messages.write().await.clear();
     }
 
-    pub async fn get_subscriptions(&self) -> Vec<String> {
-        self.subscriptions.read().await.clone()
-    }
 }
 
 impl Default for MqttClient {
@@ -273,7 +327,7 @@ impl Default for MqttClient {
 
 fn strip_protocol(url: &str) -> &str {
     let url = url.trim();
-    for prefix in ["mqtt://", "mqtts://", "tcp://", "ssl://", "ws://", "wss://"] {
+    for prefix in ["mqtt://", "mqtts://", "tcp://", "ssl://"] {
         if let Some(stripped) = url.strip_prefix(prefix) {
             return stripped;
         }
@@ -351,9 +405,48 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let mut client = MqttClient::new();
-            let result = client.disconnect().await;
-            assert!(result.is_ok());
+            client.disconnect().await;
             assert_eq!(client.get_status().await, ConnectionStatus::Disconnected);
+        });
+    }
+
+    #[test]
+    fn test_connect_rejects_websocket_url() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut client = MqttClient::new();
+            for url in ["ws://broker.example.com", "wss://broker.example.com"] {
+                let config = create_test_connection(url, 1883);
+                let result = client.connect(&config).await;
+                assert!(matches!(result, Err(MqttError::WebsocketUnsupported)));
+                assert_eq!(client.get_status().await, ConnectionStatus::Disconnected);
+            }
+        });
+    }
+
+    #[test]
+    fn test_wait_connected_without_connection_fails() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let client = MqttClient::new();
+            let result = client.wait_connected(Duration::from_millis(100)).await;
+            assert!(matches!(result, Err(MqttError::ConnectionFailed)));
+        });
+    }
+
+    #[test]
+    fn test_wait_connected_times_out_while_connecting() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut client = MqttClient::new();
+            let config = create_test_connection("invalid.broker.local", 1883);
+            let _ = client.connect(&config).await;
+            let result = client.wait_connected(Duration::from_millis(200)).await;
+            assert!(matches!(
+                result,
+                Err(MqttError::Timeout) | Err(MqttError::ConnectionFailed)
+            ));
+            client.disconnect().await;
         });
     }
 
@@ -364,16 +457,6 @@ mod tests {
             let client = MqttClient::new();
             let messages = client.get_messages().await;
             assert!(messages.is_empty());
-        });
-    }
-
-    #[test]
-    fn test_subscriptions_empty_initially() {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let client = MqttClient::new();
-            let subs = client.get_subscriptions().await;
-            assert!(subs.is_empty());
         });
     }
 
@@ -401,10 +484,18 @@ mod tests {
             let mut client = MqttClient::new();
             let config = create_test_connection("nonexistent.invalid.host", 1883);
             let _ = client.connect(&config).await;
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            let status = client.get_status().await;
-            assert_eq!(status, ConnectionStatus::Error);
-            let _ = client.disconnect().await;
+            let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+            loop {
+                if client.get_status().await == ConnectionStatus::Error {
+                    break;
+                }
+                assert!(
+                    tokio::time::Instant::now() < deadline,
+                    "status never became Error"
+                );
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+            client.disconnect().await;
         });
     }
 
@@ -415,7 +506,7 @@ mod tests {
             let mut client = MqttClient::new();
             let config = create_test_connection("invalid.broker.local", 1883);
             let _ = client.connect(&config).await;
-            let _ = client.disconnect().await;
+            client.disconnect().await;
             assert_eq!(client.get_status().await, ConnectionStatus::Disconnected);
         });
     }
@@ -430,7 +521,7 @@ mod tests {
             assert!(result1.is_ok());
             let result2 = client.connect(&config).await;
             assert!(result2.is_ok());
-            let _ = client.disconnect().await;
+            client.disconnect().await;
         });
     }
 
@@ -470,11 +561,11 @@ mod tests {
         );
         assert_eq!(
             strip_protocol("ws://broker.example.com"),
-            "broker.example.com"
+            "ws://broker.example.com"
         );
         assert_eq!(
             strip_protocol("wss://broker.example.com"),
-            "broker.example.com"
+            "wss://broker.example.com"
         );
         assert_eq!(strip_protocol("broker.example.com"), "broker.example.com");
         assert_eq!(

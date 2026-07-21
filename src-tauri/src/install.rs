@@ -2,10 +2,11 @@ use serde::Serialize;
 #[cfg(any(unix, windows))]
 use std::path::Path;
 use std::path::PathBuf;
+use thiserror::Error;
 
 pub const CLI_NAME: &str = "topic-lab";
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InstallReport {
     pub path: PathBuf,
@@ -14,28 +15,22 @@ pub struct InstallReport {
     pub already: bool,
 }
 
+#[derive(Error, Debug)]
 pub enum InstallError {
     #[cfg_attr(not(unix), allow(dead_code))]
+    #[error(
+        "permission denied writing to {}.\nRun this in a terminal:\n  sudo ln -sf \"{}\" \"{}\"\nor pick a writable directory (e.g. --path ~/.local/bin).",
+        dir.display(),
+        target.display(),
+        link.display()
+    )]
     Permission {
         dir: PathBuf,
         link: PathBuf,
         target: PathBuf,
     },
+    #[error("{0}")]
     Other(String),
-}
-
-impl InstallError {
-    pub fn message(&self) -> String {
-        match self {
-            InstallError::Permission { dir, link, target } => format!(
-                "permission denied writing to {}.\nRun this in a terminal:\n  sudo ln -sf \"{}\" \"{}\"\nor pick a writable directory (e.g. --path ~/.local/bin).",
-                dir.display(),
-                target.display(),
-                link.display()
-            ),
-            InstallError::Other(s) => s.clone(),
-        }
-    }
 }
 
 pub fn install_for_gui() -> Result<InstallReport, String> {
@@ -46,7 +41,7 @@ pub fn install_for_gui() -> Result<InstallReport, String> {
             if let InstallError::Permission { link, target, .. } = &e {
                 return install_elevated_macos(target, link);
             }
-            Err(e.message())
+            Err(e.to_string())
         }
     }
 }
@@ -128,18 +123,30 @@ pub fn install(dir: Option<PathBuf>, force: bool) -> Result<InstallReport, Insta
 pub fn uninstall(dir: Option<PathBuf>) -> Result<PathBuf, String> {
     let dir = dir.unwrap_or_else(default_bin_dir);
     let link = dir.join(CLI_NAME);
-    if std::fs::symlink_metadata(&link).is_err() {
-        return Err(format!("not installed at {}", link.display()));
+    let meta = std::fs::symlink_metadata(&link)
+        .map_err(|_| format!("not installed at {}", link.display()))?;
+    if !meta.file_type().is_symlink() {
+        return Err(format!(
+            "{} is not a symlink created by `topic-lab install`; refusing to remove it",
+            link.display()
+        ));
     }
     std::fs::remove_file(&link).map_err(|e| format!("cannot remove {}: {e}", link.display()))?;
     Ok(link)
 }
 
 #[cfg(target_os = "macos")]
+fn shell_safe(path: &Path) -> bool {
+    !path
+        .to_string_lossy()
+        .contains(['\'', '"', '\\', '`', '$'])
+}
+
+#[cfg(target_os = "macos")]
 fn install_elevated_macos(target: &Path, link: &Path) -> Result<InstallReport, String> {
     let dir = link.parent().ok_or("invalid install path")?;
-    if [target, link].iter().any(|p| p.to_string_lossy().contains('\'')) {
-        return Err("path contains a single quote; please install manually".into());
+    if ![target, link, dir].iter().all(|p| shell_safe(p)) {
+        return Err("path contains a shell-unsafe character; please install manually".into());
     }
     let script = format!(
         "do shell script \"mkdir -p '{}' && ln -sf '{}' '{}'\" with administrator privileges",
@@ -271,4 +278,83 @@ pub fn install(_dir: Option<PathBuf>, _force: bool) -> Result<InstallReport, Ins
 #[cfg(not(any(unix, windows)))]
 pub fn uninstall(_dir: Option<PathBuf>) -> Result<PathBuf, String> {
     Err("install isn't supported on this platform.".into())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn install_creates_symlink_to_current_exe() {
+        let temp = TempDir::new().unwrap();
+        let report = install(Some(temp.path().to_path_buf()), false).unwrap();
+        assert!(!report.already);
+        assert_eq!(report.path, temp.path().join(CLI_NAME));
+        let target = std::fs::read_link(&report.path).unwrap();
+        assert_eq!(target, report.target);
+    }
+
+    #[test]
+    fn install_twice_reports_already() {
+        let temp = TempDir::new().unwrap();
+        install(Some(temp.path().to_path_buf()), false).unwrap();
+        let report = install(Some(temp.path().to_path_buf()), false).unwrap();
+        assert!(report.already);
+    }
+
+    #[test]
+    fn install_refuses_foreign_file_without_force() {
+        let temp = TempDir::new().unwrap();
+        let link = temp.path().join(CLI_NAME);
+        std::fs::write(&link, "something else").unwrap();
+        let err = install(Some(temp.path().to_path_buf()), false).unwrap_err();
+        assert!(err.to_string().contains("already exists"));
+        assert_eq!(std::fs::read(&link).unwrap(), b"something else");
+    }
+
+    #[test]
+    fn install_force_replaces_existing() {
+        let temp = TempDir::new().unwrap();
+        let link = temp.path().join(CLI_NAME);
+        std::fs::write(&link, "something else").unwrap();
+        let report = install(Some(temp.path().to_path_buf()), true).unwrap();
+        assert!(!report.already);
+        assert!(std::fs::read_link(&link).is_ok());
+    }
+
+    #[test]
+    fn uninstall_removes_installed_symlink() {
+        let temp = TempDir::new().unwrap();
+        install(Some(temp.path().to_path_buf()), false).unwrap();
+        let removed = uninstall(Some(temp.path().to_path_buf())).unwrap();
+        assert!(std::fs::symlink_metadata(&removed).is_err());
+    }
+
+    #[test]
+    fn uninstall_refuses_non_symlink() {
+        let temp = TempDir::new().unwrap();
+        let link = temp.path().join(CLI_NAME);
+        std::fs::write(&link, "unrelated binary").unwrap();
+        let err = uninstall(Some(temp.path().to_path_buf())).unwrap_err();
+        assert!(err.contains("refusing"));
+        assert!(link.exists());
+    }
+
+    #[test]
+    fn uninstall_errors_when_not_installed() {
+        let temp = TempDir::new().unwrap();
+        let err = uninstall(Some(temp.path().to_path_buf())).unwrap_err();
+        assert!(err.contains("not installed"));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn shell_safe_rejects_quote_backslash_and_expansion_chars() {
+        assert!(shell_safe(Path::new("/usr/local/bin/topic-lab")));
+        assert!(shell_safe(Path::new("/Users/name with spaces/bin")));
+        for bad in ["a'b", "a\"b", "a\\b", "a`b", "a$b"] {
+            assert!(!shell_safe(Path::new(bad)), "{bad} should be rejected");
+        }
+    }
 }

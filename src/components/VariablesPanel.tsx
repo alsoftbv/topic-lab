@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { message } from "../utils/dialog";
+import { message } from "@/utils/dialog";
 import { Trash2, Check, X } from "lucide-react";
-import { useApp } from "../contexts/AppContext";
-import { isBuiltinVariable } from "../utils/builtins";
+import { useApp } from "@/contexts/AppContext";
+import { isBuiltinVariable } from "@/utils/builtins";
 import { Editable } from "./Editable";
 
 export function VariablesPanel() {

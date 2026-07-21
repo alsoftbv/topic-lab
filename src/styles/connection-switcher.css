@@ -122,7 +122,7 @@
 }
 
 .connection-option.active {
-    background: rgba(255, 145, 0, 0.1);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .connection-option-name {

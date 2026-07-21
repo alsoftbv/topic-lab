@@ -3,7 +3,20 @@
     --primary-hover: #e68200;
     --success: #16a34a;
     --error: #dc2626;
+    --error-hover: #b91c1c;
     --warning: #f59e0b;
+    --btn-orange: var(--primary);
+    --btn-orange-hover: var(--primary-hover);
+    --btn-green: var(--success);
+    --btn-green-hover: #15803d;
+    --btn-blue: #3b82f6;
+    --btn-blue-hover: #2563eb;
+    --btn-purple: #8b5cf6;
+    --btn-purple-hover: #7c3aed;
+    --btn-red: var(--error);
+    --btn-red-hover: var(--error-hover);
+    --btn-teal: #14b8a6;
+    --btn-teal-hover: #0d9488;
     --bg: #121212;
     --bg-secondary: #1e1e1e;
     --bg-card: #2a2a2a;
@@ -60,6 +73,10 @@ select {
     outline: none;
 }
 
+*:focus-visible {
+    box-shadow: 0 0 0 2px var(--primary);
+}
+
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
@@ -109,7 +126,7 @@ code {
 
 /* Messages */
 .error-message {
-    background: rgba(220, 38, 38, 0.1);
+    background: color-mix(in srgb, var(--error) 10%, transparent);
     border: 1px solid var(--error);
     color: var(--error);
     padding: 0.75rem;

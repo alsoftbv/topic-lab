@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import type { Button, Connection } from "../types";
+import type { Button, Connection } from "@/types";
 
 interface GroupNavItem {
   id: string;
@@ -59,10 +59,20 @@ export function useDashboardKeyboard({
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [copiedButton, setCopiedButton] = useState<Button | null>(null);
-  const [keyboardSentId, setKeyboardSentId] = useState<string | null>(null);
+  const [keyboardSend, setKeyboardSend] = useState<{ id: string; nonce: number } | null>(null);
   const [animatingId, setAnimatingId] = useState<string | null>(null);
 
   const lastColumnRef = useRef(0);
+  const sendNonceRef = useRef(0);
+
+  const triggerSend = (id: string) => {
+    sendNonceRef.current += 1;
+    const nonce = sendNonceRef.current;
+    setKeyboardSend({ id, nonce });
+    window.setTimeout(() => {
+      setKeyboardSend((current) => (current?.nonce === nonce ? null : current));
+    }, 200);
+  };
 
   const refs = useRef({
     activeConnection,
@@ -140,27 +150,22 @@ export function useDashboardKeyboard({
         return;
       }
 
-      // Group header: Enter/Space toggles collapse
       if ((e.key === "Enter" || e.key === " ") && selectedGroupId !== null) {
         e.preventDefault();
         onToggleGroup(selectedGroupId);
         return;
       }
 
-      // Button: Enter/Space sends
       if (
         (e.key === "Enter" || e.key === " ") &&
         selectedIndex !== null &&
         visibleButtons[selectedIndex]
       ) {
         e.preventDefault();
-        const btn = visibleButtons[selectedIndex];
-        setKeyboardSentId(btn.id);
-        setTimeout(() => setKeyboardSentId(null), 200);
+        triggerSend(visibleButtons[selectedIndex].id);
         return;
       }
 
-      // Button: Delete
       if (
         (e.key === "Backspace" || e.key === "Delete") &&
         selectedIndex !== null &&
@@ -171,7 +176,6 @@ export function useDashboardKeyboard({
         return;
       }
 
-      // Arrow navigation
       if (
         e.key === "ArrowDown" ||
         e.key === "ArrowUp" ||
@@ -216,7 +220,6 @@ export function useDashboardKeyboard({
           }
         };
 
-        // Nothing selected → first buttons or first collapsed header
         if (selectedIndex === null && selectedGroupId === null) {
           for (const g of groupNav) {
             if (g.count > 0) {
@@ -230,7 +233,6 @@ export function useDashboardKeyboard({
           return;
         }
 
-        // Group header navigation (only collapsed groups can be selected)
         if (selectedGroupId !== null) {
           const gIdx = groupNav.findIndex((g) => g.id === selectedGroupId);
           const col = lastColumnRef.current;
@@ -239,7 +241,6 @@ export function useDashboardKeyboard({
           return;
         }
 
-        // Button navigation
         const columns = getGridColumns();
 
         if (e.key === "ArrowRight") {
@@ -298,7 +299,6 @@ export function useDashboardKeyboard({
         return;
       }
 
-      // Mod key shortcuts
       const isMod = e.metaKey || e.ctrlKey;
       if (!isMod) return;
 
@@ -339,26 +339,29 @@ export function useDashboardKeyboard({
       const numKey = parseInt(e.key);
       if (!isNaN(numKey) && activeConnection) {
         const buttonIndex = numKey === 0 ? 9 : numKey - 1;
-        if (buttonIndex < activeConnection.buttons.length) {
+        const btn = visibleButtons[buttonIndex];
+        if (btn) {
           e.preventDefault();
-          const btn = activeConnection.buttons[buttonIndex];
-          setKeyboardSentId(btn.id);
-          setTimeout(() => setKeyboardSentId(null), 200);
+          triggerSend(btn.id);
         }
         return;
       }
 
       if (e.key === "c" && selectedIndex !== null && visibleButtons[selectedIndex]) {
-        e.preventDefault();
-        setCopiedButton(visibleButtons[selectedIndex]);
+        if (!window.getSelection()?.toString()) {
+          e.preventDefault();
+          setCopiedButton(visibleButtons[selectedIndex]);
+        }
       } else if (e.key === "v" && copiedButton && activeConnection) {
         e.preventDefault();
         const targetButton = selectedIndex !== null ? visibleButtons[selectedIndex] : null;
-        duplicateButton(copiedButton, targetButton?.id).then((newId) => {
-          if (selectedIndex !== null) setSelectedIndex(selectedIndex + 1);
-          setAnimatingId(newId);
-          setTimeout(() => setAnimatingId(null), 300);
-        });
+        duplicateButton(copiedButton, targetButton?.id)
+          .then((newId) => {
+            if (selectedIndex !== null) setSelectedIndex(selectedIndex + 1);
+            setAnimatingId(newId);
+            setTimeout(() => setAnimatingId(null), 300);
+          })
+          .catch((err) => console.error("Duplicate failed:", err));
       } else if (
         e.key === "d" &&
         selectedIndex !== null &&
@@ -367,11 +370,13 @@ export function useDashboardKeyboard({
       ) {
         e.preventDefault();
         const button = visibleButtons[selectedIndex];
-        duplicateButton(button, button.id).then((newId) => {
-          setSelectedIndex(selectedIndex + 1);
-          setAnimatingId(newId);
-          setTimeout(() => setAnimatingId(null), 300);
-        });
+        duplicateButton(button, button.id)
+          .then((newId) => {
+            setSelectedIndex(selectedIndex + 1);
+            setAnimatingId(newId);
+            setTimeout(() => setAnimatingId(null), 300);
+          })
+          .catch((err) => console.error("Duplicate failed:", err));
       }
     };
 
@@ -384,7 +389,7 @@ export function useDashboardKeyboard({
     setSelectedIndex,
     selectedGroupId,
     setSelectedGroupId,
-    keyboardSentId,
+    keyboardSend,
     animatingId,
     setAnimatingId,
   };

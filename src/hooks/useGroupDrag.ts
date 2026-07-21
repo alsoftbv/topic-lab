@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import type { ButtonGroup, Connection } from "../types";
+import type { ButtonGroup, Connection } from "@/types";
 
 interface UseGroupDragOptions {
   activeConnection: Connection | null;

@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { X } from "lucide-react";
-import type { Connection } from "../types";
-import { useApp } from "../contexts/AppContext";
-import * as api from "../utils/api";
+import type { Connection } from "@/types";
+import { useApp } from "@/contexts/AppContext";
+import { useEscapeClose } from "@/hooks/useEscapeClose";
 
 interface ConnectionEditorProps {
   isNew?: boolean;
@@ -10,7 +10,7 @@ interface ConnectionEditorProps {
 }
 
 export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorProps) {
-  const { activeConnection, addConnection, updateConnection, disconnect } = useApp();
+  const { activeConnection, addConnection, updateConnection, connect, disconnect } = useApp();
 
   const [name, setName] = useState(isNew ? "" : activeConnection?.name || "");
   const [brokerUrl, setBrokerUrl] = useState(isNew ? "" : activeConnection?.broker_url || "");
@@ -68,8 +68,6 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
         };
         await addConnection(newConnection);
       } else if (activeConnection) {
-        await disconnect();
-
         const updated: Connection = {
           ...activeConnection,
           name: name.trim(),
@@ -83,10 +81,12 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
         };
 
         await updateConnection(updated);
-
+        onClose();
+        await disconnect();
         if (autoConnect) {
-          await api.connect(updated);
+          await connect();
         }
+        return;
       }
 
       onClose();
@@ -97,13 +97,7 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
     }
   };
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  useEscapeClose(onClose);
 
   return (
     <div className="modal-overlay">

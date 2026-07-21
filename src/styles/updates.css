@@ -3,7 +3,7 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.625rem 1.5rem;
-    background: rgba(255, 145, 0, 0.12);
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
     border-bottom: 1px solid var(--primary);
     color: var(--text);
     font-size: 0.875rem;
@@ -61,12 +61,6 @@
     cursor: pointer;
 }
 
-.update-autocheck input {
-    width: auto;
-    margin: 0;
-    cursor: pointer;
-}
-
 .update-status-line {
     display: flex;
     align-items: center;
@@ -88,11 +82,5 @@
 }
 
 .update-spin {
-    animation: update-spin 1s linear infinite;
-}
-
-@keyframes update-spin {
-    to {
-        transform: rotate(360deg);
-    }
+    animation: spin 1s linear infinite;
 }
