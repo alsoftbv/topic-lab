@@ -137,6 +137,23 @@
     color: var(--error);
 }
 
+.variable-delete-confirm {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+.variable-delete-confirm span {
+    font-size: 0.75rem;
+    color: var(--error);
+    white-space: nowrap;
+}
+
+.variable-delete-yes {
+    color: var(--error);
+}
+
 .add-variable-form {
     display: flex;
     gap: 0.5rem;

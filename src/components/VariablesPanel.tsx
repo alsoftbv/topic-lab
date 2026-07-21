@@ -14,8 +14,10 @@ export function VariablesPanel() {
     field: "key" | "value";
   } | null>(null);
   const [historyOpen, setHistoryOpen] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const editRef = useRef<HTMLElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
+  const confirmDeleteRef = useRef<HTMLDivElement>(null);
   const savingRef = useRef(false);
 
   const variables = activeConnection?.variables || {};
@@ -31,6 +33,21 @@ export function VariablesPanel() {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [historyOpen]);
+
+  useEffect(() => {
+    if (!confirmingDelete) return;
+    function handleClick(e: MouseEvent) {
+      if (confirmDeleteRef.current && !confirmDeleteRef.current.contains(e.target as Node)) {
+        setConfirmingDelete(null);
+      }
+    }
+    const timer = setTimeout(() => setConfirmingDelete(null), 5000);
+    document.addEventListener("mousedown", handleClick);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("mousedown", handleClick);
+    };
+  }, [confirmingDelete]);
 
   const handleHistorySelect = async (key: string, value: string) => {
     setHistoryOpen(null);
@@ -192,6 +209,7 @@ export function VariablesPanel() {
   };
 
   const handleDelete = async (key: string) => {
+    setConfirmingDelete(null);
     const updated = { ...variables };
     delete updated[key];
     await updateVariables(updated);
@@ -289,6 +307,7 @@ export function VariablesPanel() {
             </div>
             {isEditing(key, "value") ? (
               <button
+                key="save"
                 className="inline-edit-save"
                 onMouseDown={(e) => {
                   e.preventDefault();
@@ -298,8 +317,31 @@ export function VariablesPanel() {
               >
                 <Check size={16} />
               </button>
+            ) : confirmingDelete === key ? (
+              <div key="confirm" className="variable-delete-confirm" ref={confirmDeleteRef}>
+                <span>Really delete?</span>
+                <button
+                  className="btn-icon variable-delete-yes"
+                  onClick={() => handleDelete(key)}
+                  title="Delete variable"
+                >
+                  <Check size={16} />
+                </button>
+                <button
+                  className="btn-icon"
+                  onClick={() => setConfirmingDelete(null)}
+                  title="Cancel"
+                >
+                  <X size={16} />
+                </button>
+              </div>
             ) : !isEditing(key, "key") ? (
-              <button className="btn-icon" onClick={() => handleDelete(key)} title="Delete">
+              <button
+                key="delete"
+                className="btn-icon"
+                onClick={() => setConfirmingDelete(key)}
+                title="Delete"
+              >
                 <Trash2 size={16} />
               </button>
             ) : null}
