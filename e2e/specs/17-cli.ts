@@ -9,13 +9,35 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const binaryName = process.platform === "win32" ? "mqtt-topic-lab.exe" : "mqtt-topic-lab";
 const binaryPath = path.resolve(here, "..", "..", "src-tauri", "target", "debug", binaryName);
 
-function cli(args: string[], dataDir?: string) {
+function cli(args: string[], dataDir?: string, extraEnv?: Record<string, string>) {
   return spawnSync(binaryPath, args, {
     encoding: "utf-8",
     timeout: 20000,
-    env: { ...process.env, ...(dataDir ? { MQTT_TOPIC_LAB_DATA_DIR: dataDir } : {}) },
+    env: {
+      ...process.env,
+      ...(dataDir ? { MQTT_TOPIC_LAB_DATA_DIR: dataDir } : {}),
+      ...extraEnv,
+    },
   });
 }
+
+function canWrite(p: string) {
+  try {
+    fs.accessSync(p, fs.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const isUnix = process.platform !== "win32";
+const isRoot = isUnix && typeof process.getuid === "function" && process.getuid() === 0;
+const usrLocalWritable =
+  canWrite("/usr/local/bin") || (!fs.existsSync("/usr/local/bin") && canWrite("/usr/local"));
+
+const unixIt = isUnix ? it : it.skip;
+const nonRootIt = isUnix && !isRoot ? it : it.skip;
+const fallbackIt = isUnix && !usrLocalWritable ? it : it.skip;
 
 describe("CLI", () => {
   let tmpDir: string;
@@ -219,5 +241,99 @@ describe("CLI", () => {
     });
     expect(viaLink.status).toBe(0);
     expect(JSON.parse(viaLink.stdout).some((c: any) => c.name === "cli")).toBe(true);
+  });
+
+  unixIt("installs to ~/.local/bin by default when it is on the PATH, and uninstalls from it", () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "tlab-home-"));
+    const localBin = path.join(home, ".local", "bin");
+    const env = { HOME: home, PATH: `${localBin}:/usr/bin:/bin` };
+    try {
+      const r = cli(["install", "--json"], undefined, env);
+      expect(r.status).toBe(0);
+      const report = JSON.parse(r.stdout);
+      expect(report.path).toBe(path.join(localBin, "topic-lab"));
+      expect(report.onPath).toBe(true);
+      expect(fs.lstatSync(report.path).isSymbolicLink()).toBe(true);
+
+      const un = cli(["uninstall"], undefined, env);
+      expect(un.status).toBe(0);
+      expect(fs.existsSync(report.path)).toBe(false);
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  unixIt("reports an install found elsewhere on the PATH instead of duplicating it", () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "tlab-home-"));
+    const other = fs.mkdtempSync(path.join(os.tmpdir(), "tlab-other-"));
+    const env = { HOME: home, PATH: `${other}:/usr/bin:/bin` };
+    try {
+      expect(cli(["install", "--path", other]).status).toBe(0);
+
+      const r = cli(["install", "--json"], undefined, env);
+      expect(r.status).toBe(0);
+      const report = JSON.parse(r.stdout);
+      expect(report.already).toBe(true);
+      expect(report.path).toBe(path.join(other, "topic-lab"));
+      expect(fs.existsSync(path.join(home, ".local", "bin", "topic-lab"))).toBe(false);
+
+      const un = cli(["uninstall"], undefined, env);
+      expect(un.status).toBe(0);
+      expect(fs.existsSync(path.join(other, "topic-lab"))).toBe(false);
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+      fs.rmSync(other, { recursive: true, force: true });
+    }
+  });
+
+  unixIt("refuses to install when a different topic-lab is on the PATH, unless forced", () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "tlab-home-"));
+    const foreign = fs.mkdtempSync(path.join(os.tmpdir(), "tlab-foreign-"));
+    const localBin = path.join(home, ".local", "bin");
+    const env = { HOME: home, PATH: `${localBin}:${foreign}:/usr/bin:/bin` };
+    try {
+      fs.writeFileSync(path.join(foreign, "topic-lab"), "#!/bin/sh\n", { mode: 0o755 });
+
+      const r = cli(["install"], undefined, env);
+      expect(r.status).not.toBe(0);
+      expect(r.stderr).toContain("already on your PATH");
+      expect(r.stderr).toContain(path.join(foreign, "topic-lab"));
+      expect(r.stderr).toContain("--force");
+
+      const forced = cli(["install", "--force", "--json"], undefined, env);
+      expect(forced.status).toBe(0);
+      expect(JSON.parse(forced.stdout).path).toBe(path.join(localBin, "topic-lab"));
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+      fs.rmSync(foreign, { recursive: true, force: true });
+    }
+  });
+
+  fallbackIt("defaults to /usr/local/bin when ~/.local/bin is not on the PATH", () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "tlab-home-"));
+    try {
+      const r = cli(["install"], undefined, { HOME: home, PATH: "/usr/bin:/bin" });
+      expect(r.status).not.toBe(0);
+      expect(r.stderr).toContain("permission denied writing to /usr/local/bin");
+      expect(r.stderr).toContain("sudo");
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  nonRootIt("prints an actionable permission error for an unwritable --path", () => {
+    const readOnly = fs.mkdtempSync(path.join(os.tmpdir(), "tlab-ro-"));
+    const target = path.join(readOnly, "bin");
+    try {
+      fs.chmodSync(readOnly, 0o555);
+      const r = cli(["install", "--path", target]);
+      expect(r.status).not.toBe(0);
+      expect(r.stderr).toContain(`permission denied writing to ${target}`);
+      expect(r.stderr).toContain(`sudo "${fs.realpathSync(binaryPath)}" install --path "${target}"`);
+      expect(r.stderr).toContain("install --path ~/.local/bin");
+    } finally {
+      fs.chmodSync(readOnly, 0o755);
+      fs.rmSync(readOnly, { recursive: true, force: true });
+    }
   });
 });

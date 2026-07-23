@@ -29,6 +29,17 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const FLUSH_GRACE: Duration = Duration::from_millis(300);
 const MAX_VARIABLE_HISTORY: usize = 5;
 
+#[cfg(not(windows))]
+const INSTALL_DIR_HELP: &str =
+    "Directory to install into (default: ~/.local/bin if it's on your PATH, else /usr/local/bin)";
+#[cfg(windows)]
+const INSTALL_DIR_HELP: &str = "Directory to install into (default: %LOCALAPPDATA%\\topic-lab\\bin)";
+#[cfg(not(windows))]
+const UNINSTALL_DIR_HELP: &str =
+    "Directory to remove from (default: finds the install in ~/.local/bin, /usr/local/bin, or on your PATH)";
+#[cfg(windows)]
+const UNINSTALL_DIR_HELP: &str = "Directory to remove from (default: %LOCALAPPDATA%\\topic-lab\\bin)";
+
 pub fn is_cli_invocation() -> bool {
     match std::env::args().nth(1) {
         Some(first) => {
@@ -125,8 +136,7 @@ enum Command {
     },
     /// Symlink this executable onto your PATH as `topic-lab`
     Install {
-        /// Directory to install into (default: /usr/local/bin)
-        #[arg(long)]
+        #[arg(long, help = INSTALL_DIR_HELP)]
         path: Option<PathBuf>,
         /// Replace an existing `topic-lab` if one is already there
         #[arg(long)]
@@ -134,8 +144,7 @@ enum Command {
     },
     /// Remove the `topic-lab` symlink created by `install`
     Uninstall {
-        /// Directory to remove from (default: /usr/local/bin)
-        #[arg(long)]
+        #[arg(long, help = UNINSTALL_DIR_HELP)]
         path: Option<PathBuf>,
     },
     /// Print this CLI's agent skill to stdout

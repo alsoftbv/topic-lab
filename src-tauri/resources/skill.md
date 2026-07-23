@@ -20,10 +20,10 @@ The CLI is one binary named `mqtt-topic-lab`, run with a subcommand. Use whichev
 - In this repository after a build: `./src-tauri/target/release/mqtt-topic-lab <command>` (or `target/debug/...`).
 - From source during development: `cargo run --manifest-path src-tauri/Cargo.toml --bin mqtt-topic-lab -- <command>`.
 
-To put `topic-lab` on your PATH permanently, run the binary's `install` subcommand once (`uninstall` removes it). On Unix it symlinks the executable into `/usr/local/bin` (override with `--path`); on Windows it adds a `topic-lab.cmd` shim to your user `PATH`:
+To put `topic-lab` on your PATH permanently, run the binary's `install` subcommand once (`uninstall` removes it). On Unix it symlinks the executable into `~/.local/bin` if that's on your PATH, otherwise `/usr/local/bin` (override with `--path`); if a `topic-lab` already exists elsewhere on your PATH, it reports it instead of installing a duplicate. On Windows it adds a `topic-lab.cmd` shim to your user `PATH`:
 ```
 "/Applications/MQTT Topic Lab.app/Contents/MacOS/mqtt-topic-lab" install
-# Unix, if /usr/local/bin isn't writable:
+# Unix, to pick the directory yourself:
 "/Applications/MQTT Topic Lab.app/Contents/MacOS/mqtt-topic-lab" install --path ~/.local/bin
 ```
 (The desktop app's Preferences → Command Line also has an **Install** / **Add to PATH** button.) Otherwise, alias it: `alias topic-lab="/Applications/MQTT Topic Lab.app/Contents/MacOS/mqtt-topic-lab"`. Examples below use `topic-lab`.

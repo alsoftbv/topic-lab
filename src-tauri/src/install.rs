@@ -19,10 +19,15 @@ pub struct InstallReport {
 pub enum InstallError {
     #[cfg_attr(not(unix), allow(dead_code))]
     #[error(
-        "permission denied writing to {}.\nRun this in a terminal:\n  sudo ln -sf \"{}\" \"{}\"\nor pick a writable directory (e.g. --path ~/.local/bin).",
+        "permission denied writing to {}\n\n\
+        To install there with administrator access, run:\n\n  \
+        sudo \"{}\" install --path \"{}\"\n\n\
+        Or pick a directory you can write to:\n\n  \
+        \"{}\" install --path ~/.local/bin",
         dir.display(),
         target.display(),
-        link.display()
+        dir.display(),
+        target.display()
     )]
     Permission {
         dir: PathBuf,
@@ -41,14 +46,29 @@ pub fn install_for_gui() -> Result<InstallReport, String> {
             if let InstallError::Permission { link, target, .. } = &e {
                 return install_elevated_macos(target, link);
             }
+            #[cfg(all(unix, not(target_os = "macos")))]
+            if let InstallError::Permission { link, target, .. } = &e {
+                return install_elevated_linux(target, link);
+            }
             Err(e.to_string())
         }
     }
 }
 
 #[cfg(unix)]
-pub fn default_bin_dir() -> PathBuf {
+fn preferred_bin_dir(home: Option<PathBuf>, path_var: Option<&std::ffi::OsStr>) -> PathBuf {
+    if let (Some(home), Some(paths)) = (home, path_var) {
+        let local = home.join(".local").join("bin");
+        if std::env::split_paths(paths).any(|p| p == local) {
+            return local;
+        }
+    }
     PathBuf::from("/usr/local/bin")
+}
+
+#[cfg(unix)]
+pub fn default_bin_dir() -> PathBuf {
+    preferred_bin_dir(dirs::home_dir(), std::env::var_os("PATH").as_deref())
 }
 
 #[cfg(unix)]
@@ -59,12 +79,47 @@ pub fn dir_on_path(dir: &Path) -> bool {
 }
 
 #[cfg(unix)]
+fn existing_on_path(path_var: Option<&std::ffi::OsStr>) -> Option<PathBuf> {
+    let paths = path_var?;
+    std::env::split_paths(paths)
+        .filter(|p| !p.as_os_str().is_empty())
+        .map(|p| p.join(CLI_NAME))
+        .find(|link| std::fs::symlink_metadata(link).is_ok())
+}
+
+#[cfg(unix)]
 pub fn install(dir: Option<PathBuf>, force: bool) -> Result<InstallReport, InstallError> {
     let target = std::env::current_exe()
         .map_err(|e| InstallError::Other(format!("cannot resolve executable: {e}")))?;
     let target = target.canonicalize().unwrap_or(target);
+    let explicit = dir.is_some();
     let dir = dir.unwrap_or_else(default_bin_dir);
     let link = dir.join(CLI_NAME);
+
+    if !explicit {
+        if let Some(existing) = existing_on_path(std::env::var_os("PATH").as_deref()) {
+            if existing != link {
+                if std::fs::canonicalize(&existing).ok().as_deref() == Some(&target) {
+                    return Ok(InstallReport {
+                        path: existing,
+                        target,
+                        on_path: true,
+                        already: true,
+                    });
+                }
+                if !force {
+                    return Err(InstallError::Other(format!(
+                        "a different `topic-lab` is already on your PATH at {}\n\n\
+                        To replace it, run:\n\n  \
+                        \"{}\" install --path \"{}\" --force",
+                        existing.display(),
+                        target.display(),
+                        existing.parent().unwrap_or(Path::new("/")).display()
+                    )));
+                }
+            }
+        }
+    }
 
     if !dir.exists() {
         std::fs::create_dir_all(&dir).map_err(|e| {
@@ -121,9 +176,81 @@ pub fn install(dir: Option<PathBuf>, force: bool) -> Result<InstallReport, Insta
 
 #[cfg(unix)]
 pub fn uninstall(dir: Option<PathBuf>) -> Result<PathBuf, String> {
-    let dir = dir.unwrap_or_else(default_bin_dir);
-    let link = dir.join(CLI_NAME);
-    let meta = std::fs::symlink_metadata(&link)
+    match dir {
+        Some(d) => remove_installed_link(&d.join(CLI_NAME)),
+        None => {
+            let mut defaults: Vec<PathBuf> = dirs::home_dir()
+                .map(|h| vec![h.join(".local").join("bin")])
+                .unwrap_or_default();
+            defaults.push(PathBuf::from("/usr/local/bin"));
+            let target = std::env::current_exe()
+                .ok()
+                .map(|t| t.canonicalize().unwrap_or(t));
+            uninstall_search(
+                &defaults,
+                std::env::var_os("PATH").as_deref(),
+                target.as_deref(),
+            )
+        }
+    }
+}
+
+#[cfg(unix)]
+fn uninstall_search(
+    defaults: &[PathBuf],
+    path_var: Option<&std::ffi::OsStr>,
+    target: Option<&Path>,
+) -> Result<PathBuf, String> {
+    let mut candidates = defaults.to_vec();
+    if let Some(paths) = path_var {
+        for p in std::env::split_paths(paths) {
+            if !p.as_os_str().is_empty() && !candidates.contains(&p) {
+                candidates.push(p);
+            }
+        }
+    }
+
+    if let Some(target) = target {
+        for dir in &candidates {
+            let link = dir.join(CLI_NAME);
+            let Ok(meta) = std::fs::symlink_metadata(&link) else {
+                continue;
+            };
+            if meta.file_type().is_symlink()
+                && std::fs::canonicalize(&link).ok().as_deref() == Some(target)
+            {
+                return remove_installed_link(&link);
+            }
+        }
+    }
+
+    for dir in defaults {
+        let link = dir.join(CLI_NAME);
+        let Ok(meta) = std::fs::symlink_metadata(&link) else {
+            continue;
+        };
+        if meta.file_type().is_symlink() {
+            return remove_installed_link(&link);
+        }
+        return Err(format!(
+            "{} is not a symlink created by `topic-lab install`; refusing to remove it",
+            link.display()
+        ));
+    }
+
+    Err(format!(
+        "not installed (checked {} and the directories on your PATH)",
+        defaults
+            .iter()
+            .map(|d| d.join(CLI_NAME).display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    ))
+}
+
+#[cfg(unix)]
+fn remove_installed_link(link: &Path) -> Result<PathBuf, String> {
+    let meta = std::fs::symlink_metadata(link)
         .map_err(|_| format!("not installed at {}", link.display()))?;
     if !meta.file_type().is_symlink() {
         return Err(format!(
@@ -131,15 +258,64 @@ pub fn uninstall(dir: Option<PathBuf>) -> Result<PathBuf, String> {
             link.display()
         ));
     }
-    std::fs::remove_file(&link).map_err(|e| format!("cannot remove {}: {e}", link.display()))?;
-    Ok(link)
+    std::fs::remove_file(link).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::PermissionDenied {
+            format!(
+                "permission denied removing {}\n\nRun this in a terminal:\n\n  sudo rm \"{}\"",
+                link.display(),
+                link.display()
+            )
+        } else {
+            format!("cannot remove {}: {e}", link.display())
+        }
+    })?;
+    Ok(link.to_path_buf())
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 fn shell_safe(path: &Path) -> bool {
     !path
         .to_string_lossy()
         .contains(['\'', '"', '\\', '`', '$'])
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn install_elevated_linux(target: &Path, link: &Path) -> Result<InstallReport, String> {
+    let dir = link.parent().ok_or("invalid install path")?;
+    let manual = format!(
+        "Administrator access is required to install to {}.\n\nRun this in a terminal:\n\n  sudo ln -sf \"{}\" \"{}\"",
+        dir.display(),
+        target.display(),
+        link.display()
+    );
+    if ![target, link, dir].iter().all(|p| shell_safe(p)) {
+        return Err(manual);
+    }
+    let script = format!(
+        "mkdir -p '{}' && ln -sf '{}' '{}'",
+        dir.display(),
+        target.display(),
+        link.display()
+    );
+    let output = match std::process::Command::new("pkexec")
+        .args(["sh", "-c", &script])
+        .output()
+    {
+        Ok(output) => output,
+        Err(_) => return Err(manual),
+    };
+    if output.status.success() {
+        return Ok(InstallReport {
+            path: link.to_path_buf(),
+            target: target.to_path_buf(),
+            on_path: dir_on_path(dir),
+            already: false,
+        });
+    }
+    if output.status.code() == Some(126) {
+        return Err("installation cancelled".into());
+    }
+    Err(manual)
 }
 
 #[cfg(target_os = "macos")]
@@ -348,7 +524,6 @@ mod tests {
         assert!(err.contains("not installed"));
     }
 
-    #[cfg(target_os = "macos")]
     #[test]
     fn shell_safe_rejects_quote_backslash_and_expansion_chars() {
         assert!(shell_safe(Path::new("/usr/local/bin/topic-lab")));
@@ -356,5 +531,96 @@ mod tests {
         for bad in ["a'b", "a\"b", "a\\b", "a`b", "a$b"] {
             assert!(!shell_safe(Path::new(bad)), "{bad} should be rejected");
         }
+    }
+
+    #[test]
+    fn preferred_bin_dir_picks_local_bin_when_on_path() {
+        let home = PathBuf::from("/home/user");
+        let local = home.join(".local").join("bin");
+        let paths = std::env::join_paths([PathBuf::from("/usr/bin"), local.clone()]).unwrap();
+        assert_eq!(preferred_bin_dir(Some(home), Some(&paths)), local);
+    }
+
+    #[test]
+    fn preferred_bin_dir_falls_back_to_usr_local_bin() {
+        let home = PathBuf::from("/home/user");
+        let paths = std::env::join_paths([PathBuf::from("/usr/bin")]).unwrap();
+        let fallback = PathBuf::from("/usr/local/bin");
+        assert_eq!(preferred_bin_dir(Some(home), Some(&paths)), fallback);
+        assert_eq!(preferred_bin_dir(None, None), fallback);
+    }
+
+    #[test]
+    fn existing_on_path_finds_first_entry() {
+        let empty = TempDir::new().unwrap();
+        let occupied = TempDir::new().unwrap();
+        std::fs::write(occupied.path().join(CLI_NAME), "x").unwrap();
+        let paths = std::env::join_paths([empty.path(), occupied.path()]).unwrap();
+        assert_eq!(
+            existing_on_path(Some(&paths)),
+            Some(occupied.path().join(CLI_NAME))
+        );
+        let none = std::env::join_paths([empty.path()]).unwrap();
+        assert_eq!(existing_on_path(Some(&none)), None);
+        assert_eq!(existing_on_path(None), None);
+    }
+
+    #[test]
+    fn uninstall_search_removes_our_install_found_via_path() {
+        let default_dir = TempDir::new().unwrap();
+        let custom = TempDir::new().unwrap();
+        let report = install(Some(custom.path().to_path_buf()), false).unwrap();
+        let paths = std::env::join_paths([custom.path()]).unwrap();
+        let removed = uninstall_search(
+            &[default_dir.path().to_path_buf()],
+            Some(&paths),
+            Some(&report.target),
+        )
+        .unwrap();
+        assert_eq!(removed, custom.path().join(CLI_NAME));
+        assert!(std::fs::symlink_metadata(&removed).is_err());
+    }
+
+    #[test]
+    fn uninstall_search_falls_back_to_stale_symlink_in_defaults() {
+        let default_dir = TempDir::new().unwrap();
+        let link = default_dir.path().join(CLI_NAME);
+        std::os::unix::fs::symlink("/nonexistent/old-app", &link).unwrap();
+        let removed = uninstall_search(
+            &[default_dir.path().to_path_buf()],
+            None,
+            Some(Path::new("/current/exe")),
+        )
+        .unwrap();
+        assert_eq!(removed, link);
+    }
+
+    #[test]
+    fn uninstall_search_leaves_foreign_topic_lab_on_path_alone() {
+        let default_dir = TempDir::new().unwrap();
+        let foreign = TempDir::new().unwrap();
+        std::fs::write(foreign.path().join(CLI_NAME), "other tool").unwrap();
+        let paths = std::env::join_paths([foreign.path()]).unwrap();
+        let err = uninstall_search(
+            &[default_dir.path().to_path_buf()],
+            Some(&paths),
+            Some(Path::new("/current/exe")),
+        )
+        .unwrap_err();
+        assert!(err.contains("not installed"));
+        assert!(foreign.path().join(CLI_NAME).exists());
+    }
+
+    #[test]
+    fn permission_error_suggests_sudo_and_writable_dir() {
+        let err = InstallError::Permission {
+            dir: PathBuf::from("/usr/local/bin"),
+            link: PathBuf::from("/usr/local/bin/topic-lab"),
+            target: PathBuf::from("/usr/bin/mqtt-topic-lab"),
+        };
+        let msg = err.to_string();
+        assert!(msg.starts_with("permission denied writing to /usr/local/bin"));
+        assert!(msg.contains("sudo \"/usr/bin/mqtt-topic-lab\" install --path \"/usr/local/bin\""));
+        assert!(msg.contains("install --path ~/.local/bin"));
     }
 }
