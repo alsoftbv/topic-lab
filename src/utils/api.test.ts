@@ -30,6 +30,7 @@ const mockConnection: Connection = {
   use_tls: false,
   auto_connect: true,
   variables: { device_id: "abc123" },
+  variable_history: { device_id: ["old-value", "older-value"] },
   buttons: [
     {
       id: "btn-1",
@@ -92,6 +93,17 @@ describe("exportConnection", () => {
     const writtenData = JSON.parse(vi.mocked(writeTextFile).mock.calls[0][1] as string);
     expect(writtenData).not.toHaveProperty("password");
     expect(writtenData.username).toBe("test-user");
+  });
+
+  it("should strip the variable history but keep the variables", async () => {
+    vi.mocked(save).mockResolvedValue("/path/to/file.json");
+    vi.mocked(writeTextFile).mockResolvedValue(undefined);
+
+    await exportConnection(mockConnection);
+
+    const writtenData = JSON.parse(vi.mocked(writeTextFile).mock.calls[0][1] as string);
+    expect(writtenData).not.toHaveProperty("variable_history");
+    expect(writtenData.variables).toEqual({ device_id: "abc123" });
   });
 
   it("should use connection name as default filename", async () => {
@@ -264,6 +276,29 @@ describe("importConnection", () => {
   });
 });
 
+describe("importConnection variable history", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should drop variable_history from imported files", async () => {
+    vi.mocked(open).mockResolvedValue("/path/to/file.json");
+    vi.mocked(readTextFile).mockResolvedValue(
+      JSON.stringify({
+        name: "Imported",
+        broker_url: "broker.example.com",
+        port: 1883,
+        variable_history: { device_id: ["stale"] },
+      })
+    );
+
+    const imported = await importConnection();
+
+    expect(imported).not.toBeNull();
+    expect(imported).not.toHaveProperty("variable_history");
+  });
+});
+
 describe("export/import roundtrip", () => {
   it("should preserve all data except id through export/import", async () => {
     let exportedContent = "";
@@ -282,6 +317,7 @@ describe("export/import roundtrip", () => {
 
     expect(imported).not.toHaveProperty("id");
     expect(imported).not.toHaveProperty("password");
+    expect(imported).not.toHaveProperty("variable_history");
     expect(imported?.name).toBe(mockConnection.name);
     expect(imported?.broker_url).toBe(mockConnection.broker_url);
     expect(imported?.port).toBe(mockConnection.port);

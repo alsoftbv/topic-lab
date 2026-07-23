@@ -83,7 +83,7 @@ export async function exportConnection(connection: Connection): Promise<boolean>
 
   if (!filePath) return false;
 
-  const { id, client_id, password, ...exportData } = connection;
+  const { id, client_id, password, variable_history, ...exportData } = connection;
   await writeTextFile(filePath, JSON.stringify(exportData, null, 2));
   return true;
 }
@@ -122,7 +122,7 @@ export async function importConnection(): Promise<Omit<Connection, "id"> | null>
     throw new Error("Invalid connection file: expected name, broker_url, and port");
   }
 
-  const data = parsed as unknown as Omit<Connection, "id">;
+  const { variable_history, ...data } = parsed as unknown as Omit<Connection, "id">;
   return {
     ...data,
     client_id: `mqtt-topic-lab-${Math.random().toString(36).slice(2, 8)}`,
