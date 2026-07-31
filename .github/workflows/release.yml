@@ -169,20 +169,29 @@ jobs:
           NAME="${{ matrix.name }}"
           KEY="${{ matrix.updater_key }}"
           mkdir -p updater
+          frag() {
+            jq -n \
+              --arg key "$1" \
+              --arg sig "$(cat "$2")" \
+              --arg url "https://github.com/alsoftbv/topic-lab/releases/download/${VERSION}/$3" \
+              '{($key): {signature: $sig, url: $url}}' > "updater/frag-$1.json"
+          }
           if [ "${{ matrix.platform }}" = "macos-latest" ]; then
             SRC=$(ls src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz)
             OUT="MQTT-Topic-Lab-${VERSION}-${NAME}.app.tar.gz"
             cp "$SRC" "updater/$OUT"
-            SIG="${SRC}.sig"
+            frag "$KEY" "${SRC}.sig" "$OUT"
           else
-            OUT="MQTT-Topic-Lab-${VERSION}-${NAME}.AppImage"
-            SIG=$(ls src-tauri/target/release/bundle/appimage/*.AppImage.sig)
+            frag "$KEY" \
+              "$(ls src-tauri/target/release/bundle/appimage/*.AppImage.sig)" \
+              "MQTT-Topic-Lab-${VERSION}-${NAME}.AppImage"
+            frag "${KEY}-deb" \
+              "$(ls src-tauri/target/release/bundle/deb/*.deb.sig)" \
+              "MQTT-Topic-Lab-${VERSION}-${NAME}.deb"
+            frag "${KEY}-rpm" \
+              "$(ls src-tauri/target/release/bundle/rpm/*.rpm.sig)" \
+              "MQTT-Topic-Lab-${VERSION}-${NAME}.rpm"
           fi
-          jq -n \
-            --arg key "$KEY" \
-            --arg sig "$(cat "$SIG")" \
-            --arg url "https://github.com/alsoftbv/topic-lab/releases/download/${VERSION}/${OUT}" \
-            '{($key): {signature: $sig, url: $url}}' > "updater/frag-${NAME}.json"
 
       - name: Collect updater artifact (Windows)
         if: matrix.platform == 'windows-latest'

@@ -20,6 +20,7 @@ export interface Updater {
   update: Update | null;
   currentVersion: string;
   error: string | null;
+  errorSource: "check" | "install" | null;
   progress: number;
   autoCheck: boolean;
   showOptIn: boolean;
@@ -38,6 +39,7 @@ export function useUpdater(): Updater {
   const [update, setUpdate] = useState<Update | null>(null);
   const [currentVersion, setCurrentVersion] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [errorSource, setErrorSource] = useState<"check" | "install" | null>(null);
   const [progress, setProgress] = useState(0);
   const [showOptIn, setShowOptIn] = useState(false);
   const didInit = useRef(false);
@@ -45,6 +47,7 @@ export function useUpdater(): Updater {
   async function check() {
     setStatus("checking");
     setError(null);
+    setErrorSource(null);
     try {
       const result = await checkForUpdate();
       if (result) {
@@ -56,6 +59,7 @@ export function useUpdater(): Updater {
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      setErrorSource("check");
       setStatus("error");
     }
   }
@@ -65,10 +69,12 @@ export function useUpdater(): Updater {
     setStatus("downloading");
     setProgress(0);
     setError(null);
+    setErrorSource(null);
     try {
       await downloadAndInstall(update, setProgress);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      setErrorSource("install");
       setStatus("error");
     }
   }
@@ -85,6 +91,8 @@ export function useUpdater(): Updater {
 
   function dismiss() {
     setStatus("idle");
+    setError(null);
+    setErrorSource(null);
   }
 
   useEffect(() => {
@@ -106,6 +114,7 @@ export function useUpdater(): Updater {
     update,
     currentVersion,
     error,
+    errorSource,
     progress,
     autoCheck: autoCheckPref === true,
     showOptIn,

@@ -1,6 +1,6 @@
 [package]
 name = "mqtt-topic-lab"
-version = "0.2.3"
+version = "0.2.4"
 description = "MQTT Topic Lab - Send saved commands via buttons"
 authors = ["Altuğ Bakan <altugbakan@gmail.com>"]
 edition = "2021"

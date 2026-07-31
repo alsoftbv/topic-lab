@@ -116,6 +116,7 @@ describe("useUpdater check", () => {
     });
     expect(result.current.status).toBe("error");
     expect(result.current.error).toBe("network down");
+    expect(result.current.errorSource).toBe("check");
 
     unmount();
   });
@@ -165,6 +166,30 @@ describe("useUpdater install", () => {
     });
     expect(result.current.status).toBe("error");
     expect(result.current.error).toBe("disk full");
+    expect(result.current.errorSource).toBe("install");
+
+    unmount();
+  });
+
+  it("keeps the update so a failed install can be retried", async () => {
+    mockApp({ autoCheckUpdates: false });
+    vi.mocked(checkForUpdate).mockResolvedValue(fakeUpdate);
+    vi.mocked(downloadAndInstall).mockRejectedValueOnce(new Error("disk full"));
+    const { result, unmount } = renderHook(() => useUpdater());
+
+    await act(async () => {
+      await result.current.check();
+    });
+    await act(async () => {
+      await result.current.install();
+    });
+    expect(result.current.update).toBe(fakeUpdate);
+    await act(async () => {
+      await result.current.install();
+    });
+    expect(result.current.status).toBe("downloading");
+    expect(result.current.error).toBeNull();
+    expect(result.current.errorSource).toBeNull();
 
     unmount();
   });
@@ -214,6 +239,29 @@ describe("useUpdater opt-in and dismissal", () => {
       result.current.dismiss();
     });
     expect(result.current.status).toBe("idle");
+
+    unmount();
+  });
+
+  it("dismiss clears a pending error", async () => {
+    mockApp({ autoCheckUpdates: false });
+    vi.mocked(checkForUpdate).mockResolvedValue(fakeUpdate);
+    vi.mocked(downloadAndInstall).mockRejectedValue(new Error("disk full"));
+    const { result, unmount } = renderHook(() => useUpdater());
+
+    await act(async () => {
+      await result.current.check();
+    });
+    await act(async () => {
+      await result.current.install();
+    });
+    expect(result.current.errorSource).toBe("install");
+    act(() => {
+      result.current.dismiss();
+    });
+    expect(result.current.status).toBe("idle");
+    expect(result.current.error).toBeNull();
+    expect(result.current.errorSource).toBeNull();
 
     unmount();
   });

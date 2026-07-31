@@ -33,8 +33,26 @@ export function UpdateOptInModal({ updater }: { updater: Updater }) {
 }
 
 export function UpdateBanner({ updater }: { updater: Updater }) {
-  const { status, update, progress } = updater;
-  if (status !== "available" && status !== "downloading") return null;
+  const { status, update, progress, error, errorSource } = updater;
+  const installFailed = status === "error" && errorSource === "install";
+  if (status !== "available" && status !== "downloading" && !installFailed) return null;
+
+  if (installFailed) {
+    return (
+      <div className="update-banner update-banner-error">
+        <AlertCircle size={16} />
+        <span>Update failed: {error ?? "unknown error"}</span>
+        <div className="update-banner-actions">
+          <button className="btn btn-small" onClick={() => updater.install()}>
+            Retry
+          </button>
+          <button className="btn-icon" title="Dismiss" onClick={() => updater.dismiss()}>
+            <X size={16} />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (status === "downloading") {
     return (

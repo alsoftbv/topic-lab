@@ -9,6 +9,11 @@
     font-size: 0.875rem;
 }
 
+.update-banner-error {
+    background: color-mix(in srgb, var(--error) 12%, transparent);
+    border-bottom-color: var(--error);
+}
+
 .update-banner > span {
     flex: 1;
 }
