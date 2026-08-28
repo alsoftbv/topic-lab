@@ -83,6 +83,24 @@ async fn publish_button(
 }
 
 #[tauri::command]
+async fn publish(
+    state: State<'_, AppState>,
+    topic: String,
+    payload: String,
+    qos: QoS,
+    retain: bool,
+    variables: HashMap<String, String>,
+) -> Result<(), String> {
+    let topic = variables::substitute_variables(&topic, &variables);
+    let payload = variables::substitute_variables(&payload, &variables);
+    let client = state.mqtt_client.read().await;
+    client
+        .publish(&topic, &payload, qos, retain)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn resolve_template(template: String, variables: HashMap<String, String>) -> String {
     variables::substitute_variables(&template, &variables)
 }
@@ -315,6 +333,7 @@ pub fn run() {
             connect,
             disconnect,
             publish_button,
+            publish,
             resolve_template,
             resolve_templates,
             get_builtin_names,

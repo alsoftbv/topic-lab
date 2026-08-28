@@ -54,6 +54,76 @@ describe("Publish & Subscribe", () => {
     expect(await getElText(msgTopic)).toContain("test/");
   });
 
+  it("publishes from the message viewer send bar", async () => {
+    await setInputValue(selectors.sendFormTopic, "test/e2e/sendbar");
+    await setInputValue(selectors.sendFormPayload, "hello from send bar");
+
+    const sendBtn = await $(selectors.sendFormButton);
+    await sendBtn.click();
+
+    await browser.waitUntil(
+      async () => {
+        const topics = await $$(selectors.messageTopic);
+        for (const t of topics) {
+          if ((await getElText(t)) === "test/e2e/sendbar") return true;
+        }
+        return false;
+      },
+      { timeout: 5000, timeoutMsg: "Send bar message not received" }
+    );
+
+    const messages = await $$(selectors.messageItem);
+    const msgCount = await messages.length;
+    const lastMsg = messages[msgCount - 1];
+    const payload = await lastMsg.$(selectors.messagePayload);
+    expect(await getElText(payload)).toBe("hello from send bar");
+  });
+
+  it("shows resolved variables in the send bar when unfocused", async () => {
+    const varsBtn = await $("button*=Variables");
+    await varsBtn.click();
+    await $(selectors.variablesPanel).waitForExist({ timeout: 3000 });
+
+    await setInputValue(".add-variable-form input[placeholder='Name']", "device_id");
+    await setInputValue(".add-variable-form input[placeholder='Value']", "sensor-001");
+    const addBtn = await $(".add-variable-form .btn");
+    await addBtn.click();
+    await browser.waitUntil(async () => await $(".variable-key=device_id").isExisting(), {
+      timeout: 5000,
+      timeoutMsg: "Variable 'device_id' was not created",
+    });
+
+    await varsBtn.click();
+    await browser.pause(300);
+
+    await setInputValue(selectors.sendFormTopic, "test/{device_id}");
+    const topicInput = await $(selectors.sendFormTopic);
+    await browser.waitUntil(async () => (await topicInput.getValue()) === "test/sensor-001", {
+      timeout: 5000,
+      timeoutMsg: "Send bar topic did not show the resolved value when unfocused",
+    });
+
+    await topicInput.click();
+    await browser.waitUntil(async () => (await topicInput.getValue()) === "test/{device_id}", {
+      timeout: 5000,
+      timeoutMsg: "Send bar topic did not show the raw template when focused",
+    });
+
+    const sendBtn = await $(selectors.sendFormButton);
+    await sendBtn.click();
+
+    await browser.waitUntil(
+      async () => {
+        const topics = await $$(selectors.messageTopic);
+        for (const t of topics) {
+          if ((await getElText(t)) === "test/sensor-001") return true;
+        }
+        return false;
+      },
+      { timeout: 5000, timeoutMsg: "Send bar message with resolved variable not received" }
+    );
+  });
+
   it("creates a button and verifies full round trip", async () => {
     await openButtonEditor();
 

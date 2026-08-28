@@ -1,11 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { ChevronDown, ChevronRight, Plus, X, Trash2, Check, GripVertical } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  ArrowRight,
+  Plus,
+  X,
+  Trash2,
+  Check,
+  GripVertical,
+} from "lucide-react";
 import type { Message, QoS } from "@/types";
 import * as api from "@/utils/api";
 import { useApp } from "@/contexts/AppContext";
 import { preferences, type MessageViewerPosition } from "@/utils/preferences";
 import { modKey } from "@/utils/platform";
+import { templateHasBuiltin } from "@/utils/builtins";
 import { Editable } from "./Editable";
 
 const EMPTY_SUBSCRIPTIONS: string[] = [];
@@ -33,6 +43,11 @@ export function MessageViewer({
   const { connectionStatus, activeConnection, updateSubscriptions, resolvedSubscriptions } =
     useApp();
   const [topic, setTopic] = useState("");
+  const [sendTopic, setSendTopic] = useState("");
+  const [sendPayload, setSendPayload] = useState("");
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sendFocus, setSendFocus] = useState<"topic" | "payload" | null>(null);
+  const [resolvedSend, setResolvedSend] = useState({ topic: "", payload: "" });
   const [messages, setMessages] = useState<Message[]>([]);
   const [height, setHeight] = useState(() => preferences.messageViewerHeight);
   const [width, setWidth] = useState(() => preferences.messageViewerWidth);
@@ -131,6 +146,40 @@ export function MessageViewer({
       list.scrollTop = list.scrollHeight;
     }
   }, [messages]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const compute = () => {
+      api
+        .resolveTemplates([sendTopic, sendPayload], variables)
+        .then(([topic, payload]) => {
+          if (cancelled) return;
+          setResolvedSend((prev) =>
+            prev.topic === topic && prev.payload === payload ? prev : { topic, payload }
+          );
+        })
+        .catch(() => {});
+    };
+    compute();
+    const hasBuiltins = templateHasBuiltin(sendTopic) || templateHasBuiltin(sendPayload);
+    const interval = hasBuiltins ? window.setInterval(compute, 1000) : undefined;
+    return () => {
+      cancelled = true;
+      if (interval !== undefined) clearInterval(interval);
+    };
+  }, [sendTopic, sendPayload, variables]);
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const t = sendTopic.trim();
+    if (!t || connectionStatus !== "connected") return;
+    setSendError(null);
+    try {
+      await api.publish(t, sendPayload, "atmostonce" as QoS, false, variables);
+    } catch (err) {
+      setSendError(String(err));
+    }
+  };
 
   const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -296,6 +345,48 @@ export function MessageViewer({
       {expanded && (
         <div className="message-viewer-content" style={contentStyle}>
           <div className="message-viewer-left">
+            <form className="send-form" onSubmit={handleSend}>
+              <input
+                type="text"
+                name="topic"
+                placeholder="Topic to publish..."
+                value={showRawTemplates || sendFocus === "topic" ? sendTopic : resolvedSend.topic}
+                onChange={(e) => setSendTopic(e.target.value)}
+                onFocus={() => setSendFocus("topic")}
+                onBlur={() => setSendFocus(null)}
+                disabled={!isConnected}
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+              />
+              <div className="send-form-row">
+                <input
+                  type="text"
+                  name="payload"
+                  placeholder="Payload..."
+                  value={
+                    showRawTemplates || sendFocus === "payload" ? sendPayload : resolvedSend.payload
+                  }
+                  onChange={(e) => setSendPayload(e.target.value)}
+                  onFocus={() => setSendFocus("payload")}
+                  onBlur={() => setSendFocus(null)}
+                  disabled={!isConnected}
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                />
+                <button
+                  type="submit"
+                  className="btn btn-small"
+                  disabled={!isConnected || !sendTopic.trim()}
+                  title="Send"
+                >
+                  <ArrowRight size={14} />
+                </button>
+              </div>
+              {sendError && <div className="send-error">{sendError}</div>}
+            </form>
+
             <form className="subscribe-form" onSubmit={handleSubscribe}>
               <input
                 type="text"

@@ -87,6 +87,10 @@
     min-width: 0;
 }
 
+.buttons-area.mv-pos-right > .message-viewer {
+    order: 1;
+}
+
 .mv-drop-zones {
     position: absolute;
     inset: 0;

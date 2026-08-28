@@ -467,18 +467,16 @@ export function Dashboard() {
           </div>
         )}
         <main ref={buttonsAreaRef} className={`buttons-area mv-pos-${messageViewerPosition}`}>
-          {messageViewerPosition !== "right" && (
-            <MessageViewer
-              expanded={messageViewerExpanded}
-              onToggle={(v) => {
-                setMessageViewerExpanded(v);
-                preferences.messageViewerExpanded = v;
-              }}
-              showRawTemplates={showVariables}
-              position={messageViewerPosition}
-              onDragStart={handleMvDragStart}
-            />
-          )}
+          <MessageViewer
+            expanded={messageViewerExpanded}
+            onToggle={(v) => {
+              setMessageViewerExpanded(v);
+              preferences.messageViewerExpanded = v;
+            }}
+            showRawTemplates={showVariables}
+            position={messageViewerPosition}
+            onDragStart={handleMvDragStart}
+          />
 
           <div className="button-groups">
             {groups.map((group) => {
@@ -598,19 +596,6 @@ export function Dashboard() {
               </button>
             )}
           </div>
-
-          {messageViewerPosition === "right" && (
-            <MessageViewer
-              expanded={messageViewerExpanded}
-              onToggle={(v) => {
-                setMessageViewerExpanded(v);
-                preferences.messageViewerExpanded = v;
-              }}
-              showRawTemplates={showVariables}
-              position={messageViewerPosition}
-              onDragStart={handleMvDragStart}
-            />
-          )}
 
           {mvDragging && (
             <div className="mv-drop-zones">

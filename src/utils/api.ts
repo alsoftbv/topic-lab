@@ -30,6 +30,16 @@ export async function publishButton(
   return invoke("publish_button", { button, variables });
 }
 
+export async function publish(
+  topic: string,
+  payload: string,
+  qos: QoS,
+  retain: boolean,
+  variables: Record<string, string>
+): Promise<void> {
+  return invoke("publish", { topic, payload, qos, retain, variables });
+}
+
 export async function resolveTemplate(
   template: string,
   variables: Record<string, string>

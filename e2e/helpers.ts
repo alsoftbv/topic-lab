@@ -32,6 +32,9 @@ export const selectors = {
   // Message Viewer
   messageViewerHeader: ".message-viewer-header",
   messageViewerContent: ".message-viewer-content",
+  sendFormTopic: ".send-form input[name='topic']",
+  sendFormPayload: ".send-form input[name='payload']",
+  sendFormButton: ".send-form .btn",
   messageItem: ".message-item",
   messageTopic: ".message-topic",
   messagePayload: ".message-payload",
