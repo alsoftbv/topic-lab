@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "wdio run wdio.conf.ts"
+    "test": "wdio run wdio.conf.ts",
+    "screenshots": "wdio run wdio.conf.ts --spec specs/01-setup-wizard.ts --spec screens.ts"
   },
   "dependencies": {
     "@wdio/cli": "^9.19.0",

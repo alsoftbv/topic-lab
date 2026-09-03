@@ -29,12 +29,15 @@ export const selectors = {
   variableKey: ".variable-key",
   variableValue: ".variable-value",
 
-  // Message Viewer
-  messageViewerHeader: ".message-viewer-header",
-  messageViewerContent: ".message-viewer-content",
-  sendFormTopic: ".send-form input[name='topic']",
-  sendFormPayload: ".send-form input[name='payload']",
-  sendFormButton: ".send-form .btn",
+  // Panes
+  paneToggleMessages: ".pane-toggles button[data-pane='messages']",
+  paneTogglePublish: ".pane-toggles button[data-pane='publish']",
+  messagesPane: ".messages-pane",
+  publishPane: ".publish-pane",
+  publishTopic: ".publish-form input[name='topic']",
+  publishPayload: ".publish-form textarea[name='payload']",
+  publishButton: ".publish-form button[type='submit']",
+  makeButton: ".publish-pane button[title='Make button']",
   messageItem: ".message-item",
   messageTopic: ".message-topic",
   messagePayload: ".message-payload",
@@ -44,7 +47,7 @@ export const selectors = {
   switcherDropdown: ".connection-dropdown",
 
   // Settings Modal
-  settingsButton: ".header-right .btn-icon-only",
+  settingsButton: ".header-right button[title^='Connection Settings']",
 
   // Groups
   buttonGroup: ".button-group",

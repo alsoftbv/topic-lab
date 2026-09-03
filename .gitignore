@@ -35,3 +35,4 @@ src-tauri/.tauri-signing-key.pub
 # Core dumps
 core
 core.*
+e2e/screens/

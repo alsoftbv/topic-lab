@@ -1,4 +1,10 @@
-import { selectors, waitForDashboard, sendShortcut, openButtonEditor, sendKey } from "../helpers.js";
+import {
+  selectors,
+  waitForDashboard,
+  sendShortcut,
+  openButtonEditor,
+  sendKey,
+} from "../helpers.js";
 
 describe("Keyboard Shortcuts", () => {
   before(async () => {
@@ -34,17 +40,31 @@ describe("Keyboard Shortcuts", () => {
     expect(await selected.isExisting()).toBe(false);
   });
 
-  it("Ctrl+I toggles message viewer", async () => {
-    const initiallyVisible = await $(selectors.messageViewerContent).isExisting();
+  it("Ctrl+I toggles the messages pane", async () => {
+    const initiallyVisible = await $(selectors.messagesPane).isExisting();
 
     await sendShortcut("i", { ctrl: true });
     await browser.pause(300);
 
-    const afterToggle = await $(selectors.messageViewerContent).isExisting();
+    const afterToggle = await $(selectors.messagesPane).isExisting();
     expect(afterToggle).not.toBe(initiallyVisible);
 
     // Toggle back
     await sendShortcut("i", { ctrl: true });
+    await browser.pause(300);
+  });
+
+  it("Ctrl+P toggles the publish pane", async () => {
+    const initiallyVisible = await $(selectors.publishPane).isExisting();
+
+    await sendShortcut("p", { ctrl: true });
+    await browser.pause(300);
+
+    const afterToggle = await $(selectors.publishPane).isExisting();
+    expect(afterToggle).not.toBe(initiallyVisible);
+
+    // Toggle back
+    await sendShortcut("p", { ctrl: true });
     await browser.pause(300);
   });
 });

@@ -21,12 +21,11 @@ describe("Publish & Subscribe", () => {
     await waitForConnectionStatus("Connected");
   });
 
-  it("opens message viewer and subscribes to a topic", async () => {
-    const header = await $(selectors.messageViewerHeader);
-    await header.click();
-
-    const content = await $(selectors.messageViewerContent);
-    await content.waitForExist({ timeout: 3000 });
+  it("shows the messages pane and subscribes to a topic", async () => {
+    if (!(await $(selectors.messagesPane).isExisting())) {
+      await (await $(selectors.paneToggleMessages)).click();
+    }
+    await $(selectors.messagesPane).waitForExist({ timeout: 3000 });
 
     await setInputValue(".subscribe-form input", "test/#");
 
@@ -54,11 +53,16 @@ describe("Publish & Subscribe", () => {
     expect(await getElText(msgTopic)).toContain("test/");
   });
 
-  it("publishes from the message viewer send bar", async () => {
-    await setInputValue(selectors.sendFormTopic, "test/e2e/sendbar");
-    await setInputValue(selectors.sendFormPayload, "hello from send bar");
+  it("publishes from the publish pane", async () => {
+    if (!(await $(selectors.publishPane).isExisting())) {
+      await (await $(selectors.paneTogglePublish)).click();
+    }
+    await $(selectors.publishPane).waitForExist({ timeout: 3000 });
 
-    const sendBtn = await $(selectors.sendFormButton);
+    await setInputValue(selectors.publishTopic, "test/e2e/sendbar");
+    await setInputValue(selectors.publishPayload, "hello from send bar");
+
+    const sendBtn = await $(selectors.publishButton);
     await sendBtn.click();
 
     await browser.waitUntil(
@@ -79,7 +83,33 @@ describe("Publish & Subscribe", () => {
     expect(await getElText(payload)).toBe("hello from send bar");
   });
 
-  it("shows resolved variables in the send bar when unfocused", async () => {
+  it("opens the button editor prefilled from the publish pane", async () => {
+    const makeBtn = await $(selectors.makeButton);
+    await makeBtn.click();
+
+    const modal = await $(selectors.editorModal);
+    await modal.waitForExist({ timeout: 3000 });
+
+    expect(await $(selectors.editorTopicInput).getValue()).toBe("test/e2e/sendbar");
+    expect(await $(selectors.editorPayloadTextarea).getValue()).toBe("hello from send bar");
+
+    const cancelBtn = await $("button=Cancel");
+    await cancelBtn.click();
+    await modal.waitForExist({ timeout: 3000, reverse: true });
+  });
+
+  it("opens a command in the publish pane", async () => {
+    const card = await $(selectors.buttonCard);
+    const cardTopic = await getElText(await card.$("code"));
+    await (await card.$("button[title='Open in Publish']")).click();
+
+    await browser.waitUntil(
+      async () => (await $(selectors.publishTopic).getValue()) === cardTopic,
+      { timeout: 3000, timeoutMsg: "Publish topic was not filled from the command" }
+    );
+  });
+
+  it("shows resolved variables in the publish pane when unfocused", async () => {
     const varsBtn = await $("button*=Variables");
     await varsBtn.click();
     await $(selectors.variablesPanel).waitForExist({ timeout: 3000 });
@@ -96,20 +126,20 @@ describe("Publish & Subscribe", () => {
     await varsBtn.click();
     await browser.pause(300);
 
-    await setInputValue(selectors.sendFormTopic, "test/{device_id}");
-    const topicInput = await $(selectors.sendFormTopic);
+    await setInputValue(selectors.publishTopic, "test/{device_id}");
+    const topicInput = await $(selectors.publishTopic);
     await browser.waitUntil(async () => (await topicInput.getValue()) === "test/sensor-001", {
       timeout: 5000,
-      timeoutMsg: "Send bar topic did not show the resolved value when unfocused",
+      timeoutMsg: "Publish topic did not show the resolved value when unfocused",
     });
 
     await topicInput.click();
     await browser.waitUntil(async () => (await topicInput.getValue()) === "test/{device_id}", {
       timeout: 5000,
-      timeoutMsg: "Send bar topic did not show the raw template when focused",
+      timeoutMsg: "Publish topic did not show the raw template when focused",
     });
 
-    const sendBtn = await $(selectors.sendFormButton);
+    const sendBtn = await $(selectors.publishButton);
     await sendBtn.click();
 
     await browser.waitUntil(
@@ -120,7 +150,7 @@ describe("Publish & Subscribe", () => {
         }
         return false;
       },
-      { timeout: 5000, timeoutMsg: "Send bar message with resolved variable not received" }
+      { timeout: 5000, timeoutMsg: "Publish message with resolved variable not received" }
     );
   });
 

@@ -16,7 +16,9 @@
 @import './connection-switcher.css';
 @import './button-card.css';
 @import './variables-panel.css';
-@import './message-viewer.css';
+@import './dock.css';
+@import './messages-pane.css';
+@import './publish-pane.css';
 @import './button-group.css';
 @import './color-picker.css';
 @import './updates.css';

@@ -1,4 +1,7 @@
 .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: var(--primary);
     color: white;
     border: none;

@@ -25,6 +25,7 @@ function makeConnection(buttons: Button[]): Connection {
 
 function setup(activeConnection: Connection, visibleButtons: Button[]) {
   const duplicateButton = vi.fn().mockResolvedValue("new-id");
+  const onTogglePane = vi.fn();
   const hook = renderHook(() =>
     useDashboardKeyboard({
       activeConnection,
@@ -35,11 +36,11 @@ function setup(activeConnection: Connection, visibleButtons: Button[]) {
       onEdit: vi.fn(),
       onDelete: vi.fn(),
       onNewButton: vi.fn(),
-      onToggleMessageViewer: vi.fn(),
+      onTogglePane,
       onToggleGroup: vi.fn(),
     })
   );
-  return { hook, duplicateButton };
+  return { hook, duplicateButton, onTogglePane };
 }
 
 function press(key: string, init: KeyboardEventInit = {}) {
@@ -163,6 +164,38 @@ describe("useDashboardKeyboard copy shortcut", () => {
     press("v", { metaKey: true });
 
     expect(duplicateButton).not.toHaveBeenCalled();
+
+    hook.unmount();
+  });
+});
+
+describe("useDashboardKeyboard pane toggles", () => {
+  it("toggles the messages pane with mod+I and the publish pane with mod+P", () => {
+    const { hook, onTogglePane } = setup(
+      {
+        id: "c1",
+        name: "c",
+        broker_url: "b",
+        port: 1883,
+        client_id: "x",
+        use_tls: false,
+        auto_connect: false,
+        variables: {},
+        buttons: [],
+        groups: [],
+        subscriptions: [],
+      },
+      []
+    );
+
+    press("i", { metaKey: true });
+    expect(onTogglePane).toHaveBeenLastCalledWith("messages");
+
+    press("p", { ctrlKey: true });
+    expect(onTogglePane).toHaveBeenLastCalledWith("publish");
+
+    press("p");
+    expect(onTogglePane).toHaveBeenCalledTimes(2);
 
     hook.unmount();
   });

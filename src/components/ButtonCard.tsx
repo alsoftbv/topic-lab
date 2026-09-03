@@ -1,6 +1,14 @@
 import { useState, useRef, useEffect } from "react";
 import { confirm } from "@/utils/dialog";
-import { GripVertical, Pencil, Trash2, Repeat, CopyPlus, Check } from "lucide-react";
+import {
+  GripVertical,
+  Pencil,
+  Trash2,
+  Repeat,
+  CopyPlus,
+  Check,
+  SquareArrowOutUpRight,
+} from "lucide-react";
 import type { Button } from "@/types";
 import { useApp } from "@/contexts/AppContext";
 import { modKey } from "@/utils/platform";
@@ -25,6 +33,7 @@ interface ButtonCardProps {
   button: Button;
   index: number;
   onEdit: (buttonId: string) => void;
+  onOpenInPublish: (buttonId: string) => void;
   onDuplicate: (buttonId: string, index: number) => void;
   onSelect: (index: number) => void;
   onDragStart: (index: number, x: number, y: number, element: HTMLElement) => void;
@@ -44,6 +53,7 @@ export function ButtonCard({
   button,
   index,
   onEdit,
+  onOpenInPublish,
   onDuplicate,
   onSelect,
   onDragStart,
@@ -322,6 +332,13 @@ export function ButtonCard({
           )}
         </h3>
         <div className="button-card-actions" onClick={(e) => e.stopPropagation()}>
+          <button
+            className="btn-icon"
+            onClick={() => onOpenInPublish(button.id)}
+            title="Open in Publish"
+          >
+            <SquareArrowOutUpRight size={16} />
+          </button>
           <button
             className="btn-icon"
             onClick={() => onDuplicate(button.id, index)}

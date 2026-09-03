@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import type { DockPaneId } from "@/utils/preferences";
 import type { Button, Connection } from "@/types";
 
 interface GroupNavItem {
@@ -16,7 +17,7 @@ interface UseDashboardKeyboardOptions {
   onEdit: (button: Button) => void;
   onDelete: (button: Button) => void;
   onNewButton: () => void;
-  onToggleMessageViewer: () => void;
+  onTogglePane: (pane: DockPaneId) => void;
   onToggleGroup: (groupId: string) => void;
 }
 
@@ -53,7 +54,7 @@ export function useDashboardKeyboard({
   onEdit,
   onDelete,
   onNewButton,
-  onToggleMessageViewer,
+  onTogglePane,
   onToggleGroup,
 }: UseDashboardKeyboardOptions) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -82,7 +83,7 @@ export function useDashboardKeyboard({
     onEdit,
     onDelete,
     onNewButton,
-    onToggleMessageViewer,
+    onTogglePane,
     onToggleGroup,
   });
   refs.current = {
@@ -93,7 +94,7 @@ export function useDashboardKeyboard({
     onEdit,
     onDelete,
     onNewButton,
-    onToggleMessageViewer,
+    onTogglePane,
     onToggleGroup,
   };
 
@@ -140,7 +141,7 @@ export function useDashboardKeyboard({
         onEdit,
         onDelete,
         onNewButton,
-        onToggleMessageViewer,
+        onTogglePane,
         onToggleGroup,
       } = refs.current;
 
@@ -304,7 +305,13 @@ export function useDashboardKeyboard({
 
       if (e.key === "i") {
         e.preventDefault();
-        onToggleMessageViewer();
+        onTogglePane("messages");
+        return;
+      }
+
+      if (e.key === "p") {
+        e.preventDefault();
+        onTogglePane("publish");
         return;
       }
 

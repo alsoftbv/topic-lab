@@ -69,64 +69,77 @@
 .buttons-area {
     position: relative;
     flex: 1;
-    padding: 1.5rem;
+    padding: 0.75rem 1.5rem 1.5rem;
     display: flex;
     flex-direction: column;
     overflow: hidden;
 }
 
-.buttons-area.mv-pos-left,
-.buttons-area.mv-pos-right {
-    flex-direction: row;
-    gap: 1rem;
+.workspace {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
-.buttons-area.mv-pos-left .button-groups,
-.buttons-area.mv-pos-right .button-groups {
+.workspace.dock-pos-left,
+.workspace.dock-pos-right {
+    flex-direction: row;
+}
+
+.workspace.dock-pos-left .button-groups,
+.workspace.dock-pos-right .button-groups {
     flex: 1;
     min-width: 0;
 }
 
-.buttons-area.mv-pos-right > .message-viewer {
+.workspace.dock-pos-right > .dock {
     order: 1;
 }
 
-.mv-drop-zones {
+.dock-drop-zones {
     position: absolute;
     inset: 0;
     z-index: 200;
     pointer-events: none;
 }
 
-.mv-drop-indicator {
+.dock-drop-indicator {
     position: absolute;
     background: var(--primary);
     border-radius: 2px;
     pointer-events: none;
 }
 
-.mv-drop-indicator-top {
+.dock-drop-indicator-top {
     top: 0.5rem;
     left: 1rem;
     right: 1rem;
     height: 3px;
 }
 
-.mv-drop-indicator-left {
+.dock-drop-indicator-left {
     top: 0.5rem;
     bottom: 0.5rem;
     left: 0.5rem;
     width: 3px;
 }
 
-.mv-drop-indicator-right {
+.dock-drop-indicator-right {
     top: 0.5rem;
     bottom: 0.5rem;
     right: 0.5rem;
     width: 3px;
 }
 
-.mv-drag-ghost {
+.dock-drop-indicator-bottom {
+    bottom: 0.5rem;
+    left: 1rem;
+    right: 1rem;
+    height: 3px;
+}
+
+.dock-drag-ghost {
     padding: 0.4rem 0.75rem;
     background: var(--bg-secondary);
     border: 1px solid var(--border);

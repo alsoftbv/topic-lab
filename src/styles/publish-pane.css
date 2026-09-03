@@ -1,0 +1,39 @@
+.publish-form {
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.publish-form input,
+.publish-form textarea {
+    font-size: 0.75rem;
+}
+
+.publish-form input {
+    padding: 0 0.5rem;
+}
+
+.publish-form textarea {
+    padding: 0.375rem 0.5rem;
+}
+
+.publish-form textarea {
+    flex: 1;
+    min-height: 60px;
+    resize: none;
+}
+
+.publish-form .send-error {
+    color: var(--error);
+    font-size: 0.6875rem;
+    overflow-wrap: anywhere;
+}
+
+.publish-topic-row {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.publish-topic-row input {
+    flex: 1;
+    min-width: 0;
+}

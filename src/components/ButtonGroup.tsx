@@ -14,6 +14,7 @@ interface ButtonGroupProps {
   onToggle: () => void;
   onAddButton: (groupId?: string) => void;
   onEditButton: (buttonId: string) => void;
+  onOpenInPublishButton: (buttonId: string) => void;
   onDuplicateButton: (buttonId: string, globalIndex: number) => void;
   onSelectButton: (globalIndex: number) => void;
   onDragStartButton: (globalIndex: number, x: number, y: number, element: HTMLElement) => void;
@@ -46,6 +47,7 @@ export function ButtonGroupSection({
   onToggle,
   onAddButton,
   onEditButton,
+  onOpenInPublishButton,
   onDuplicateButton,
   onSelectButton,
   onDragStartButton,
@@ -250,6 +252,7 @@ export function ButtonGroupSection({
                     button={button}
                     index={globalIndex}
                     onEdit={onEditButton}
+                    onOpenInPublish={onOpenInPublishButton}
                     onDuplicate={onDuplicateButton}
                     onSelect={onSelectButton}
                     onDragStart={onDragStartButton}

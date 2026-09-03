@@ -35,16 +35,17 @@ function msToUnit(ms: number): { value: number; unit: IntervalUnit } {
 interface ButtonEditorProps {
   button?: Button;
   defaultGroupId?: string;
+  prefill?: Pick<Button, "topic" | "payload">;
   onClose: () => void;
 }
 
-export function ButtonEditor({ button, defaultGroupId, onClose }: ButtonEditorProps) {
+export function ButtonEditor({ button, defaultGroupId, prefill, onClose }: ButtonEditorProps) {
   const { activeConnection, addButton, updateButton } = useApp();
   const isEditing = !!button;
 
   const [name, setName] = useState(button?.name || "");
-  const [topic, setTopic] = useState(button?.topic || "");
-  const [payload, setPayload] = useState(button?.payload || "");
+  const [topic, setTopic] = useState(button?.topic || prefill?.topic || "");
+  const [payload, setPayload] = useState(button?.payload || prefill?.payload || "");
   const [qos, setQos] = useState<QoS>(button?.qos || "atmostonce");
   const [retain, setRetain] = useState(button?.retain || false);
   const [color, setColor] = useState<ButtonColor>(button?.color || "orange");
@@ -62,8 +63,8 @@ export function ButtonEditor({ button, defaultGroupId, onClose }: ButtonEditorPr
   ];
   const missingVariables = usedVariables.filter((v) => !(v in variables));
 
-  const [previewTopic, setPreviewTopic] = useState(button?.topic || "");
-  const [previewPayload, setPreviewPayload] = useState(button?.payload || "");
+  const [previewTopic, setPreviewTopic] = useState(button?.topic || prefill?.topic || "");
+  const [previewPayload, setPreviewPayload] = useState(button?.payload || prefill?.payload || "");
   const [previewReady, setPreviewReady] = useState(false);
   const firstPreviewRef = useRef(true);
 
