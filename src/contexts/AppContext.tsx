@@ -25,6 +25,7 @@ interface AppContextType {
   updateConnection: (connection: Connection) => Promise<void>;
   deleteConnection: (id: string) => Promise<void>;
   switchConnection: (id: string) => Promise<void>;
+  reorderConnections: (connections: Connection[]) => Promise<void>;
   addButton: (button: Button) => Promise<void>;
   updateButton: (button: Button) => Promise<void>;
   deleteButton: (id: string) => Promise<void>;
@@ -279,6 +280,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await tryAutoConnect(conn);
   }
 
+  async function reorderConnections(connections: Connection[]) {
+    await saveData((prev) => ({ ...prev, connections }));
+  }
+
   async function addButton(button: Button) {
     await updateActiveConnection((conn) => ({
       ...conn,
@@ -447,6 +452,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateConnection,
         deleteConnection,
         switchConnection,
+        reorderConnections,
         addButton,
         updateButton,
         deleteButton,

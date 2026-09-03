@@ -1,4 +1,10 @@
-import { selectors, waitForDashboard, setElementValue, getTextByCss } from "../helpers.js";
+import {
+  selectors,
+  waitForDashboard,
+  setElementValue,
+  getTextByCss,
+  getElText,
+} from "../helpers.js";
 
 describe("Connection Management", () => {
   before(async () => {
@@ -46,6 +52,68 @@ describe("Connection Management", () => {
       async () => (await getTextByCss(selectors.connectionName)) === "E2E Test Connection",
       { timeout: 5000, timeoutMsg: "Did not switch to first connection" }
     );
+  });
+
+  it("reorders connections by dragging in the switcher", async () => {
+    const switcherBtn = await $(selectors.switcherButton);
+    await switcherBtn.click();
+
+    const dropdown = await $(selectors.switcherDropdown);
+    await dropdown.waitForExist({ timeout: 3000 });
+
+    const namesBefore = await $$(".connection-option-name");
+    expect(await getElText(namesBefore[0])).toBe("E2E Test Connection");
+    expect(await getElText(namesBefore[1])).toBe("Second Connection");
+
+    const result = await browser.execute(() => {
+      const rows = document.querySelectorAll(".connection-dropdown .connection-option");
+      if (rows.length < 2) return { error: "Not enough connections" };
+
+      const sourceRow = rows[1];
+      const targetRow = rows[0];
+      const handle = sourceRow.querySelector(".connection-drag-handle");
+      if (!handle) return { error: "No drag handle found" };
+
+      const reactProps = (el: Element) => {
+        const key = Object.keys(el).find((k) => k.startsWith("__reactProps$"));
+        return key ? (el as any)[key] : null;
+      };
+
+      const handleProps = reactProps(handle);
+      if (!handleProps?.onMouseDown) return { error: "No mousedown handler on drag handle" };
+      handleProps.onMouseDown({ preventDefault: () => {}, stopPropagation: () => {} });
+
+      const targetRect = targetRow.getBoundingClientRect();
+      setTimeout(() => {
+        const targetProps = reactProps(targetRow);
+        targetProps?.onMouseEnter?.({
+          currentTarget: targetRow,
+          clientX: targetRect.left + 10,
+          clientY: targetRect.top + 2,
+        });
+
+        setTimeout(() => {
+          window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+        }, 100);
+      }, 100);
+
+      return { success: true };
+    });
+    expect((result as any).error).toBeUndefined();
+
+    await browser.waitUntil(
+      async () => {
+        const names = await $$(".connection-option-name");
+        return (await names.length) >= 2 && (await getElText(names[0])) === "Second Connection";
+      },
+      { timeout: 5000, timeoutMsg: "Connections were not reordered" }
+    );
+
+    const namesAfter = await $$(".connection-option-name");
+    expect(await getElText(namesAfter[1])).toBe("E2E Test Connection");
+
+    await switcherBtn.click();
+    await dropdown.waitForExist({ timeout: 3000, reverse: true });
   });
 
   it("deletes the second connection via settings", async () => {

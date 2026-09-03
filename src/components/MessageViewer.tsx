@@ -359,31 +359,29 @@ export function MessageViewer({
                 autoCapitalize="off"
                 spellCheck={false}
               />
-              <div className="send-form-row">
-                <input
-                  type="text"
-                  name="payload"
-                  placeholder="Payload..."
-                  value={
-                    showRawTemplates || sendFocus === "payload" ? sendPayload : resolvedSend.payload
-                  }
-                  onChange={(e) => setSendPayload(e.target.value)}
-                  onFocus={() => setSendFocus("payload")}
-                  onBlur={() => setSendFocus(null)}
-                  disabled={!isConnected}
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck={false}
-                />
-                <button
-                  type="submit"
-                  className="btn btn-small"
-                  disabled={!isConnected || !sendTopic.trim()}
-                  title="Send"
-                >
-                  <ArrowRight size={14} />
-                </button>
-              </div>
+              <input
+                type="text"
+                name="payload"
+                placeholder="Payload..."
+                value={
+                  showRawTemplates || sendFocus === "payload" ? sendPayload : resolvedSend.payload
+                }
+                onChange={(e) => setSendPayload(e.target.value)}
+                onFocus={() => setSendFocus("payload")}
+                onBlur={() => setSendFocus(null)}
+                disabled={!isConnected}
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+              />
+              <button
+                type="submit"
+                className="btn btn-small btn-icon-only"
+                disabled={!isConnected || !sendTopic.trim()}
+                title="Send"
+              >
+                <ArrowRight size={14} />
+              </button>
               {sendError && <div className="send-error">{sendError}</div>}
             </form>
 
@@ -400,7 +398,7 @@ export function MessageViewer({
               />
               <button
                 type="submit"
-                className="btn btn-small"
+                className="btn btn-small btn-icon-only"
                 disabled={!isConnected || !topic.trim()}
               >
                 <Plus size={14} />

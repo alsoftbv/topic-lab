@@ -66,8 +66,9 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
+    width: max-content;
     min-width: 240px;
-    max-width: 320px;
+    max-width: min(480px, calc(100vw - 2rem));
     z-index: 50;
     overflow: hidden;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -95,6 +96,23 @@
     min-width: 0;
 }
 
+.connection-option-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    opacity: 0;
+}
+
+.connection-option:hover .connection-option-actions,
+.connection-option-actions:focus-within {
+    opacity: 1;
+}
+
+.connection-dropdown.reordering .connection-option-actions {
+    opacity: 0;
+}
+
 .connection-action-btn {
     display: flex;
     align-items: center;
@@ -105,12 +123,6 @@
     cursor: pointer;
     padding: 0.25rem;
     border-radius: var(--radius);
-    opacity: 0;
-    transition: opacity 0.15s, color 0.15s;
-}
-
-.connection-option:hover .connection-action-btn {
-    opacity: 1;
 }
 
 .connection-action-btn:hover {
@@ -128,11 +140,17 @@
 .connection-option-name {
     font-weight: 500;
     font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .connection-option-broker {
     font-size: 0.75rem;
     color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .connection-option.add-new {
@@ -146,4 +164,48 @@
 .connection-dropdown-divider {
     height: 1px;
     background: var(--border);
+}
+
+.connection-drag-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    cursor: grab;
+    padding: 0.25rem;
+}
+
+.connection-drag-handle:hover {
+    color: var(--text);
+}
+
+.connection-drag-handle:active {
+    cursor: grabbing;
+}
+
+.connection-option.dragging {
+    opacity: 0.4;
+}
+
+.connection-option.drag-over {
+    position: relative;
+}
+
+.connection-option.drag-top::before,
+.connection-option.drag-bottom::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--primary);
+    pointer-events: none;
+}
+
+.connection-option.drag-top::before {
+    top: 0;
+}
+
+.connection-option.drag-bottom::after {
+    bottom: 0;
 }

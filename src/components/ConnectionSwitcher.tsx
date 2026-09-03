@@ -1,7 +1,18 @@
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Plus, Upload, Download, Copy, Wifi, WifiOff, Loader } from "lucide-react";
+import {
+  ChevronDown,
+  Plus,
+  Upload,
+  Download,
+  Copy,
+  Wifi,
+  WifiOff,
+  Loader,
+  GripVertical,
+} from "lucide-react";
 import type { Connection } from "@/types";
 import { useApp } from "@/contexts/AppContext";
+import { useConnectionDrag } from "@/hooks/useConnectionDrag";
 import * as api from "@/utils/api";
 
 interface ConnectionSwitcherProps {
@@ -10,10 +21,19 @@ interface ConnectionSwitcherProps {
 }
 
 export function ConnectionSwitcher({ onAddNew, onImport }: ConnectionSwitcherProps) {
-  const { data, activeConnection, connectionStatus, switchConnection, duplicateConnection } =
-    useApp();
+  const {
+    data,
+    activeConnection,
+    connectionStatus,
+    switchConnection,
+    duplicateConnection,
+    reorderConnections,
+  } = useApp();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { dragId, dragOverId, dragOverSide, recentDragRef, handleDragStart, handleDragOver } =
+    useConnectionDrag({ connections: data.connections, reorderConnections });
+  const canReorder = data.connections.length > 1;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -39,6 +59,7 @@ export function ConnectionSwitcher({ onAddNew, onImport }: ConnectionSwitcherPro
   };
 
   const handleSelect = async (id: string) => {
+    if (recentDragRef.current) return;
     setIsOpen(false);
     if (id !== activeConnection?.id) {
       await switchConnection(id);
@@ -67,6 +88,29 @@ export function ConnectionSwitcher({ onAddNew, onImport }: ConnectionSwitcherPro
     await duplicateConnection(conn.id);
   };
 
+  const handleDragHandleMouseDown = (e: React.MouseEvent, conn: Connection) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleDragStart(conn.id);
+  };
+
+  const handleRowMouseOver = (e: React.MouseEvent<HTMLDivElement>, conn: Connection) => {
+    if (dragId === null) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    handleDragOver(conn.id, e.clientY < rect.top + rect.height / 2 ? "top" : "bottom");
+  };
+
+  const rowClassName = (conn: Connection) => {
+    const classes = ["connection-option"];
+    if (conn.id === activeConnection?.id) classes.push("active");
+    if (conn.id === dragId) {
+      classes.push("dragging");
+    } else if (dragId !== null && conn.id === dragOverId) {
+      classes.push("drag-over", `drag-${dragOverSide}`);
+    }
+    return classes.join(" ");
+  };
+
   if (!activeConnection) return null;
 
   return (
@@ -78,31 +122,45 @@ export function ConnectionSwitcher({ onAddNew, onImport }: ConnectionSwitcherPro
       </button>
 
       {isOpen && (
-        <div className="connection-dropdown">
+        <div className={`connection-dropdown ${dragId !== null ? "reordering" : ""}`}>
           {data.connections.map((conn) => (
             <div
               key={conn.id}
-              className={`connection-option ${conn.id === activeConnection.id ? "active" : ""}`}
+              className={rowClassName(conn)}
               onClick={() => handleSelect(conn.id)}
+              onMouseEnter={(e) => handleRowMouseOver(e, conn)}
+              onMouseMove={dragId !== null ? (e) => handleRowMouseOver(e, conn) : undefined}
             >
               <div className="connection-option-info">
                 <span className="connection-option-name">{conn.name}</span>
                 <span className="connection-option-broker">{conn.broker_url}</span>
               </div>
-              <button
-                className="connection-action-btn"
-                onClick={(e) => handleDuplicate(e, conn)}
-                title="Duplicate connection"
-              >
-                <Copy size={14} />
-              </button>
-              <button
-                className="connection-action-btn"
-                onClick={(e) => handleExport(e, conn)}
-                title="Export connection"
-              >
-                <Upload size={14} />
-              </button>
+              <div className="connection-option-actions">
+                <button
+                  className="connection-action-btn"
+                  onClick={(e) => handleDuplicate(e, conn)}
+                  title="Duplicate connection"
+                >
+                  <Copy size={14} />
+                </button>
+                <button
+                  className="connection-action-btn"
+                  onClick={(e) => handleExport(e, conn)}
+                  title="Export connection"
+                >
+                  <Upload size={14} />
+                </button>
+                {canReorder && (
+                  <span
+                    className="connection-drag-handle"
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => handleDragHandleMouseDown(e, conn)}
+                    title="Drag to reorder"
+                  >
+                    <GripVertical size={14} />
+                  </span>
+                )}
+              </div>
             </div>
           ))}
           <div className="connection-dropdown-divider" />
