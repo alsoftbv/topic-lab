@@ -2380,7 +2380,7 @@ dependencies = [
 
 [[package]]
 name = "mqtt-topic-lab"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "clap",
@@ -2391,6 +2391,9 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "rumqttc",
+ "rustls 0.22.4",
+ "rustls-native-certs 0.7.3",
+ "rustls-pemfile",
  "serde",
  "serde_json",
  "tauri",

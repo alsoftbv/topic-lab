@@ -1,6 +1,7 @@
 use crate::types::{Connection, ConnectionStatus, QoS};
 use log::{debug, error, info, warn};
-use rumqttc::{AsyncClient, Event, MqttOptions, Packet, Transport};
+use rumqttc::{AsyncClient, Event, MqttOptions, Packet, TlsConfiguration, Transport};
+use rustls::{ClientConfig, RootCertStore};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -29,6 +30,10 @@ pub enum MqttError {
     Timeout,
     #[error("WebSocket brokers are not supported; use mqtt:// or mqtts://")]
     WebsocketUnsupported,
+    #[error("Client certificate and client key must both be set")]
+    IncompleteClientAuth,
+    #[error("TLS setup failed: {0}")]
+    TlsSetup(String),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -81,6 +86,12 @@ impl MqttClient {
             return Err(MqttError::WebsocketUnsupported);
         }
 
+        let tls_transport = if config.use_tls {
+            Some(build_tls_transport(config)?)
+        } else {
+            None
+        };
+
         info!(
             "Connecting to {} ({}:{})",
             config.name, config.broker_url, config.port
@@ -102,8 +113,7 @@ impl MqttClient {
             mqtt_options.set_credentials(username, password);
         }
 
-        if config.use_tls {
-            let transport = Transport::tls_with_default_config();
+        if let Some(transport) = tls_transport {
             mqtt_options.set_transport(transport);
         }
 
@@ -316,13 +326,83 @@ impl MqttClient {
     pub async fn clear_messages(&self) {
         self.messages.write().await.clear();
     }
-
 }
 
 impl Default for MqttClient {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn read_tls_file(label: &str, path: &str) -> Result<Vec<u8>, MqttError> {
+    std::fs::read(path).map_err(|e| MqttError::TlsSetup(format!("cannot read {label} {path}: {e}")))
+}
+
+fn build_tls_transport(config: &Connection) -> Result<Transport, MqttError> {
+    let client_auth = match (&config.client_cert_path, &config.client_key_path) {
+        (Some(cert), Some(key)) => Some((cert.as_str(), key.as_str())),
+        (None, None) => None,
+        _ => return Err(MqttError::IncompleteClientAuth),
+    };
+
+    if config.ca_cert_path.is_none() && client_auth.is_none() {
+        return Ok(Transport::tls_with_default_config());
+    }
+
+    let mut roots = RootCertStore::empty();
+    let native = rustls_native_certs::load_native_certs()
+        .map_err(|e| MqttError::TlsSetup(format!("cannot load system trust store: {e}")))?;
+    for cert in native {
+        let _ = roots.add(cert);
+    }
+
+    if let Some(path) = &config.ca_cert_path {
+        let pem = read_tls_file("CA certificate", path)?;
+        let mut added = 0;
+        for cert in rustls_pemfile::certs(&mut pem.as_slice()) {
+            let cert = cert
+                .map_err(|e| MqttError::TlsSetup(format!("invalid CA certificate {path}: {e}")))?;
+            roots
+                .add(cert)
+                .map_err(|e| MqttError::TlsSetup(format!("invalid CA certificate {path}: {e}")))?;
+            added += 1;
+        }
+        if added == 0 {
+            return Err(MqttError::TlsSetup(format!(
+                "no certificates found in {path}"
+            )));
+        }
+    }
+
+    let builder = ClientConfig::builder().with_root_certificates(roots);
+    let mut tls = if let Some((cert_path, key_path)) = client_auth {
+        let cert_pem = read_tls_file("client certificate", cert_path)?;
+        let certs = rustls_pemfile::certs(&mut cert_pem.as_slice())
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                MqttError::TlsSetup(format!("invalid client certificate {cert_path}: {e}"))
+            })?;
+        if certs.is_empty() {
+            return Err(MqttError::TlsSetup(format!(
+                "no certificates found in {cert_path}"
+            )));
+        }
+        let key_pem = read_tls_file("client key", key_path)?;
+        let key = rustls_pemfile::private_key(&mut key_pem.as_slice())
+            .map_err(|e| MqttError::TlsSetup(format!("invalid client key {key_path}: {e}")))?
+            .ok_or_else(|| MqttError::TlsSetup(format!("no private key found in {key_path}")))?;
+        builder
+            .with_client_auth_cert(certs, key)
+            .map_err(|e| MqttError::TlsSetup(format!("client certificate rejected: {e}")))?
+    } else {
+        builder.with_no_client_auth()
+    };
+
+    if config.port == 443 && client_auth.is_some() {
+        tls.alpn_protocols.push(b"x-amzn-mqtt-ca".to_vec());
+    }
+
+    Ok(Transport::Tls(TlsConfiguration::Rustls(Arc::new(tls))))
 }
 
 fn strip_protocol(url: &str) -> &str {
@@ -349,6 +429,9 @@ mod tests {
             username: None,
             password: None,
             use_tls: false,
+            ca_cert_path: None,
+            client_cert_path: None,
+            client_key_path: None,
             auto_connect: false,
             variables: std::collections::HashMap::new(),
             variable_history: std::collections::HashMap::new(),
@@ -597,5 +680,143 @@ mod tests {
     fn test_mqtt_error_display() {
         let not_connected = MqttError::NotConnected;
         assert_eq!(format!("{}", not_connected), "Not connected");
+    }
+
+    const TEST_CERT_PEM: &str = "-----BEGIN CERTIFICATE-----
+MIIBiDCCAS2gAwIBAgIUPuDLHpM5ysFQvw1Up+FTH6CKYjIwCgYIKoZIzj0EAwIw
+GTEXMBUGA1UEAwwOdG9waWMtbGFiLXRlc3QwHhcNMjYwOTAzMTQwNzMwWhcNNDYw
+ODI5MTQwNzMwWjAZMRcwFQYDVQQDDA50b3BpYy1sYWItdGVzdDBZMBMGByqGSM49
+AgEGCCqGSM49AwEHA0IABOFQmZdS5a2pBYqhIoVlJhHxCp7l7xPutqkqg6ZCVNaR
+hR/LYaQqFby5MW5a+PKsK/0f5EmuEMw8JzF7yc3+q/qjUzBRMB0GA1UdDgQWBBTX
++NlcqRnzWjp+KtaZI93Jv+8vajAfBgNVHSMEGDAWgBTX+NlcqRnzWjp+KtaZI93J
+v+8vajAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMCA0kAMEYCIQCv+knLtFNq
+qkHXfBIT9Uyg5khBRRqRZkDcEQunM1tU0QIhALo4gk/wXrlUBxsczToXYBPHt01P
+DLBS8IzKIa9miBb5
+-----END CERTIFICATE-----
+";
+
+    const TEST_KEY_PEM: &str = "-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgymxwCg0uNxrH7pOi
+VTqsHLmxLZRE29jLYmOk/aumynehRANCAAThUJmXUuWtqQWKoSKFZSYR8Qqe5e8T
+7rapKoOmQlTWkYUfy2GkKhW8uTFuWvjyrCv9H+RJrhDMPCcxe8nN/qv6
+-----END PRIVATE KEY-----
+";
+
+    fn tls_connection(
+        port: u16,
+        ca: Option<&std::path::Path>,
+        cert: Option<&std::path::Path>,
+        key: Option<&std::path::Path>,
+    ) -> Connection {
+        let mut conn = create_test_connection("broker.example.com", port);
+        conn.use_tls = true;
+        conn.ca_cert_path = ca.map(|p| p.to_string_lossy().into_owned());
+        conn.client_cert_path = cert.map(|p| p.to_string_lossy().into_owned());
+        conn.client_key_path = key.map(|p| p.to_string_lossy().into_owned());
+        conn
+    }
+
+    fn write_fixture(dir: &tempfile::TempDir, name: &str, content: &str) -> std::path::PathBuf {
+        let path = dir.path().join(name);
+        std::fs::write(&path, content).unwrap();
+        path
+    }
+
+    fn rustls_config(transport: Transport) -> Arc<ClientConfig> {
+        match transport {
+            Transport::Tls(TlsConfiguration::Rustls(config)) => config,
+            _ => panic!("expected a rustls TLS transport"),
+        }
+    }
+
+    #[test]
+    fn test_build_tls_default_without_cert_paths() {
+        let conn = tls_connection(8883, None, None, None);
+        let transport = build_tls_transport(&conn).unwrap();
+        assert!(matches!(transport, Transport::Tls(_)));
+    }
+
+    #[test]
+    fn test_build_tls_rejects_cert_without_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let cert = write_fixture(&dir, "cert.pem", TEST_CERT_PEM);
+        let conn = tls_connection(8883, None, Some(&cert), None);
+        assert!(matches!(
+            build_tls_transport(&conn),
+            Err(MqttError::IncompleteClientAuth)
+        ));
+
+        let key = write_fixture(&dir, "key.pem", TEST_KEY_PEM);
+        let conn = tls_connection(8883, None, None, Some(&key));
+        assert!(matches!(
+            build_tls_transport(&conn),
+            Err(MqttError::IncompleteClientAuth)
+        ));
+    }
+
+    #[test]
+    fn test_build_tls_with_client_cert() {
+        let dir = tempfile::tempdir().unwrap();
+        let cert = write_fixture(&dir, "cert.pem", TEST_CERT_PEM);
+        let key = write_fixture(&dir, "key.pem", TEST_KEY_PEM);
+        let conn = tls_connection(8883, None, Some(&cert), Some(&key));
+        let config = rustls_config(build_tls_transport(&conn).unwrap());
+        assert!(config.alpn_protocols.is_empty());
+    }
+
+    #[test]
+    fn test_build_tls_alpn_on_port_443_with_client_cert() {
+        let dir = tempfile::tempdir().unwrap();
+        let cert = write_fixture(&dir, "cert.pem", TEST_CERT_PEM);
+        let key = write_fixture(&dir, "key.pem", TEST_KEY_PEM);
+        let conn = tls_connection(443, None, Some(&cert), Some(&key));
+        let config = rustls_config(build_tls_transport(&conn).unwrap());
+        assert_eq!(config.alpn_protocols, vec![b"x-amzn-mqtt-ca".to_vec()]);
+    }
+
+    #[test]
+    fn test_build_tls_custom_ca_only_no_alpn() {
+        let dir = tempfile::tempdir().unwrap();
+        let ca = write_fixture(&dir, "ca.pem", TEST_CERT_PEM);
+        let conn = tls_connection(443, Some(&ca), None, None);
+        let config = rustls_config(build_tls_transport(&conn).unwrap());
+        assert!(config.alpn_protocols.is_empty());
+    }
+
+    #[test]
+    fn test_build_tls_missing_file_names_path() {
+        let conn = tls_connection(
+            8883,
+            Some(std::path::Path::new("/nonexistent/ca.pem")),
+            None,
+            None,
+        );
+        match build_tls_transport(&conn) {
+            Err(MqttError::TlsSetup(msg)) => assert!(msg.contains("/nonexistent/ca.pem")),
+            other => panic!("expected TlsSetup error, got {:?}", other.map(|_| ())),
+        }
+    }
+
+    #[test]
+    fn test_build_tls_rejects_non_pem_ca() {
+        let dir = tempfile::tempdir().unwrap();
+        let ca = write_fixture(&dir, "ca.pem", "not a certificate");
+        let conn = tls_connection(8883, Some(&ca), None, None);
+        assert!(matches!(
+            build_tls_transport(&conn),
+            Err(MqttError::TlsSetup(_))
+        ));
+    }
+
+    #[test]
+    fn test_build_tls_rejects_key_without_private_key_block() {
+        let dir = tempfile::tempdir().unwrap();
+        let cert = write_fixture(&dir, "cert.pem", TEST_CERT_PEM);
+        let key = write_fixture(&dir, "key.pem", TEST_CERT_PEM);
+        let conn = tls_connection(8883, None, Some(&cert), Some(&key));
+        assert!(matches!(
+            build_tls_transport(&conn),
+            Err(MqttError::TlsSetup(_))
+        ));
     }
 }

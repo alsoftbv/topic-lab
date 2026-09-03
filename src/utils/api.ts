@@ -85,6 +85,11 @@ export async function clearMessages(): Promise<void> {
   return invoke("clear_messages");
 }
 
+export async function pickCertificateFile(title: string): Promise<string | null> {
+  const filePath = await open({ title });
+  return typeof filePath === "string" ? filePath : null;
+}
+
 export async function exportConnection(connection: Connection): Promise<boolean> {
   const filePath = await save({
     defaultPath: `${connection.name}.json`,

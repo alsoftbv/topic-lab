@@ -61,7 +61,13 @@ export function SettingsModal({
           <div className="setting-item">
             <div>
               <strong>TLS</strong>
-              <p>{connection.use_tls ? "Enabled" : "Disabled"}</p>
+              <p>
+                {connection.use_tls
+                  ? connection.client_cert_path
+                    ? "Enabled (mTLS)"
+                    : "Enabled"
+                  : "Disabled"}
+              </p>
             </div>
           </div>
           <div className="button-row" style={{ justifyContent: "flex-start" }}>

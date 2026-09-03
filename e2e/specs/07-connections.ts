@@ -76,6 +76,29 @@ describe("Connection Management", () => {
     );
   });
 
+  it("reveals TLS certificate fields when TLS is enabled", async () => {
+    const switcherBtn = await $(selectors.switcherButton);
+    await switcherBtn.click();
+
+    const dropdown = await $(selectors.switcherDropdown);
+    await dropdown.waitForExist({ timeout: 3000 });
+
+    const addBtn = await $(".connection-option.add-new");
+    await addBtn.click();
+
+    const modal = await $(selectors.editorModal);
+    await modal.waitForExist({ timeout: 3000 });
+
+    const tlsCheckbox = await modal.$("input[type='checkbox']");
+    await tlsCheckbox.click();
+
+    const certLabel = await modal.$("label=Client Certificate");
+    await certLabel.waitForExist({ timeout: 3000, timeoutMsg: "TLS cert fields did not appear" });
+
+    const cancelBtn = await $("button=Cancel");
+    await cancelBtn.click();
+  });
+
   it("duplicates a connection via the switcher", async () => {
     const switcherBtn = await $(selectors.switcherButton);
     await switcherBtn.click();

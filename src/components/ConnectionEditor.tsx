@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import type { Connection } from "@/types";
 import { useApp } from "@/contexts/AppContext";
 import { useEscapeClose } from "@/hooks/useEscapeClose";
+import * as api from "@/utils/api";
 
 interface ConnectionEditorProps {
   isNew?: boolean;
@@ -23,6 +24,13 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
   const [username, setUsername] = useState(isNew ? "" : activeConnection?.username || "");
   const [password, setPassword] = useState(isNew ? "" : activeConnection?.password || "");
   const [useTls, setUseTls] = useState(isNew ? false : activeConnection?.use_tls || false);
+  const [clientCertPath, setClientCertPath] = useState(
+    isNew ? "" : activeConnection?.client_cert_path || ""
+  );
+  const [clientKeyPath, setClientKeyPath] = useState(
+    isNew ? "" : activeConnection?.client_key_path || ""
+  );
+  const [caCertPath, setCaCertPath] = useState(isNew ? "" : activeConnection?.ca_cert_path || "");
   const [autoConnect, setAutoConnect] = useState(
     isNew ? true : (activeConnection?.auto_connect ?? true)
   );
@@ -45,6 +53,10 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
       setError("Client ID is required");
       return;
     }
+    if (useTls && !!clientCertPath.trim() !== !!clientKeyPath.trim()) {
+      setError("Client certificate and client key must both be set");
+      return;
+    }
 
     setError(null);
     setSaving(true);
@@ -60,6 +72,9 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
           username: username || undefined,
           password: password || undefined,
           use_tls: useTls,
+          ca_cert_path: caCertPath.trim() || undefined,
+          client_cert_path: clientCertPath.trim() || undefined,
+          client_key_path: clientKeyPath.trim() || undefined,
           auto_connect: autoConnect,
           variables: {},
           buttons: [],
@@ -77,6 +92,9 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
           username: username || undefined,
           password: password || undefined,
           use_tls: useTls,
+          ca_cert_path: caCertPath.trim() || undefined,
+          client_cert_path: clientCertPath.trim() || undefined,
+          client_key_path: clientKeyPath.trim() || undefined,
           auto_connect: autoConnect,
         };
 
@@ -98,6 +116,38 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
   };
 
   useEscapeClose(onClose);
+
+  const renderCertField = (
+    label: string,
+    value: string,
+    setValue: (v: string) => void,
+    placeholder: string
+  ) => (
+    <div className="form-group">
+      <label>{label}</label>
+      <div className="file-picker-row">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={placeholder}
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+        />
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={async () => {
+            const path = await api.pickCertificateFile(label);
+            if (path) setValue(path);
+          }}
+        >
+          Browse
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="modal-overlay">
@@ -195,6 +245,18 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
               </label>
             </div>
           </div>
+
+          {useTls && (
+            <>
+              {renderCertField("Client Certificate", clientCertPath, setClientCertPath, "Optional")}
+              {renderCertField("Client Key", clientKeyPath, setClientKeyPath, "Optional")}
+              {renderCertField("CA Certificate", caCertPath, setCaCertPath, "System trust store")}
+              <p className="form-hint">
+                Set certificate and key for mutual TLS (e.g. AWS IoT). CA certificate is only
+                needed for brokers the system does not already trust, such as self-signed ones.
+              </p>
+            </>
+          )}
 
           <div className="button-row">
             <button type="button" className="btn btn-secondary" onClick={onClose}>

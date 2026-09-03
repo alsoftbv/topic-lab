@@ -29,6 +29,9 @@ export interface Connection {
   username?: string;
   password?: string;
   use_tls: boolean;
+  ca_cert_path?: string;
+  client_cert_path?: string;
+  client_key_path?: string;
   auto_connect: boolean;
   variables: Record<string, string>;
   variable_history?: Record<string, string[]>;

@@ -79,6 +79,12 @@ pub struct Connection {
     pub password: Option<String>,
     #[serde(default)]
     pub use_tls: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ca_cert_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_cert_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_key_path: Option<String>,
     #[serde(default = "default_true")]
     pub auto_connect: bool,
     #[serde(default)]
