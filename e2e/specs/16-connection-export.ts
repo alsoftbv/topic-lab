@@ -14,7 +14,7 @@ describe("Per-Connection Export Button", () => {
   });
 
   it("shows export button on the connection row", async () => {
-    const exportBtn = await $(".connection-export-btn");
+    const exportBtn = await $('button[title="Export connection"]');
     await exportBtn.waitForExist({ timeout: 3000, timeoutMsg: "Export button not found in dropdown" });
   });
 

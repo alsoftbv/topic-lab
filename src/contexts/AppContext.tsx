@@ -21,6 +21,7 @@ interface AppContextType {
   resolvedSubscriptions: Record<string, string>;
   addConnection: (connection: Connection) => Promise<void>;
   importConnection: (connection: Omit<Connection, "id">) => Promise<void>;
+  duplicateConnection: (id: string) => Promise<void>;
   updateConnection: (connection: Connection) => Promise<void>;
   deleteConnection: (id: string) => Promise<void>;
   switchConnection: (id: string) => Promise<void>;
@@ -230,6 +231,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await addConnection(connection);
   }
 
+  async function duplicateConnection(id: string) {
+    const source = data.connections.find((c) => c.id === id);
+    if (!source) return;
+    await addConnection({
+      ...structuredClone(source),
+      id: crypto.randomUUID(),
+      name: `${source.name} Copy`,
+    });
+  }
+
   async function updateConnection(connection: Connection) {
     await saveData((prev) => ({
       ...prev,
@@ -432,6 +443,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         resolvedSubscriptions,
         addConnection,
         importConnection,
+        duplicateConnection,
         updateConnection,
         deleteConnection,
         switchConnection,

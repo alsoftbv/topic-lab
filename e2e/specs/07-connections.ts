@@ -75,4 +75,36 @@ describe("Connection Management", () => {
       { timeout: 5000, timeoutMsg: "Did not fall back to first connection after delete" }
     );
   });
+
+  it("duplicates a connection via the switcher", async () => {
+    const switcherBtn = await $(selectors.switcherButton);
+    await switcherBtn.click();
+
+    const dropdown = await $(selectors.switcherDropdown);
+    await dropdown.waitForExist({ timeout: 3000 });
+
+    const duplicateBtn = await $('button[title="Duplicate connection"]');
+    await duplicateBtn.click();
+
+    await browser.waitUntil(
+      async () => (await getTextByCss(selectors.connectionName)) === "E2E Test Connection Copy",
+      { timeout: 5000, timeoutMsg: "Duplicated connection did not become active" }
+    );
+  });
+
+  it("deletes the duplicated connection via settings", async () => {
+    const settingsBtn = await $(selectors.settingsButton);
+    await settingsBtn.click();
+
+    const settingsModal = await $(".modal-small");
+    await settingsModal.waitForExist({ timeout: 3000 });
+
+    const deleteBtn = await $(".btn-danger");
+    await deleteBtn.click();
+
+    await browser.waitUntil(
+      async () => (await getTextByCss(selectors.connectionName)) === "E2E Test Connection",
+      { timeout: 5000, timeoutMsg: "Did not fall back to first connection after delete" }
+    );
+  });
 });

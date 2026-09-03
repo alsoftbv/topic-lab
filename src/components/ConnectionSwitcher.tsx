@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Plus, Upload, Download, Wifi, WifiOff, Loader } from "lucide-react";
+import { ChevronDown, Plus, Upload, Download, Copy, Wifi, WifiOff, Loader } from "lucide-react";
 import type { Connection } from "@/types";
 import { useApp } from "@/contexts/AppContext";
 import * as api from "@/utils/api";
@@ -10,7 +10,8 @@ interface ConnectionSwitcherProps {
 }
 
 export function ConnectionSwitcher({ onAddNew, onImport }: ConnectionSwitcherProps) {
-  const { data, activeConnection, connectionStatus, switchConnection } = useApp();
+  const { data, activeConnection, connectionStatus, switchConnection, duplicateConnection } =
+    useApp();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -60,6 +61,12 @@ export function ConnectionSwitcher({ onAddNew, onImport }: ConnectionSwitcherPro
     await api.exportConnection(conn);
   };
 
+  const handleDuplicate = async (e: React.MouseEvent, conn: Connection) => {
+    e.stopPropagation();
+    setIsOpen(false);
+    await duplicateConnection(conn.id);
+  };
+
   if (!activeConnection) return null;
 
   return (
@@ -83,7 +90,14 @@ export function ConnectionSwitcher({ onAddNew, onImport }: ConnectionSwitcherPro
                 <span className="connection-option-broker">{conn.broker_url}</span>
               </div>
               <button
-                className="connection-export-btn"
+                className="connection-action-btn"
+                onClick={(e) => handleDuplicate(e, conn)}
+                title="Duplicate connection"
+              >
+                <Copy size={14} />
+              </button>
+              <button
+                className="connection-action-btn"
                 onClick={(e) => handleExport(e, conn)}
                 title="Export connection"
               >

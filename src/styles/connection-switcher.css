@@ -95,7 +95,7 @@
     min-width: 0;
 }
 
-.connection-export-btn {
+.connection-action-btn {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -109,11 +109,11 @@
     transition: opacity 0.15s, color 0.15s;
 }
 
-.connection-option:hover .connection-export-btn {
+.connection-option:hover .connection-action-btn {
     opacity: 1;
 }
 
-.connection-export-btn:hover {
+.connection-action-btn:hover {
     color: var(--primary);
 }
 
