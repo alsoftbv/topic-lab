@@ -66,7 +66,7 @@ describe("Button Duplication", () => {
   it("cleans up duplicated buttons", async () => {
     while ((await $$(selectors.buttonCard).length) > 1) {
       const buttons = await $$(selectors.buttonCard);
-      const lastButton = buttons[await buttons.length - 1];
+      const lastButton = buttons[(await buttons.length) - 1];
       await lastButton.click();
       await browser.pause(100);
       await sendKey("Backspace");

@@ -84,9 +84,7 @@ describe("Drag & Drop Reorder", () => {
       // Small delay then simulate mouse move to target position (left side)
       setTimeout(() => {
         // Trigger mouseenter on target card
-        const targetPropsKey = Object.keys(targetCard).find((k) =>
-          k.startsWith("__reactProps$")
-        );
+        const targetPropsKey = Object.keys(targetCard).find((k) => k.startsWith("__reactProps$"));
         if (targetPropsKey) {
           const targetProps = (targetCard as any)[targetPropsKey];
           if (targetProps.onMouseEnter) {

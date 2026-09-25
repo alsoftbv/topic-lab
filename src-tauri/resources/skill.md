@@ -1,6 +1,6 @@
 ---
 name: topic-lab
-description: Drive the MQTT Topic Lab CLI to list saved connections and buttons, send saved buttons, publish ad-hoc messages, subscribe to topics, and manage connection variables. Use when an agent needs to send or receive MQTT messages using the connections, buttons, and variables already configured in the MQTT Topic Lab desktop app.
+description: Drive the MQTT Topic Lab CLI to list or add connections, list saved buttons, send saved buttons, publish ad-hoc messages, subscribe to topics, and manage connection variables. Use when an agent needs to send or receive MQTT messages using the connections, buttons, and variables already configured in the MQTT Topic Lab desktop app.
 ---
 
 # MQTT Topic Lab CLI
@@ -9,7 +9,7 @@ MQTT Topic Lab is a desktop app for sending saved MQTT commands. The CLI is the 
 
 > This skill is embedded in the CLI: run `topic-lab skill` to print it to stdout.
 
-**The desktop app takes precedence.** Commands that change configuration (`connections select`, `buttons add`/`edit`/`delete`, `variables set`/`unset`) work only when the app is **not** running — while it is open they are refused (coordinated via an OS advisory lock), so the CLI can never clobber the app's state. All other commands (listing, `send`, `publish`, `subscribe`) never modify `data.json` and are always available, even while the app is open.
+**The desktop app takes precedence.** Commands that change configuration (`connections add`/`select`, `buttons add`/`edit`/`delete`, `variables set`/`unset`) work only when the app is **not** running — while it is open they are refused (coordinated via an OS advisory lock), so the CLI can never clobber the app's state. All other commands (listing, `send`, `publish`, `subscribe`) never modify `data.json` and are always available, even while the app is open.
 
 ## Invoking the CLI
 
@@ -42,12 +42,17 @@ Override the directory with the `MQTT_TOPIC_LAB_DATA_DIR` environment variable (
 
 ## Commands
 
-### List or select connections
+### List, add, or select connections
 ```
 topic-lab connections list --json
+topic-lab connections add --name prod --broker broker.example.com --username user --password secret
+topic-lab connections add --name aws --broker xxxx-ats.iot.eu-west-1.amazonaws.com --port 443 --tls --client-cert ./device.pem.crt --client-key ./private.pem.key --select
 topic-lab connections select <name|id>
 ```
-`list` returns each saved connection's `id`, `name`, `broker_url`, `port`, `use_tls`, button count, and `active` flag. Use the `name` or `id` as the `--connection` selector for other commands. `select` sets the active connection (the one used when `--connection` is omitted); it writes config, so it is refused while the desktop app is running.
+- `list` returns each saved connection's `id`, `name`, `broker_url`, `port`, `use_tls`, button count, and `active` flag. Use the `name` or `id` as the `--connection` selector for other commands.
+- `add` creates a connection. `--name` (must be unique) and `--broker` (host, `ws://`/`wss://` not supported) are required. Optional: `--port` (default `8883` with `--tls`, else `1883`), `--client-id` (default `mqtt-topic-lab-<random>`), `--username`, `--password`, `--tls`, `--ca-cert <file>` (added on top of the OS trust store), `--client-cert <file>` + `--client-key <file>` (mutual TLS, must be given together, both require `--tls`), `--no-auto-connect` (don't connect when the desktop app starts), `--select` (make it the active connection; a connection added when none exist becomes active automatically). Certificate files must exist and are stored as absolute paths. With `--json` it prints `{"added": true, "id", "name", "active"}`.
+- `select` sets the active connection (the one used when `--connection` is omitted).
+- `add` and `select` write config, so they are refused while the desktop app is running.
 
 ### List buttons
 ```
@@ -108,4 +113,4 @@ Topics and payloads use `{variable_name}` syntax. Custom variables come from the
 
 - `send`, `publish`, and `subscribe` require a reachable broker; the connection times out after ~10s if it can't connect.
 - A `send`/`publish` waits briefly after publishing to flush the message before disconnecting.
-- The CLI shares `data.json` with the desktop app but only reads it, so concurrent use with the running app is safe.
+- The CLI shares `data.json` with the desktop app. Listing, `send`, `publish`, and `subscribe` only read it, so they are safe to use while the app runs; config-writing commands are refused until the app is closed.

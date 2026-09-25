@@ -1,45 +1,47 @@
 .color-picker {
-    display: flex;
-    gap: 0.5rem;
+  display: flex;
+  gap: 0.5rem;
 }
 
 .color-swatch {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    border: 2px solid transparent;
-    cursor: pointer;
-    transition: transform 0.15s, border-color 0.15s;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition:
+    transform 0.15s,
+    border-color 0.15s;
 }
 
 .color-swatch:hover {
-    transform: scale(1.1);
+  transform: scale(1.1);
 }
 
 .color-swatch.selected {
-    border-color: var(--text);
+  border-color: var(--text);
 }
 
 .color-orange {
-    background: var(--btn-orange);
+  background: var(--btn-orange);
 }
 
 .color-green {
-    background: var(--btn-green);
+  background: var(--btn-green);
 }
 
 .color-blue {
-    background: var(--btn-blue);
+  background: var(--btn-blue);
 }
 
 .color-purple {
-    background: var(--btn-purple);
+  background: var(--btn-purple);
 }
 
 .color-red {
-    background: var(--btn-red);
+  background: var(--btn-red);
 }
 
 .color-teal {
-    background: var(--btn-teal);
+  background: var(--btn-teal);
 }

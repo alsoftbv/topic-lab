@@ -1,9 +1,4 @@
-import {
-  selectors,
-  waitForDashboard,
-  setInputValue,
-  getElText,
-} from "../helpers.js";
+import { selectors, waitForDashboard, setInputValue, getElText } from "../helpers.js";
 
 describe("Variable History", () => {
   before(async () => {
@@ -30,7 +25,9 @@ describe("Variable History", () => {
   });
 
   it("changes the variable value to create history", async () => {
-    const valueEl = await $(".variable-key=mac").parentElement().$(".variable-value-wrapper .variable-value");
+    const valueEl = await $(".variable-key=mac")
+      .parentElement()
+      .$(".variable-value-wrapper .variable-value");
     await valueEl.click();
     await browser.pause(300);
 
@@ -40,9 +37,12 @@ describe("Variable History", () => {
     });
 
     const saveBtn = await $("button[title='Save']");
-    await browser.execute((el: HTMLElement) => {
-      el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-    }, saveBtn as unknown as HTMLElement);
+    await browser.execute(
+      (el: HTMLElement) => {
+        el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+      },
+      saveBtn as unknown as HTMLElement
+    );
 
     await browser.waitUntil(
       async () => {
@@ -55,7 +55,9 @@ describe("Variable History", () => {
   });
 
   it("shows history dropdown with previous value on click", async () => {
-    const valueEl = await $(".variable-key=mac").parentElement().$(".variable-value-wrapper .variable-value");
+    const valueEl = await $(".variable-key=mac")
+      .parentElement()
+      .$(".variable-value-wrapper .variable-value");
     await valueEl.click();
     await browser.pause(300);
 
@@ -68,9 +70,12 @@ describe("Variable History", () => {
 
   it("selects a history value to switch back", async () => {
     const historyValue = await $(".variable-history-value");
-    await browser.execute((el: HTMLElement) => {
-      el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-    }, historyValue as unknown as HTMLElement);
+    await browser.execute(
+      (el: HTMLElement) => {
+        el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+      },
+      historyValue as unknown as HTMLElement
+    );
 
     await browser.waitUntil(
       async () => {
@@ -83,7 +88,9 @@ describe("Variable History", () => {
   });
 
   it("history now contains the other value", async () => {
-    const valueEl = await $(".variable-key=mac").parentElement().$(".variable-value-wrapper .variable-value");
+    const valueEl = await $(".variable-key=mac")
+      .parentElement()
+      .$(".variable-value-wrapper .variable-value");
     await valueEl.click();
     await browser.pause(300);
 

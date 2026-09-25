@@ -1,54 +1,54 @@
 .setup-wizard {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-    overflow: hidden;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  overflow: hidden;
 }
 
 .setup-card {
-    background: var(--bg-secondary);
-    padding: 2rem;
-    border-radius: var(--radius);
-    width: 100%;
-    max-width: 480px;
+  background: var(--bg-secondary);
+  padding: 2rem;
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 480px;
 }
 
 .setup-card h1 {
-    margin-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .setup-card .subtitle {
-    color: var(--text-secondary);
-    margin-bottom: 1.5rem;
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
 }
 
 .setup-card .import-btn {
-    width: 100%;
+  width: 100%;
 }
 
 .setup-card .divider {
-    display: flex;
-    align-items: center;
-    margin: 1.5rem 0;
-    color: var(--text-secondary);
-    font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  margin: 1.5rem 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
 }
 
 .setup-card .divider::before,
 .setup-card .divider::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--border);
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
 }
 
 .setup-card .divider span {
-    padding: 0 1rem;
+  padding: 0 1rem;
 }
 
 .setup-card h2 {
-    font-size: 1.125rem;
-    margin-bottom: 1.5rem;
+  font-size: 1.125rem;
+  margin-bottom: 1.5rem;
 }

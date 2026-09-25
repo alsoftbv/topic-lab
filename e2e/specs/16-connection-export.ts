@@ -15,7 +15,10 @@ describe("Per-Connection Export Button", () => {
 
   it("shows export button on the connection row", async () => {
     const exportBtn = await $('button[title="Export connection"]');
-    await exportBtn.waitForExist({ timeout: 3000, timeoutMsg: "Export button not found in dropdown" });
+    await exportBtn.waitForExist({
+      timeout: 3000,
+      timeoutMsg: "Export button not found in dropdown",
+    });
   });
 
   it("connection dropdown has import option", async () => {
@@ -29,9 +32,8 @@ describe("Per-Connection Export Button", () => {
       document.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
     });
 
-    await browser.waitUntil(
-      async () => !(await $(selectors.switcherDropdown).isExisting()),
-      { timeout: 3000 }
-    );
+    await browser.waitUntil(async () => !(await $(selectors.switcherDropdown).isExisting()), {
+      timeout: 3000,
+    });
   });
 });

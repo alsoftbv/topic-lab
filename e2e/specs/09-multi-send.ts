@@ -131,10 +131,10 @@ describe("Multi-Send Mode", () => {
     // Stop
     await publishBtn.click();
 
-    await browser.waitUntil(
-      async () => (await getElText(publishBtn)) === "Start",
-      { timeout: 3000, timeoutMsg: "Multi-send did not stop" }
-    );
+    await browser.waitUntil(async () => (await getElText(publishBtn)) === "Start", {
+      timeout: 3000,
+      timeoutMsg: "Multi-send did not stop",
+    });
   });
 
   it("disconnects", async () => {

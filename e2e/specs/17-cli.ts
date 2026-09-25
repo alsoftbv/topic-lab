@@ -119,6 +119,50 @@ describe("CLI", () => {
     expect((r.stderr || "").toLowerCase()).toContain("is open");
   });
 
+  it("refuses adding a connection while the app is running (instance lock)", () => {
+    const r = cli(["connections", "add", "-n", "ShouldNotExist", "-b", "localhost"]);
+    expect(r.status).not.toBe(0);
+    expect((r.stderr || "").toLowerCase()).toContain("is open");
+  });
+
+  it("adds a connection that can then be used (write)", () => {
+    let r = cli(
+      ["connections", "add", "-n", "cli3", "-b", "localhost", "--no-auto-connect", "--json"],
+      tmpDir
+    );
+    expect(r.status).toBe(0);
+    const added = JSON.parse(r.stdout);
+    expect(added.added).toBe(true);
+    expect(added.active).toBe(false);
+
+    r = cli(["connections", "list", "--json"], tmpDir);
+    const conn = JSON.parse(r.stdout).find((c: any) => c.id === added.id);
+    expect(conn.name).toBe("cli3");
+    expect(conn.port).toBe(1883);
+
+    const data = JSON.parse(fs.readFileSync(path.join(tmpDir, "data.json"), "utf-8"));
+    const stored = data.connections.find((c: any) => c.id === added.id);
+    expect(stored.auto_connect).toBe(false);
+    expect(stored.client_id).toMatch(/^mqtt-topic-lab-[a-z0-9]{6}$/);
+
+    r = cli(["publish", "-c", "cli3", "-t", "e2e/cli/added", "-p", "hi"], tmpDir);
+    expect(r.status).toBe(0);
+  });
+
+  it("refuses adding a connection with a duplicate name", () => {
+    const r = cli(["connections", "add", "-n", "cli", "-b", "localhost"], tmpDir);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain("already exists");
+  });
+
+  it("requires the client key alongside the client cert", () => {
+    const r = cli(
+      ["connections", "add", "-n", "mtls", "-b", "localhost", "--tls", "--client-cert", binaryPath],
+      tmpDir
+    );
+    expect(r.status).not.toBe(0);
+  });
+
   it("lists buttons (read)", () => {
     const r = cli(["buttons", "list", "--json"]);
     expect(r.status).toBe(0);
@@ -140,11 +184,16 @@ describe("CLI", () => {
   });
 
   it("adds, edits, and deletes a button against a free data dir (write)", () => {
-    let r = cli(["buttons", "add", "-n", "Created", "-t", "topic/created", "-p", "x", "--qos", "2"], tmpDir);
+    let r = cli(
+      ["buttons", "add", "-n", "Created", "-t", "topic/created", "-p", "x", "--qos", "2"],
+      tmpDir
+    );
     expect(r.status).toBe(0);
 
     r = cli(["buttons", "list", "--json"], tmpDir);
-    expect(JSON.parse(r.stdout).some((b: any) => b.name === "Created" && b.qos === "exactlyonce")).toBe(true);
+    expect(
+      JSON.parse(r.stdout).some((b: any) => b.name === "Created" && b.qos === "exactlyonce")
+    ).toBe(true);
 
     r = cli(["buttons", "edit", "Created", "--payload", "y", "--retain", "true"], tmpDir);
     expect(r.status).toBe(0);
@@ -208,14 +257,28 @@ describe("CLI", () => {
       tmpDir
     );
     expect(pub.status).toBe(0);
-    const sub = cli(["subscribe", "-c", "cli", "-t", "e2e/cli/rt", "-n", "1", "--timeout", "10", "--json"], tmpDir);
+    const sub = cli(
+      ["subscribe", "-c", "cli", "-t", "e2e/cli/rt", "-n", "1", "--timeout", "10", "--json"],
+      tmpDir
+    );
     expect(sub.status).toBe(0);
     expect(sub.stdout).toContain("hello-cli");
   });
 
   it("substitutes variables when publishing", () => {
     const pub = cli(
-      ["publish", "-c", "cli", "-t", "e2e/cli/dev/{device_id}", "-p", "v", "--retain", "--qos", "1"],
+      [
+        "publish",
+        "-c",
+        "cli",
+        "-t",
+        "e2e/cli/dev/{device_id}",
+        "-p",
+        "v",
+        "--retain",
+        "--qos",
+        "1",
+      ],
       tmpDir
     );
     expect(pub.status).toBe(0);
@@ -243,25 +306,28 @@ describe("CLI", () => {
     expect(JSON.parse(viaLink.stdout).some((c: any) => c.name === "cli")).toBe(true);
   });
 
-  unixIt("installs to ~/.local/bin by default when it is on the PATH, and uninstalls from it", () => {
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), "tlab-home-"));
-    const localBin = path.join(home, ".local", "bin");
-    const env = { HOME: home, PATH: `${localBin}:/usr/bin:/bin` };
-    try {
-      const r = cli(["install", "--json"], undefined, env);
-      expect(r.status).toBe(0);
-      const report = JSON.parse(r.stdout);
-      expect(report.path).toBe(path.join(localBin, "topic-lab"));
-      expect(report.onPath).toBe(true);
-      expect(fs.lstatSync(report.path).isSymbolicLink()).toBe(true);
+  unixIt(
+    "installs to ~/.local/bin by default when it is on the PATH, and uninstalls from it",
+    () => {
+      const home = fs.mkdtempSync(path.join(os.tmpdir(), "tlab-home-"));
+      const localBin = path.join(home, ".local", "bin");
+      const env = { HOME: home, PATH: `${localBin}:/usr/bin:/bin` };
+      try {
+        const r = cli(["install", "--json"], undefined, env);
+        expect(r.status).toBe(0);
+        const report = JSON.parse(r.stdout);
+        expect(report.path).toBe(path.join(localBin, "topic-lab"));
+        expect(report.onPath).toBe(true);
+        expect(fs.lstatSync(report.path).isSymbolicLink()).toBe(true);
 
-      const un = cli(["uninstall"], undefined, env);
-      expect(un.status).toBe(0);
-      expect(fs.existsSync(report.path)).toBe(false);
-    } finally {
-      fs.rmSync(home, { recursive: true, force: true });
+        const un = cli(["uninstall"], undefined, env);
+        expect(un.status).toBe(0);
+        expect(fs.existsSync(report.path)).toBe(false);
+      } finally {
+        fs.rmSync(home, { recursive: true, force: true });
+      }
     }
-  });
+  );
 
   unixIt("reports an install found elsewhere on the PATH instead of duplicating it", () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "tlab-home-"));
@@ -329,7 +395,9 @@ describe("CLI", () => {
       const r = cli(["install", "--path", target]);
       expect(r.status).not.toBe(0);
       expect(r.stderr).toContain(`permission denied writing to ${target}`);
-      expect(r.stderr).toContain(`sudo "${fs.realpathSync(binaryPath)}" install --path "${target}"`);
+      expect(r.stderr).toContain(
+        `sudo "${fs.realpathSync(binaryPath)}" install --path "${target}"`
+      );
       expect(r.stderr).toContain("install --path ~/.local/bin");
     } finally {
       fs.chmodSync(readOnly, 0o755);

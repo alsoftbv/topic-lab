@@ -332,7 +332,11 @@ fn now_at(now: DateTime<Utc>, modifiers: &[String]) -> String {
         return format_custom(date, custom, parsed.use_utc);
     }
 
-    format_date(date, parsed.format.unwrap_or(TimeFormat::Iso), parsed.use_utc)
+    format_date(
+        date,
+        parsed.format.unwrap_or(TimeFormat::Iso),
+        parsed.use_utc,
+    )
 }
 
 #[cfg(test)]
@@ -454,15 +458,15 @@ mod tests {
 
     #[test]
     fn now_utc_iso_with_z() {
-        assert_eq!(
-            now_at(fixed(), &["utc".into()]),
-            "2024-06-15T10:30:45.123Z"
-        );
+        assert_eq!(now_at(fixed(), &["utc".into()]), "2024-06-15T10:30:45.123Z");
     }
 
     #[test]
     fn now_utc_date_time_datetime() {
-        assert_eq!(now_at(fixed(), &["utc".into(), "date".into()]), "2024-06-15");
+        assert_eq!(
+            now_at(fixed(), &["utc".into(), "date".into()]),
+            "2024-06-15"
+        );
         assert_eq!(now_at(fixed(), &["utc".into(), "time".into()]), "10:30:45");
         assert_eq!(
             now_at(fixed(), &["utc".into(), "datetime".into()]),
@@ -563,10 +567,9 @@ mod tests {
 
     #[test]
     fn uuid_format_is_valid_v4() {
-        let re = Regex::new(
-            r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
-        )
-        .unwrap();
+        let re =
+            Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+                .unwrap();
         let out = substitute_variables("{uuid}", &vars(&[]));
         assert!(re.is_match(&out), "got {out}");
     }
@@ -574,7 +577,9 @@ mod tests {
     #[test]
     fn random_default_range() {
         for _ in 0..50 {
-            let n: i64 = substitute_variables("{random}", &vars(&[])).parse().unwrap();
+            let n: i64 = substitute_variables("{random}", &vars(&[]))
+                .parse()
+                .unwrap();
             assert!((0..=100).contains(&n));
         }
     }

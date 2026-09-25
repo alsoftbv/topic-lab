@@ -69,10 +69,10 @@ describe("Variable Rename", () => {
     const varsBtn = await $("button*=Variables");
     await varsBtn.click();
 
-    await browser.waitUntil(
-      async () => !(await $(selectors.variablesPanel).isExisting()),
-      { timeout: 3000, timeoutMsg: "Variables panel did not close" }
-    );
+    await browser.waitUntil(async () => !(await $(selectors.variablesPanel).isExisting()), {
+      timeout: 3000,
+      timeoutMsg: "Variables panel did not close",
+    });
 
     await browser.pause(500);
 
@@ -87,7 +87,10 @@ describe("Variable Rename", () => {
     }
     expect(renameTestBtn).not.toBeNull();
 
-    await browser.execute((el: HTMLElement) => el.click(), renameTestBtn! as unknown as HTMLElement);
+    await browser.execute(
+      (el: HTMLElement) => el.click(),
+      renameTestBtn! as unknown as HTMLElement
+    );
     await browser.pause(300);
 
     await browser.waitUntil(
@@ -119,7 +122,7 @@ describe("Variable Rename", () => {
 
   it("cleans up: deletes the test button and variable", async () => {
     const buttons = await $$(selectors.buttonCard);
-    const lastButton = buttons[await buttons.length - 1];
+    const lastButton = buttons[(await buttons.length) - 1];
     await lastButton.click();
     await browser.pause(100);
 

@@ -252,8 +252,8 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
               {renderCertField("Client Key", clientKeyPath, setClientKeyPath, "Optional")}
               {renderCertField("CA Certificate", caCertPath, setCaCertPath, "System trust store")}
               <p className="form-hint">
-                Set certificate and key for mutual TLS (e.g. AWS IoT). CA certificate is only
-                needed for brokers the system does not already trust, such as self-signed ones.
+                Set certificate and key for mutual TLS (e.g. AWS IoT). CA certificate is only needed
+                for brokers the system does not already trust, such as self-signed ones.
               </p>
             </>
           )}

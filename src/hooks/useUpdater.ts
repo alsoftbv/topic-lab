@@ -7,13 +7,7 @@ import {
   type Update,
 } from "@/utils/updater";
 
-export type UpdateStatus =
-  | "idle"
-  | "checking"
-  | "available"
-  | "uptodate"
-  | "downloading"
-  | "error";
+export type UpdateStatus = "idle" | "checking" | "available" | "uptodate" | "downloading" | "error";
 
 export interface Updater {
   status: UpdateStatus;

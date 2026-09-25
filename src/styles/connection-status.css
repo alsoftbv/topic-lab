@@ -1,32 +1,32 @@
 .connection-status {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
 }
 
 .status-indicator {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
 }
 
 .status-indicator.disconnected {
-    background: var(--text-secondary);
+  background: var(--text-secondary);
 }
 
 .status-indicator.connecting {
-    background: var(--warning);
+  background: var(--warning);
 }
 
 .status-indicator.connected {
-    background: var(--success);
+  background: var(--success);
 }
 
 .status-indicator.error {
-    background: var(--error);
+  background: var(--error);
 }
 
 .status-label {
-    color: var(--text-secondary);
+  color: var(--text-secondary);
 }

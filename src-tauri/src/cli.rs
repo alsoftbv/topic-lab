@@ -33,12 +33,14 @@ const MAX_VARIABLE_HISTORY: usize = 5;
 const INSTALL_DIR_HELP: &str =
     "Directory to install into (default: ~/.local/bin if it's on your PATH, else /usr/local/bin)";
 #[cfg(windows)]
-const INSTALL_DIR_HELP: &str = "Directory to install into (default: %LOCALAPPDATA%\\topic-lab\\bin)";
+const INSTALL_DIR_HELP: &str =
+    "Directory to install into (default: %LOCALAPPDATA%\\topic-lab\\bin)";
 #[cfg(not(windows))]
 const UNINSTALL_DIR_HELP: &str =
     "Directory to remove from (default: finds the install in ~/.local/bin, /usr/local/bin, or on your PATH)";
 #[cfg(windows)]
-const UNINSTALL_DIR_HELP: &str = "Directory to remove from (default: %LOCALAPPDATA%\\topic-lab\\bin)";
+const UNINSTALL_DIR_HELP: &str =
+    "Directory to remove from (default: %LOCALAPPDATA%\\topic-lab\\bin)";
 
 pub fn is_cli_invocation() -> bool {
     match std::env::args().nth(1) {
@@ -155,6 +157,45 @@ enum Command {
 enum ConnectionCommand {
     /// List saved connections (the active one is marked)
     List,
+    /// Add a new connection (refused while the desktop app is running)
+    Add {
+        /// Connection name (must be unique)
+        #[arg(short, long)]
+        name: String,
+        /// Broker host, e.g. broker.example.com (use --tls for TLS)
+        #[arg(short, long)]
+        broker: String,
+        /// Broker port (default: 8883 with --tls, else 1883)
+        #[arg(short, long)]
+        port: Option<u16>,
+        /// MQTT client id (default: mqtt-topic-lab-<random>)
+        #[arg(long)]
+        client_id: Option<String>,
+        /// Username for broker authentication
+        #[arg(short, long)]
+        username: Option<String>,
+        /// Password for broker authentication
+        #[arg(long)]
+        password: Option<String>,
+        /// Connect over TLS
+        #[arg(long)]
+        tls: bool,
+        /// Custom CA certificate (PEM), added on top of the OS trust store
+        #[arg(long, requires = "tls")]
+        ca_cert: Option<PathBuf>,
+        /// Client certificate (PEM) for mutual TLS; requires --client-key
+        #[arg(long, requires_all = ["tls", "client_key"])]
+        client_cert: Option<PathBuf>,
+        /// Client private key (PEM) for mutual TLS; requires --client-cert
+        #[arg(long, requires_all = ["tls", "client_cert"])]
+        client_key: Option<PathBuf>,
+        /// Don't connect automatically when the desktop app starts
+        #[arg(long)]
+        no_auto_connect: bool,
+        /// Make the new connection the active one
+        #[arg(long)]
+        select: bool,
+    },
     /// Set the active connection used when --connection is omitted (refused while the app runs)
     Select {
         /// Connection name or id
@@ -297,6 +338,37 @@ async fn run(cli: Cli) -> Result<(), String> {
     match cli.command {
         Command::Connections { action } => match action {
             ConnectionCommand::List => list_connections(&load()?, json),
+            ConnectionCommand::Add {
+                name,
+                broker,
+                port,
+                client_id,
+                username,
+                password,
+                tls,
+                ca_cert,
+                client_cert,
+                client_key,
+                no_auto_connect,
+                select,
+            } => connection_add(
+                &storage,
+                NewConnection {
+                    name,
+                    broker,
+                    port,
+                    client_id,
+                    username,
+                    password,
+                    tls,
+                    ca_cert,
+                    client_cert,
+                    client_key,
+                    auto_connect: !no_auto_connect,
+                },
+                select,
+                json,
+            ),
             ConnectionCommand::Select { connection } => {
                 connection_select(&storage, &connection, json)
             }
@@ -454,7 +526,11 @@ fn list_connections(data: &AppData, json: bool) -> Result<(), String> {
         println!("no connections configured");
     } else {
         for c in &data.connections {
-            let marker = if active == Some(c.id.as_str()) { "*" } else { " " };
+            let marker = if active == Some(c.id.as_str()) {
+                "*"
+            } else {
+                " "
+            };
             let tls = if c.use_tls { " tls" } else { "" };
             println!(
                 "{} {}  {}:{}{}  ({} buttons)  [{}]",
@@ -480,9 +556,117 @@ fn connection_select(storage: &Storage, selector: &str, json: bool) -> Result<()
     })?;
 
     if json {
-        println!("{}", serde_json::json!({ "selected": true, "id": id, "name": name }));
+        println!(
+            "{}",
+            serde_json::json!({ "selected": true, "id": id, "name": name })
+        );
     } else {
         println!("active connection: {name} [{id}]");
+    }
+    Ok(())
+}
+
+struct NewConnection {
+    name: String,
+    broker: String,
+    port: Option<u16>,
+    client_id: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
+    tls: bool,
+    ca_cert: Option<PathBuf>,
+    client_cert: Option<PathBuf>,
+    client_key: Option<PathBuf>,
+    auto_connect: bool,
+}
+
+fn absolute_cert_path(label: &str, path: &std::path::Path) -> Result<String, String> {
+    std::fs::canonicalize(path)
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|e| format!("cannot read {label} {}: {e}", path.display()))
+}
+
+fn build_connection(new: NewConnection) -> Result<Connection, String> {
+    let name = new.name.trim().to_string();
+    if name.is_empty() {
+        return Err("connection name is required".into());
+    }
+    let broker_url = new.broker.trim().to_string();
+    if broker_url.is_empty() {
+        return Err("broker is required".into());
+    }
+    if broker_url.starts_with("ws://") || broker_url.starts_with("wss://") {
+        return Err("WebSocket brokers (ws://, wss://) are not supported".into());
+    }
+    let client_id = match new.client_id.map(|c| c.trim().to_string()) {
+        Some(c) if c.is_empty() => return Err("client id cannot be empty".into()),
+        Some(c) => c,
+        None => format!(
+            "mqtt-topic-lab-{}",
+            &uuid::Uuid::new_v4().simple().to_string()[..6]
+        ),
+    };
+
+    Ok(Connection {
+        id: uuid::Uuid::new_v4().to_string(),
+        name,
+        broker_url,
+        port: new.port.unwrap_or(if new.tls { 8883 } else { 1883 }),
+        client_id,
+        username: new.username.filter(|u| !u.is_empty()),
+        password: new.password.filter(|p| !p.is_empty()),
+        use_tls: new.tls,
+        ca_cert_path: new
+            .ca_cert
+            .map(|p| absolute_cert_path("CA certificate", &p))
+            .transpose()?,
+        client_cert_path: new
+            .client_cert
+            .map(|p| absolute_cert_path("client certificate", &p))
+            .transpose()?,
+        client_key_path: new
+            .client_key
+            .map(|p| absolute_cert_path("client key", &p))
+            .transpose()?,
+        auto_connect: new.auto_connect,
+        variables: HashMap::new(),
+        variable_history: HashMap::new(),
+        buttons: vec![],
+        groups: vec![],
+        subscriptions: vec![],
+    })
+}
+
+fn connection_add(
+    storage: &Storage,
+    new: NewConnection,
+    select: bool,
+    json: bool,
+) -> Result<(), String> {
+    let connection = build_connection(new)?;
+    let (id, name) = (connection.id.clone(), connection.name.clone());
+
+    let _guard = acquire_write_or_refuse(storage)?;
+    let mut data = storage.load_data().map_err(|e| e.to_string())?;
+    if data.connections.iter().any(|c| c.name == name) {
+        return Err(format!("a connection named '{name}' already exists"));
+    }
+    let active = select || data.connections.is_empty();
+    if active {
+        data.last_connection_id = Some(id.clone());
+    }
+    data.connections.push(connection);
+    storage.save_data(&data).map_err(|e| e.to_string())?;
+
+    if json {
+        println!(
+            "{}",
+            serde_json::json!({ "added": true, "id": id, "name": name, "active": active })
+        );
+    } else if active {
+        println!("added connection '{name}' [{id}] (active)");
+    } else {
+        println!("added connection '{name}' [{id}]");
     }
     Ok(())
 }
@@ -610,7 +794,10 @@ async fn subscribe(
         .wait_connected(CONNECT_TIMEOUT)
         .await
         .map_err(|e| e.to_string())?;
-    client.subscribe(&topic, qos).await.map_err(|e| e.to_string())?;
+    client
+        .subscribe(&topic, qos)
+        .await
+        .map_err(|e| e.to_string())?;
     if !json {
         eprintln!("subscribed to {topic} (ctrl-c to stop)");
     }
@@ -712,9 +899,11 @@ fn resolve_connection<'a>(
 fn acquire_write_or_refuse(storage: &Storage) -> Result<std::fs::File, String> {
     match storage.acquire_write_lock().map_err(|e| e.to_string())? {
         Some(guard) => Ok(guard),
-        None => Err("MQTT Topic Lab is open (or another change is in progress); configuration \
+        None => Err(
+            "MQTT Topic Lab is open (or another change is in progress); configuration \
              changes are disabled while it runs. Quit the app and try again."
-            .into()),
+                .into(),
+        ),
     }
 }
 
@@ -801,7 +990,10 @@ fn button_add(
     })?;
 
     if json {
-        println!("{}", serde_json::json!({ "added": true, "id": id, "name": name }));
+        println!(
+            "{}",
+            serde_json::json!({ "added": true, "id": id, "name": name })
+        );
     } else {
         println!("added button '{name}' [{id}]");
     }
@@ -871,7 +1063,10 @@ fn button_edit(
     })?;
 
     if json {
-        println!("{}", serde_json::json!({ "updated": true, "id": id, "name": name }));
+        println!(
+            "{}",
+            serde_json::json!({ "updated": true, "id": id, "name": name })
+        );
     } else {
         println!("updated button '{name}' [{id}]");
     }
@@ -1003,7 +1198,10 @@ fn cmd_install(path: Option<PathBuf>, force: bool, json: bool) -> Result<(), Str
 fn cmd_uninstall(path: Option<PathBuf>, json: bool) -> Result<(), String> {
     let link = crate::install::uninstall(path)?;
     if json {
-        println!("{}", serde_json::json!({ "uninstalled": true, "path": link }));
+        println!(
+            "{}",
+            serde_json::json!({ "uninstalled": true, "path": link })
+        );
     } else {
         println!("uninstalled: {}", link.display());
     }
@@ -1113,6 +1311,83 @@ mod tests {
             groups: vec![],
             subscriptions: vec![],
         }
+    }
+
+    fn new_connection(name: &str, broker: &str) -> NewConnection {
+        NewConnection {
+            name: name.into(),
+            broker: broker.into(),
+            port: None,
+            client_id: None,
+            username: None,
+            password: None,
+            tls: false,
+            ca_cert: None,
+            client_cert: None,
+            client_key: None,
+            auto_connect: true,
+        }
+    }
+
+    #[test]
+    fn build_connection_applies_defaults() {
+        let c = build_connection(new_connection(" prod ", " broker.example.com ")).unwrap();
+        assert_eq!(c.name, "prod");
+        assert_eq!(c.broker_url, "broker.example.com");
+        assert_eq!(c.port, 1883);
+        assert!(c.client_id.starts_with("mqtt-topic-lab-"));
+        assert_eq!(c.client_id.len(), "mqtt-topic-lab-".len() + 6);
+        assert!(c.auto_connect);
+        assert!(!c.use_tls);
+    }
+
+    #[test]
+    fn build_connection_defaults_tls_port_to_8883() {
+        let mut new = new_connection("prod", "broker.example.com");
+        new.tls = true;
+        assert_eq!(build_connection(new).unwrap().port, 8883);
+
+        let mut new = new_connection("prod", "broker.example.com");
+        new.tls = true;
+        new.port = Some(443);
+        assert_eq!(build_connection(new).unwrap().port, 443);
+    }
+
+    #[test]
+    fn build_connection_rejects_invalid_input() {
+        assert!(build_connection(new_connection("  ", "broker")).is_err());
+        assert!(build_connection(new_connection("prod", " ")).is_err());
+        assert!(build_connection(new_connection("prod", "ws://broker")).is_err());
+        assert!(build_connection(new_connection("prod", "wss://broker")).is_err());
+
+        let mut new = new_connection("prod", "broker");
+        new.client_id = Some(" ".into());
+        assert!(build_connection(new).is_err());
+
+        let mut new = new_connection("prod", "broker");
+        new.tls = true;
+        new.ca_cert = Some("/does/not/exist.pem".into());
+        assert!(build_connection(new).is_err());
+    }
+
+    #[test]
+    fn build_connection_stores_absolute_cert_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let ca = dir.path().join("ca.pem");
+        std::fs::write(&ca, "x").unwrap();
+        let mut new = new_connection("prod", "broker");
+        new.tls = true;
+        new.ca_cert = Some(ca.clone());
+        let c = build_connection(new).unwrap();
+        assert_eq!(
+            c.ca_cert_path.as_deref(),
+            Some(
+                std::fs::canonicalize(&ca)
+                    .unwrap()
+                    .to_string_lossy()
+                    .as_ref()
+            )
+        );
     }
 
     #[test]

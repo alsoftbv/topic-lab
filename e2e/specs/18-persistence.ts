@@ -3,16 +3,13 @@ import path from "path";
 import fs from "fs";
 import { selectors, waitForDashboard, setInputValue, openButtonEditor } from "../helpers.js";
 
-const dataDir =
-  process.env.MQTT_TOPIC_LAB_DATA_DIR || path.join(os.tmpdir(), "mqtt-topic-lab-e2e");
+const dataDir = process.env.MQTT_TOPIC_LAB_DATA_DIR || path.join(os.tmpdir(), "mqtt-topic-lab-e2e");
 const dataFile = path.join(dataDir, "data.json");
 
 function diskHasVariable(key: string, value: string): boolean {
   try {
     const data = JSON.parse(fs.readFileSync(dataFile, "utf-8"));
-    return (data.connections || []).some(
-      (c: any) => c.variables && c.variables[key] === value
-    );
+    return (data.connections || []).some((c: any) => c.variables && c.variables[key] === value);
   } catch {
     return false;
   }

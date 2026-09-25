@@ -1,24 +1,24 @@
 /* Base styles and CSS variables */
-@import './base.css';
+@import "./base.css";
 
 /* Common UI elements */
-@import './buttons.css';
-@import './forms.css';
-@import './loading.css';
-@import './modal.css';
+@import "./buttons.css";
+@import "./forms.css";
+@import "./loading.css";
+@import "./modal.css";
 
 /* Layout */
-@import './setup-wizard.css';
-@import './dashboard.css';
+@import "./setup-wizard.css";
+@import "./dashboard.css";
 
 /* Components */
-@import './connection-status.css';
-@import './connection-switcher.css';
-@import './button-card.css';
-@import './variables-panel.css';
-@import './dock.css';
-@import './messages-pane.css';
-@import './publish-pane.css';
-@import './button-group.css';
-@import './color-picker.css';
-@import './updates.css';
+@import "./connection-status.css";
+@import "./connection-switcher.css";
+@import "./button-card.css";
+@import "./variables-panel.css";
+@import "./dock.css";
+@import "./messages-pane.css";
+@import "./publish-pane.css";
+@import "./button-group.css";
+@import "./color-picker.css";
+@import "./updates.css";

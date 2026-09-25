@@ -48,10 +48,10 @@ describe("Built-in Variables", () => {
     const submitBtn = await $("button=Create");
     await submitBtn.click();
 
-    await browser.waitUntil(
-      async () => !!(await findCardByName("UUID Test")),
-      { timeout: 5000, timeoutMsg: "UUID Test button was not created" }
-    );
+    await browser.waitUntil(async () => !!(await findCardByName("UUID Test")), {
+      timeout: 5000,
+      timeoutMsg: "UUID Test button was not created",
+    });
   });
 
   it("shows substituted UUID in the payload", async () => {
@@ -76,10 +76,10 @@ describe("Built-in Variables", () => {
     const submitBtn = await $("button=Create");
     await submitBtn.click();
 
-    await browser.waitUntil(
-      async () => !!(await findCardByName("Timestamp Test")),
-      { timeout: 5000, timeoutMsg: "Timestamp Test button was not created" }
-    );
+    await browser.waitUntil(async () => !!(await findCardByName("Timestamp Test")), {
+      timeout: 5000,
+      timeoutMsg: "Timestamp Test button was not created",
+    });
   });
 
   it("shows substituted unix timestamp", async () => {
@@ -102,10 +102,10 @@ describe("Built-in Variables", () => {
     const submitBtn = await $("button=Create");
     await submitBtn.click();
 
-    await browser.waitUntil(
-      async () => !!(await findCardByName("Random Test")),
-      { timeout: 5000, timeoutMsg: "Random Test button was not created" }
-    );
+    await browser.waitUntil(async () => !!(await findCardByName("Random Test")), {
+      timeout: 5000,
+      timeoutMsg: "Random Test button was not created",
+    });
   });
 
   it("shows substituted random number in the topic", async () => {

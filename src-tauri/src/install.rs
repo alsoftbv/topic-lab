@@ -274,9 +274,7 @@ fn remove_installed_link(link: &Path) -> Result<PathBuf, String> {
 
 #[cfg(unix)]
 fn shell_safe(path: &Path) -> bool {
-    !path
-        .to_string_lossy()
-        .contains(['\'', '"', '\\', '`', '$'])
+    !path.to_string_lossy().contains(['\'', '"', '\\', '`', '$'])
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
@@ -371,7 +369,10 @@ pub fn install(dir: Option<PathBuf>, force: bool) -> Result<InstallReport, Insta
     let script = format!("@\"{}\" %*\r\n", exe.display());
 
     if std::fs::symlink_metadata(&shim).is_ok() {
-        if std::fs::read_to_string(&shim).map(|c| c == script).unwrap_or(false) {
+        if std::fs::read_to_string(&shim)
+            .map(|c| c == script)
+            .unwrap_or(false)
+        {
             add_to_user_path(&dir).map_err(InstallError::Other)?;
             return Ok(InstallReport {
                 path: shim,

@@ -1,157 +1,159 @@
 .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--primary);
-    color: white;
-    border: none;
-    padding: 0.625rem 1.25rem;
-    border-radius: var(--radius);
-    cursor: pointer;
-    font-size: 0.875rem;
-    font-weight: 500;
-    transition: background-color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 0.2s;
 }
 
 .btn:hover {
-    background: var(--primary-hover);
+  background: var(--primary-hover);
 }
 
 .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-secondary {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
 }
 
 .btn-secondary:hover {
-    background: var(--border);
+  background: var(--border);
 }
 
 .btn-active {
-    background: var(--primary);
+  background: var(--primary);
 }
 
 .btn-small {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.8125rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
 }
 
 .btn-danger {
-    background: var(--error);
+  background: var(--error);
 }
 
 .btn-danger:hover {
-    background: var(--error-hover);
+  background: var(--error-hover);
 }
 
 .btn-icon {
-    display: flex;
-    align-items: center;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0.25rem;
-    font-size: 1rem;
-    opacity: 0.7;
-    color: var(--text);
-    transition: opacity 0.2s;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  font-size: 1rem;
+  opacity: 0.7;
+  color: var(--text);
+  transition: opacity 0.2s;
 }
 
 .btn-icon:hover {
-    opacity: 1;
+  opacity: 1;
 }
 
 .btn-publish {
-    width: 100%;
-    margin-top: auto;
-    transition: background-color 0.2s, transform 0.1s;
+  width: 100%;
+  margin-top: auto;
+  transition:
+    background-color 0.2s,
+    transform 0.1s;
 }
 
 .btn-publish:active:not(:disabled) {
-    transform: scale(0.97);
+  transform: scale(0.97);
 }
 
 .btn-publish.keyboard-press {
-    animation: keyboard-press 0.15s ease-out;
+  animation: keyboard-press 0.15s ease-out;
 }
 
 @keyframes keyboard-press {
-    0% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(0.97);
-    }
-    100% {
-        transform: scale(1);
-    }
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.97);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .btn-icon-only {
-    padding: 0.375rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  padding: 0.375rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.btn>svg {
-    margin-right: 0.375rem;
-    vertical-align: middle;
+.btn > svg {
+  margin-right: 0.375rem;
+  vertical-align: middle;
 }
 
-.btn>svg:only-child {
-    margin-right: 0;
+.btn > svg:only-child {
+  margin-right: 0;
 }
 
 /* Button Colors */
 .btn-color-orange {
-    background: var(--btn-orange);
+  background: var(--btn-orange);
 }
 
 .btn-color-orange:hover {
-    background: var(--btn-orange-hover);
+  background: var(--btn-orange-hover);
 }
 
 .btn-color-green {
-    background: var(--btn-green);
+  background: var(--btn-green);
 }
 
 .btn-color-green:hover {
-    background: var(--btn-green-hover);
+  background: var(--btn-green-hover);
 }
 
 .btn-color-blue {
-    background: var(--btn-blue);
+  background: var(--btn-blue);
 }
 
 .btn-color-blue:hover {
-    background: var(--btn-blue-hover);
+  background: var(--btn-blue-hover);
 }
 
 .btn-color-purple {
-    background: var(--btn-purple);
+  background: var(--btn-purple);
 }
 
 .btn-color-purple:hover {
-    background: var(--btn-purple-hover);
+  background: var(--btn-purple-hover);
 }
 
 .btn-color-red {
-    background: var(--btn-red);
+  background: var(--btn-red);
 }
 
 .btn-color-red:hover {
-    background: var(--btn-red-hover);
+  background: var(--btn-red-hover);
 }
 
 .btn-color-teal {
-    background: var(--btn-teal);
+  background: var(--btn-teal);
 }
 
 .btn-color-teal:hover {
-    background: var(--btn-teal-hover);
+  background: var(--btn-teal-hover);
 }

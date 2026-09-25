@@ -1,6 +1,9 @@
 import { type ComponentProps } from "react";
 
-type EditableProps = Omit<ComponentProps<"span">, "spellCheck" | "suppressContentEditableWarning"> & {
+type EditableProps = Omit<
+  ComponentProps<"span">,
+  "spellCheck" | "suppressContentEditableWarning"
+> & {
   as?: "span" | "code";
 };
 

@@ -1,4 +1,10 @@
-import { selectors, waitForDashboard, openButtonEditor, setInputValue, getElText } from "../helpers.js";
+import {
+  selectors,
+  waitForDashboard,
+  openButtonEditor,
+  setInputValue,
+  getElText,
+} from "../helpers.js";
 
 describe("Variables", () => {
   before(async () => {
@@ -58,9 +64,12 @@ describe("Variables", () => {
     }, selectors.variableValue);
 
     const saveBtn = await $("button[title='Save']");
-    await browser.execute((el: HTMLElement) => {
-      el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-    }, saveBtn as unknown as HTMLElement);
+    await browser.execute(
+      (el: HTMLElement) => {
+        el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+      },
+      saveBtn as unknown as HTMLElement
+    );
 
     await browser.waitUntil(
       async () => {

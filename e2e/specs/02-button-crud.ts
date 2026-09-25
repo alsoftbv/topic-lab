@@ -102,7 +102,7 @@ describe("Button CRUD", () => {
     const initialCount = await $$(selectors.buttonCard).length;
 
     const buttons = await $$(selectors.buttonCard);
-    const lastButton = buttons[await buttons.length - 1];
+    const lastButton = buttons[(await buttons.length) - 1];
     await lastButton.click();
 
     await sendKey("Backspace");

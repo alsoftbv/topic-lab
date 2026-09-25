@@ -138,10 +138,14 @@ export function VariablesPanel() {
         if (totalAffected > 0 && activeConnection) {
           const parts: string[] = [];
           if (affectedButtons.length > 0) {
-            parts.push(`${affectedButtons.length} ${affectedButtons.length === 1 ? "button" : "buttons"}`);
+            parts.push(
+              `${affectedButtons.length} ${affectedButtons.length === 1 ? "button" : "buttons"}`
+            );
           }
           if (affectedSubs.length > 0) {
-            parts.push(`${affectedSubs.length} ${affectedSubs.length === 1 ? "subscription" : "subscriptions"}`);
+            parts.push(
+              `${affectedSubs.length} ${affectedSubs.length === 1 ? "subscription" : "subscriptions"}`
+            );
           }
           const renameLabel = "Rename References";
           const result = await message(

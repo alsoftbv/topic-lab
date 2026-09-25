@@ -1,91 +1,91 @@
 .update-banner {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1.5rem;
-    background: color-mix(in srgb, var(--primary) 12%, transparent);
-    border-bottom: 1px solid var(--primary);
-    color: var(--text);
-    font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.5rem;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  border-bottom: 1px solid var(--primary);
+  color: var(--text);
+  font-size: 0.875rem;
 }
 
 .update-banner-error {
-    background: color-mix(in srgb, var(--error) 12%, transparent);
-    border-bottom-color: var(--error);
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  border-bottom-color: var(--error);
 }
 
 .update-banner > span {
-    flex: 1;
+  flex: 1;
 }
 
 .update-banner-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .update-banner-progress {
-    flex: 1;
-    height: 6px;
-    background: var(--bg-card);
-    border-radius: 3px;
-    overflow: hidden;
+  flex: 1;
+  height: 6px;
+  background: var(--bg-card);
+  border-radius: 3px;
+  overflow: hidden;
 }
 
 .update-banner-progress-fill {
-    height: 100%;
-    background: var(--primary);
-    transition: width 0.15s linear;
+  height: 100%;
+  background: var(--primary);
+  transition: width 0.15s linear;
 }
 
 .settings-section-title {
-    font-size: 0.9375rem;
-    margin: 0;
+  font-size: 0.9375rem;
+  margin: 0;
 }
 
 .settings-section-title:not(:first-child) {
-    margin-top: 1.75rem;
+  margin-top: 1.75rem;
 }
 
 .update-settings > * + * {
-    margin-top: 1rem;
+  margin-top: 1rem;
 }
 
 .update-settings .btn,
 .update-banner .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .update-autocheck {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-    cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  cursor: pointer;
 }
 
 .update-status-line {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.8125rem;
-    color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
 }
 
 .update-status-available {
-    color: var(--primary);
+  color: var(--primary);
 }
 
 .update-status-ok {
-    color: var(--success);
+  color: var(--success);
 }
 
 .update-status-error {
-    color: var(--error);
+  color: var(--error);
 }
 
 .update-spin {
-    animation: spin 1s linear infinite;
+  animation: spin 1s linear infinite;
 }
