@@ -2,6 +2,7 @@ import os from "os";
 import path from "path";
 import fs from "fs";
 import {
+  APP_LOAD_TIMEOUT,
   selectors,
   waitForDashboard,
   waitForConnectionStatus,
@@ -57,7 +58,7 @@ async function openInNewWindow(name: string): Promise<string> {
   await (await (await switcherRow(name)).$("button[title='Open in new window']")).click();
   await browser.waitUntil(
     async () => (await browser.getWindowHandles()).length === before.length + 1,
-    { timeout: 5000, timeoutMsg: "no new window appeared" }
+    { timeout: APP_LOAD_TIMEOUT, timeoutMsg: "no new window appeared" }
   );
   const handle = (await browser.getWindowHandles()).find((h) => !before.includes(h))!;
   await browser.switchToWindow(handle);

@@ -109,7 +109,9 @@ describe("Release notes", () => {
       timeoutMsg: "OK did not record the version",
     });
     expect(readSettings().showReleaseNotes).toBeUndefined();
+  });
 
+  it("stays hidden after OK until the next update", async () => {
     await restartApp();
     await waitForDashboard();
     await expectModalToStayClosed();

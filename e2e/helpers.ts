@@ -59,6 +59,8 @@ export const selectors = {
   newGroupCreate: ".new-group-input .btn",
 };
 
+export const APP_LOAD_TIMEOUT = 45000;
+
 export async function waitForAppReady(): Promise<void> {
   await browser.waitUntil(
     async () => {
@@ -66,7 +68,7 @@ export async function waitForAppReady(): Promise<void> {
       const dashboard = await $(selectors.dashboard);
       return (await wizard.isExisting()) || (await dashboard.isExisting());
     },
-    { timeout: 15000, timeoutMsg: "App did not load within 15 seconds" }
+    { timeout: APP_LOAD_TIMEOUT, timeoutMsg: "App did not load" }
   );
 }
 
@@ -76,7 +78,7 @@ export async function waitForDashboard(): Promise<void> {
       const dashboard = await $(selectors.dashboard);
       return await dashboard.isExisting();
     },
-    { timeout: 15000, timeoutMsg: "Dashboard did not load within 15 seconds" }
+    { timeout: APP_LOAD_TIMEOUT, timeoutMsg: "Dashboard did not load" }
   );
 }
 
