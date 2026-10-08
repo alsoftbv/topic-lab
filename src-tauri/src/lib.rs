@@ -1,81 +1,238 @@
+mod app_windows;
 mod cli;
+mod data_store;
 mod install;
+#[cfg(target_os = "macos")]
+mod macos_tabs;
 mod mqtt;
+mod mqtt_clients;
+mod release_notes;
 mod storage;
 mod types;
 mod variables;
+mod window_registry;
 mod window_state;
 
+use data_store::{DataSnapshot, DataStore, StoreError};
 use log::info;
-use mqtt::{Message, MqttClient, MqttEvents};
+use mqtt::{Message, MqttEvents};
+use mqtt_clients::{MqttClients, SharedClient};
+use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
 use storage::Storage;
 use tauri::menu::{AboutMetadata, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::{
-    AppHandle, Emitter, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder, WindowEvent,
+    AppHandle, Emitter, EventTarget, Manager, RunEvent, State, WebviewWindow, WindowEvent,
 };
-use tokio::sync::RwLock;
-use types::{AppData, Button, Connection, QoS};
-use window_state::{WindowStateStore, MIN_HEIGHT, MIN_WIDTH};
+use types::{Button, Connection, QoS};
+use window_registry::{Claim, OpenConnection, WindowRegistry, MAIN_WINDOW};
+use window_state::WindowStateStore;
 
 struct AppState {
-    storage: Storage,
-    mqtt_client: Arc<RwLock<MqttClient>>,
-    _gui_lock: Option<std::fs::File>,
+    store: DataStore,
+    clients: MqttClients,
+}
+
+struct GuiLock {
+    _file: Option<std::fs::File>,
 }
 
 struct TauriEvents {
     app: AppHandle,
+    label: String,
 }
 
 impl MqttEvents for TauriEvents {
     fn on_status(&self, status: &str) {
-        let _ = self.app.emit("mqtt-status", status);
+        let _ = self.app.emit_to(
+            EventTarget::webview_window(&self.label),
+            "mqtt-status",
+            status,
+        );
     }
 
     fn on_message(&self, message: &Message) {
-        let _ = self.app.emit("mqtt-message", message.clone());
+        let _ = self.app.emit_to(
+            EventTarget::webview_window(&self.label),
+            "mqtt-message",
+            message.clone(),
+        );
     }
 }
 
-#[tauri::command]
-async fn get_data(state: State<'_, AppState>) -> Result<AppData, String> {
-    state.storage.load_data().map_err(|e| e.to_string())
+async fn window_client(state: &AppState, window: &WebviewWindow) -> Result<SharedClient, String> {
+    let registry = window.state::<WindowRegistry>();
+    let app = window.app_handle().clone();
+    let label = window.label().to_string();
+    state
+        .clients
+        .get_or_create(
+            window.label(),
+            || registry.contains(window.label()),
+            move || Arc::new(TauriEvents { app, label }),
+        )
+        .await
+        .ok_or_else(|| "This window is closing".to_string())
+}
+
+fn broadcast(
+    app: &AppHandle,
+    result: Result<DataSnapshot, StoreError>,
+) -> Result<DataSnapshot, String> {
+    let snapshot = result.map_err(|e| e.to_string())?;
+    app_windows::refresh_titles(app, &snapshot.data);
+    let _ = app.emit("data-changed", &snapshot);
+    Ok(snapshot)
 }
 
 #[tauri::command]
-async fn save_data(state: State<'_, AppState>, data: AppData) -> Result<(), String> {
-    state.storage.save_data(&data).map_err(|e| e.to_string())
+async fn get_data(state: State<'_, AppState>) -> Result<DataSnapshot, String> {
+    state.store.snapshot().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-async fn delete_data(state: State<'_, AppState>) -> Result<(), String> {
-    state.storage.delete_data().map_err(|e| e.to_string())
+async fn save_connection(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    connection: Connection,
+) -> Result<DataSnapshot, String> {
+    broadcast(&app, state.store.save_connection(connection))
 }
 
 #[tauri::command]
-async fn connect(state: State<'_, AppState>, connection: Connection) -> Result<(), String> {
-    let mut client = state.mqtt_client.write().await;
+async fn delete_connection(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    registry: State<'_, WindowRegistry>,
+    id: String,
+) -> Result<DataSnapshot, String> {
+    let result = state.store.delete_connection(&id);
+    if result.is_ok() && !registry.release_connection(&id).is_empty() {
+        app_windows::broadcast_open_connections(&app);
+    }
+    broadcast(&app, result)
+}
+
+#[tauri::command]
+async fn reorder_connections(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+) -> Result<DataSnapshot, String> {
+    broadcast(&app, state.store.reorder_connections(&ids))
+}
+
+#[tauri::command]
+async fn set_last_connection(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<DataSnapshot, String> {
+    broadcast(&app, state.store.set_last_connection(&id))
+}
+
+#[tauri::command]
+async fn update_settings(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    settings: Map<String, Value>,
+) -> Result<DataSnapshot, String> {
+    broadcast(&app, state.store.update_settings(settings))
+}
+
+#[tauri::command]
+async fn delete_data(app: AppHandle, state: State<'_, AppState>) -> Result<DataSnapshot, String> {
+    broadcast(&app, state.store.reset())
+}
+
+#[tauri::command]
+async fn get_window_connection(
+    window: WebviewWindow,
+    registry: State<'_, WindowRegistry>,
+) -> Result<Option<String>, String> {
+    Ok(registry.connection_of(window.label()))
+}
+
+#[tauri::command]
+async fn claim_connection(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    registry: State<'_, WindowRegistry>,
+    id: String,
+) -> Result<Claim, String> {
+    let snapshot = state.store.snapshot().map_err(|e| e.to_string())?;
+    if !snapshot.data.connections.iter().any(|c| c.id == id) {
+        return Err(format!("Connection not found: {id}"));
+    }
+    let claim = registry
+        .claim(window.label(), &id)
+        .map_err(|_| "This window is closing".to_string())?;
+    if claim == Claim::Claimed {
+        app_windows::refresh_titles(&app, &snapshot.data);
+        app_windows::broadcast_open_connections(&app);
+    }
+    Ok(claim)
+}
+
+#[tauri::command]
+async fn open_connections(
+    registry: State<'_, WindowRegistry>,
+) -> Result<Vec<OpenConnection>, String> {
+    Ok(registry.open_connections())
+}
+
+#[tauri::command]
+async fn focus_window(app: AppHandle, label: String) -> Result<(), String> {
+    let window = app
+        .get_webview_window(&label)
+        .ok_or_else(|| format!("Window not found: {label}"))?;
+    app_windows::focus(&window).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn open_window(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    connection_id: Option<String>,
+) -> Result<(), String> {
+    app_windows::open_window(&app, connection_id, false).map_err(|e| e.to_string())?;
+    if let Ok(snapshot) = state.store.snapshot() {
+        app_windows::refresh_titles(&app, &snapshot.data);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn connect(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    connection: Connection,
+) -> Result<(), String> {
+    let client = window_client(&state, &window).await?;
+    let mut client = client.write().await;
     client.connect(&connection).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-async fn disconnect(state: State<'_, AppState>) -> Result<(), String> {
-    let mut client = state.mqtt_client.write().await;
-    client.disconnect().await;
+async fn disconnect(window: WebviewWindow, state: State<'_, AppState>) -> Result<(), String> {
+    let client = window_client(&state, &window).await?;
+    client.write().await.disconnect().await;
     Ok(())
 }
 
 #[tauri::command]
 async fn publish_button(
+    window: WebviewWindow,
     state: State<'_, AppState>,
     button: Button,
     variables: HashMap<String, String>,
 ) -> Result<(), String> {
     let (topic, payload) = variables::resolve_button(&button, &variables);
-    let client = state.mqtt_client.read().await;
+    let client = window_client(&state, &window).await?;
+    let client = client.read().await;
     client
         .publish(&topic, &payload, button.qos, button.retain)
         .await
@@ -84,6 +241,7 @@ async fn publish_button(
 
 #[tauri::command]
 async fn publish(
+    window: WebviewWindow,
     state: State<'_, AppState>,
     topic: String,
     payload: String,
@@ -93,7 +251,8 @@ async fn publish(
 ) -> Result<(), String> {
     let topic = variables::substitute_variables(&topic, &variables);
     let payload = variables::substitute_variables(&payload, &variables);
-    let client = state.mqtt_client.read().await;
+    let client = window_client(&state, &window).await?;
+    let client = client.read().await;
     client
         .publish(&topic, &payload, qos, retain)
         .await
@@ -119,13 +278,24 @@ fn get_builtin_names() -> Vec<String> {
 }
 
 #[tauri::command]
+fn get_release_notes() -> Option<release_notes::ReleaseNotes> {
+    release_notes::current()
+}
+
+#[tauri::command]
 fn install_cli() -> Result<install::InstallReport, String> {
     install::install_for_gui()
 }
 
 #[tauri::command]
-async fn subscribe(state: State<'_, AppState>, topic: String, qos: QoS) -> Result<(), String> {
-    let client = state.mqtt_client.read().await;
+async fn subscribe(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    topic: String,
+    qos: QoS,
+) -> Result<(), String> {
+    let client = window_client(&state, &window).await?;
+    let client = client.read().await;
     client
         .subscribe(&topic, qos)
         .await
@@ -133,21 +303,30 @@ async fn subscribe(state: State<'_, AppState>, topic: String, qos: QoS) -> Resul
 }
 
 #[tauri::command]
-async fn unsubscribe(state: State<'_, AppState>, topic: String) -> Result<(), String> {
-    let client = state.mqtt_client.read().await;
+async fn unsubscribe(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    topic: String,
+) -> Result<(), String> {
+    let client = window_client(&state, &window).await?;
+    let client = client.read().await;
     client.unsubscribe(&topic).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-async fn get_messages(state: State<'_, AppState>) -> Result<Vec<Message>, String> {
-    let client = state.mqtt_client.read().await;
+async fn get_messages(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+) -> Result<Vec<Message>, String> {
+    let client = window_client(&state, &window).await?;
+    let client = client.read().await;
     Ok(client.get_messages().await)
 }
 
 #[tauri::command]
-async fn clear_messages(state: State<'_, AppState>) -> Result<(), String> {
-    let client = state.mqtt_client.read().await;
-    client.clear_messages().await;
+async fn clear_messages(window: WebviewWindow, state: State<'_, AppState>) -> Result<(), String> {
+    let client = window_client(&state, &window).await?;
+    client.read().await.clear_messages().await;
     Ok(())
 }
 
@@ -155,14 +334,15 @@ fn build_menu(app: &mut tauri::App) -> tauri::Result<()> {
     let preferences = MenuItemBuilder::with_id("preferences", "Preferences…")
         .accelerator("CmdOrCtrl+,")
         .build(app)?;
+    let new_window = MenuItemBuilder::with_id("new_window", "New Window")
+        .accelerator("CmdOrCtrl+N")
+        .build(app)?;
 
     let about_metadata = AboutMetadata {
         name: Some("MQTT Topic Lab".into()),
         version: Some(env!("CARGO_PKG_VERSION").into()),
         ..Default::default()
     };
-
-    let mut menu = MenuBuilder::new(app);
 
     #[cfg(target_os = "macos")]
     {
@@ -179,6 +359,15 @@ fn build_menu(app: &mut tauri::App) -> tauri::Result<()> {
             .separator()
             .quit()
             .build()?;
+        let new_tab = MenuItemBuilder::with_id("new_tab", "New Tab")
+            .accelerator("CmdOrCtrl+T")
+            .build(app)?;
+        let file_menu = SubmenuBuilder::new(app, "File")
+            .item(&new_window)
+            .item(&new_tab)
+            .separator()
+            .close_window()
+            .build()?;
         let edit_menu = SubmenuBuilder::new(app, "Edit")
             .undo()
             .redo()
@@ -188,17 +377,58 @@ fn build_menu(app: &mut tauri::App) -> tauri::Result<()> {
             .paste()
             .select_all()
             .build()?;
+        let view_menu = SubmenuBuilder::new(app, "View").fullscreen().build()?;
+        let tab_item = |id: &str, text: &str, accelerator: Option<&str>| {
+            let builder = MenuItemBuilder::with_id(id, text);
+            match accelerator {
+                Some(accelerator) => builder.accelerator(accelerator),
+                None => builder,
+            }
+            .build(app)
+        };
         let window_menu = SubmenuBuilder::new(app, "Window")
             .minimize()
+            .maximize()
             .separator()
-            .close_window()
+            .item(&tab_item(
+                macos_tabs::SHOW_PREVIOUS_TAB,
+                "Show Previous Tab",
+                Some("Cmd+Shift+BracketLeft"),
+            )?)
+            .item(&tab_item(
+                macos_tabs::SHOW_NEXT_TAB,
+                "Show Next Tab",
+                Some("Cmd+Shift+BracketRight"),
+            )?)
+            .item(&tab_item(
+                macos_tabs::MOVE_TAB_TO_NEW_WINDOW,
+                "Move Tab to New Window",
+                None,
+            )?)
+            .item(&tab_item(
+                macos_tabs::MERGE_ALL_WINDOWS,
+                "Merge All Windows",
+                None,
+            )?)
+            .separator()
+            .bring_all_to_front()
             .build()?;
-        menu = menu.items(&[&app_menu, &edit_menu, &window_menu]);
+        let menu = MenuBuilder::new(app)
+            .items(&[&app_menu, &file_menu, &edit_menu, &view_menu, &window_menu])
+            .build()?;
+        app.set_menu(menu)?;
+        window_menu.set_as_windows_menu_for_nsapp()?;
     }
 
     #[cfg(not(target_os = "macos"))]
     {
+        let close_window = MenuItemBuilder::with_id("close_window", "Close Window")
+            .accelerator("CmdOrCtrl+W")
+            .build(app)?;
         let file_menu = SubmenuBuilder::new(app, "File")
+            .item(&new_window)
+            .item(&close_window)
+            .separator()
             .item(&preferences)
             .separator()
             .quit()
@@ -215,11 +445,12 @@ fn build_menu(app: &mut tauri::App) -> tauri::Result<()> {
         let help_menu = SubmenuBuilder::new(app, "Help")
             .about(Some(about_metadata))
             .build()?;
-        menu = menu.items(&[&file_menu, &edit_menu, &help_menu]);
+        let menu = MenuBuilder::new(app)
+            .items(&[&file_menu, &edit_menu, &help_menu])
+            .build()?;
+        app.set_menu(menu)?;
     }
 
-    let menu = menu.build()?;
-    app.set_menu(menu)?;
     Ok(())
 }
 
@@ -238,11 +469,21 @@ fn acquire_gui_lock(storage: &Storage) -> Option<std::fs::File> {
     None
 }
 
+#[cfg(target_os = "linux")]
+fn enable_multithreaded_xlib() {
+    if let Ok(xlib) = x11_dl::xlib::Xlib::open() {
+        unsafe { (xlib.XInitThreads)() };
+    }
+}
+
 pub fn run() {
     if cli::is_cli_invocation() {
         cli::run_cli();
         return;
     }
+
+    #[cfg(target_os = "linux")]
+    enable_multithreaded_xlib();
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .format(|buf, record| {
@@ -257,79 +498,130 @@ pub fn run() {
         .init();
     info!("Starting MQTT Topic Lab");
 
-    let storage = Storage::new().expect("Failed to initialize storage");
-    let gui_lock = acquire_gui_lock(&storage);
-    let mqtt_client = Arc::new(RwLock::new(MqttClient::new()));
+    let store = DataStore::new(Storage::new().expect("Failed to initialize storage"));
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    if !cfg!(debug_assertions) && std::env::var_os("MQTT_TOPIC_LAB_DATA_DIR").is_none() {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            app_windows::spawn_new_window(app, false);
+        }));
+    }
+
+    builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState {
-            storage,
-            mqtt_client: Arc::clone(&mqtt_client),
-            _gui_lock: gui_lock,
+            store,
+            clients: MqttClients::new(),
         })
         .manage(WindowStateStore::new())
-        .on_menu_event(|app, event| {
-            if event.id() == "preferences" {
-                let _ = app.emit("open-preferences", ());
+        .manage(WindowRegistry::new())
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "preferences" => {
+                if let Some(window) = app_windows::focused_window(app) {
+                    let _ = app.emit_to(
+                        EventTarget::webview_window(window.label()),
+                        "open-preferences",
+                        (),
+                    );
+                }
             }
+            "new_window" => app_windows::spawn_new_window(app, false),
+            #[cfg(target_os = "macos")]
+            "new_tab" => app_windows::spawn_new_window(app, true),
+            "close_window" => {
+                if let Some(window) = app_windows::focused_window(app) {
+                    let _ = window.close();
+                }
+            }
+            #[cfg(target_os = "macos")]
+            id if macos_tabs::is_tab_action(id) => {
+                if let Some(window) = app_windows::focused_window(app) {
+                    macos_tabs::perform(&window, id);
+                }
+            }
+            _ => {}
         })
         .setup(move |app| {
-            let handle = app.handle().clone();
-            let client = Arc::clone(&mqtt_client);
-            tauri::async_runtime::block_on(async {
-                client
-                    .write()
-                    .await
-                    .set_events(Arc::new(TauriEvents { app: handle }));
+            app.manage(GuiLock {
+                _file: acquire_gui_lock(app.state::<AppState>().store.storage()),
             });
-
             build_menu(app)?;
 
-            let store = app.state::<WindowStateStore>();
-            let placement = window_state::initial_placement(app, store.inner());
-
-            let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
-                .title("MQTT Topic Lab")
-                .min_inner_size(MIN_WIDTH, MIN_HEIGHT)
-                .inner_size(placement.width, placement.height);
-            if let Some((x, y)) = placement.position {
-                builder = builder.position(x, y);
-            } else {
-                builder = builder.center();
-            }
-            #[cfg(not(target_os = "linux"))]
-            {
-                builder = builder.visible(false);
-            }
-            let webview = builder.build()?;
-            #[cfg(not(target_os = "linux"))]
-            webview.show()?;
-
-            if std::env::var("MQTT_TOPIC_LAB_DATA_DIR").is_ok() {
-                let _ = webview.eval("window.__TAURI_E2E__ = true;");
+            let data = app
+                .state::<AppState>()
+                .store
+                .snapshot()
+                .ok()
+                .map(|s| s.data);
+            app.state::<WindowRegistry>().register(
+                MAIN_WINDOW,
+                data.as_ref().and_then(|d| d.initial_connection_id()),
+            );
+            let monitors = app.available_monitors().unwrap_or_default();
+            let placement =
+                window_state::initial_placement(&monitors, app.state::<WindowStateStore>().inner());
+            app_windows::build_window(app, MAIN_WINDOW, placement, false)?;
+            if let Some(data) = data {
+                app_windows::refresh_titles(app.handle(), &data);
             }
             Ok(())
         })
         .on_window_event(|window, event| match event {
+            WindowEvent::Focused(true) => {
+                let app = window.app_handle().clone();
+                let label = window.label().to_string();
+                tauri::async_runtime::spawn(async move {
+                    let Some(id) = app.state::<WindowRegistry>().connection_of(&label) else {
+                        return;
+                    };
+                    if let Ok(Some(snapshot)) =
+                        app.state::<AppState>().store.remember_last_connection(&id)
+                    {
+                        let _ = app.emit("data-changed", &snapshot);
+                    }
+                });
+            }
             WindowEvent::Resized(_) | WindowEvent::Moved(_) => {
                 if let Some(state) = window_state::capture(window) {
-                    window.state::<WindowStateStore>().update(state);
+                    window
+                        .state::<WindowStateStore>()
+                        .update(window.label(), state);
                 }
             }
             WindowEvent::CloseRequested { .. } => {
-                window.state::<WindowStateStore>().flush_and_freeze();
+                window
+                    .state::<WindowStateStore>()
+                    .window_closing(window.label());
+            }
+            WindowEvent::Destroyed => {
+                let app = window.app_handle().clone();
+                let label = window.label().to_string();
+                app.state::<WindowStateStore>().window_destroyed(&label);
+                app.state::<WindowRegistry>().remove(&label);
+                app_windows::broadcast_open_connections(&app);
+                tauri::async_runtime::spawn(async move {
+                    app.state::<AppState>().clients.close(&label).await;
+                });
             }
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             get_data,
-            save_data,
+            save_connection,
+            delete_connection,
+            reorder_connections,
+            set_last_connection,
+            update_settings,
             delete_data,
+            get_window_connection,
+            claim_connection,
+            open_connections,
+            focus_window,
+            open_window,
             connect,
             disconnect,
             publish_button,
@@ -337,6 +629,7 @@ pub fn run() {
             resolve_template,
             resolve_templates,
             get_builtin_names,
+            get_release_notes,
             install_cli,
             subscribe,
             unsubscribe,

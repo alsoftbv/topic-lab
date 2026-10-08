@@ -17,11 +17,13 @@ import type { Update } from "@/utils/updater";
 import type { AppSettings } from "@/types";
 import { useUpdater } from "./useUpdater";
 
-function mockApp(settings?: AppSettings) {
+function mockApp(settings?: AppSettings, runsStartupTasks = true, loading = false) {
   const updateSettings = vi.fn();
   vi.mocked(useApp).mockReturnValue({
     data: { connections: [], settings },
+    loading,
     updateSettings,
+    runsStartupTasks,
   } as unknown as ReturnType<typeof useApp>);
   return { updateSettings };
 }
@@ -75,6 +77,44 @@ describe("useUpdater init", () => {
     expect(result.current.status).toBe("idle");
     expect(checkForUpdate).not.toHaveBeenCalled();
 
+    unmount();
+  });
+
+  it("neither prompts nor checks in windows that do not run the startup tasks", async () => {
+    mockApp(undefined, false);
+    const { result, unmount } = renderHook(() => useUpdater());
+
+    await waitFor(() => expect(result.current.currentVersion).toBe("1.2.3"));
+    expect(result.current.showOptIn).toBe(false);
+    expect(checkForUpdate).not.toHaveBeenCalled();
+
+    unmount();
+  });
+
+  it("does not auto-check in windows that do not run the startup tasks", async () => {
+    mockApp({ autoCheckUpdates: true }, false);
+    const { result, unmount } = renderHook(() => useUpdater());
+
+    await waitFor(() => expect(result.current.currentVersion).toBe("1.2.3"));
+    expect(result.current.status).toBe("idle");
+    expect(checkForUpdate).not.toHaveBeenCalled();
+
+    unmount();
+  });
+
+  it("waits until the data has loaded before deciding", async () => {
+    mockApp(undefined, true, true);
+    const { result, rerender, unmount } = renderHook(() => useUpdater());
+
+    await act(async () => {});
+    expect(result.current.showOptIn).toBe(false);
+    expect(getCurrentVersion).not.toHaveBeenCalled();
+
+    mockApp({ autoCheckUpdates: true });
+    rerender();
+
+    await waitFor(() => expect(checkForUpdate).toHaveBeenCalledTimes(1));
+    expect(result.current.showOptIn).toBe(false);
     unmount();
   });
 

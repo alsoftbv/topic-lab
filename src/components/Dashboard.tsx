@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { confirm } from "@/utils/dialog";
 import { Settings, Plus, X, Search, LayoutGrid, MessageSquare, Send } from "lucide-react";
-import { listen } from "@tauri-apps/api/event";
-import * as api from "@/utils/api";
 import { useApp } from "@/contexts/AppContext";
 import { preferences, type DockPaneId, type DockPosition, type PaneId } from "@/utils/preferences";
 import { useDashboardKeyboard } from "@/hooks/useDashboardKeyboard";
@@ -15,13 +13,13 @@ import { MessagesPane } from "./MessagesPane";
 import { PublishPane, type PublishDraft } from "./PublishPane";
 import { useMqttMessages } from "@/hooks/useMqttMessages";
 import { useSubscriptionSync } from "@/hooks/useSubscriptionSync";
+import { useConnectionImport } from "@/hooks/useConnectionImport";
 import { ButtonEditor } from "./ButtonEditor";
 import { ButtonGroupSection } from "./ButtonGroup";
 import { VariablesPanel } from "./VariablesPanel";
 import { ConnectionEditor } from "./ConnectionEditor";
 import { SettingsModal } from "./SettingsModal";
-import { PreferencesModal } from "./PreferencesModal";
-import { useUpdater } from "@/hooks/useUpdater";
+import type { Updater } from "@/hooks/useUpdater";
 import { UpdateBanner, UpdateOptInModal } from "./UpdateNotice";
 import { modKey } from "@/utils/platform";
 import type { Button } from "@/types";
@@ -35,7 +33,12 @@ const PANE_TOGGLES: { pane: PaneId; label: string; Icon: typeof LayoutGrid; shor
     { pane: "publish", label: "Publish", Icon: Send, shortcut: "P" },
   ];
 
-export function Dashboard() {
+interface DashboardProps {
+  updater: Updater;
+  preferencesOpen: boolean;
+}
+
+export function Dashboard({ updater, preferencesOpen }: DashboardProps) {
   const {
     activeConnection,
     error,
@@ -43,7 +46,6 @@ export function Dashboard() {
     deleteButton,
     reorderButtons,
     duplicateButton,
-    importConnection,
     addGroup,
     reorderGroups,
     resolvedButtons,
@@ -53,8 +55,6 @@ export function Dashboard() {
   const [editorGroupId, setEditorGroupId] = useState<string | undefined>();
   const [showVariables, setShowVariables] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showPreferences, setShowPreferences] = useState(false);
-  const updater = useUpdater();
   const [showConnectionEditor, setShowConnectionEditor] = useState(false);
   const [isAddingConnection, setIsAddingConnection] = useState(false);
   const [visiblePanes, setVisiblePanes] = useState<PaneId[]>(() => preferences.visiblePanes);
@@ -73,7 +73,7 @@ export function Dashboard() {
   const buttonsAreaRef = useRef<HTMLElement | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [importError, setImportError] = useState<string | null>(null);
+  const { importError, handleImport } = useConnectionImport();
   const [sidebarWidth, setSidebarWidth] = useState(() => preferences.sidebarWidth);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     () => new Set(preferences.collapsedGroups)
@@ -184,7 +184,7 @@ export function Dashboard() {
     activeConnection,
     visibleButtons,
     groupNav,
-    modalsOpen: showEditor || showSettings || showConnectionEditor || showPreferences,
+    modalsOpen: showEditor || showSettings || showConnectionEditor || preferencesOpen,
     duplicateButton,
     onEdit: (button) => {
       setEditingButton(button);
@@ -341,28 +341,21 @@ export function Dashboard() {
   }, [showNewGroupInput]);
 
   useEffect(() => {
-    const unlisten = listen("open-preferences", () => setShowPreferences(true));
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, []);
-
-  useEffect(() => {
     const handleSettingsKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === ".") {
-        if (showEditor || showConnectionEditor || showPreferences) return;
+        if (showEditor || showConnectionEditor || preferencesOpen) return;
         e.preventDefault();
         setShowSettings((prev) => !prev);
       }
     };
     window.addEventListener("keydown", handleSettingsKey);
     return () => window.removeEventListener("keydown", handleSettingsKey);
-  }, [showEditor, showConnectionEditor, showPreferences]);
+  }, [showEditor, showConnectionEditor, preferencesOpen]);
 
   useEffect(() => {
     const handleSearchKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "f") {
-        if (showEditor || showSettings || showConnectionEditor || showPreferences) return;
+        if (showEditor || showSettings || showConnectionEditor || preferencesOpen) return;
         e.preventDefault();
         if (showSearch) {
           searchInputRef.current?.focus();
@@ -379,7 +372,7 @@ export function Dashboard() {
     };
     window.addEventListener("keydown", handleSearchKey, true);
     return () => window.removeEventListener("keydown", handleSearchKey, true);
-  }, [showSearch, showEditor, showSettings, showConnectionEditor, showPreferences]);
+  }, [showSearch, showEditor, showSettings, showConnectionEditor, preferencesOpen]);
 
   if (!activeConnection) return null;
 
@@ -442,18 +435,6 @@ export function Dashboard() {
   const handleAddConnection = () => {
     setIsAddingConnection(true);
     setShowConnectionEditor(true);
-  };
-
-  const handleImport = async () => {
-    setImportError(null);
-    try {
-      const connectionData = await api.importConnection();
-      if (connectionData) {
-        await importConnection(connectionData);
-      }
-    } catch (e) {
-      setImportError(e instanceof Error ? e.message : "Failed to import connection");
-    }
   };
 
   const handleCreateGroup = async () => {
@@ -774,10 +755,6 @@ export function Dashboard() {
       )}
 
       <UpdateOptInModal updater={updater} />
-
-      {showPreferences && (
-        <PreferencesModal updater={updater} onClose={() => setShowPreferences(false)} />
-      )}
 
       {showSettings && (
         <SettingsModal

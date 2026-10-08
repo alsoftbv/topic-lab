@@ -315,7 +315,7 @@ export function useDashboardKeyboard({
         return;
       }
 
-      if (e.key === "t") {
+      if (e.key === "g") {
         e.preventDefault();
         if (selectedGroupId) {
           onToggleGroup(selectedGroupId);
@@ -337,7 +337,7 @@ export function useDashboardKeyboard({
         return;
       }
 
-      if (e.key === "n") {
+      if (e.key === "+" || e.key === "=") {
         e.preventDefault();
         onNewButton();
         return;

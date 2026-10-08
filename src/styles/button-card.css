@@ -86,8 +86,9 @@ body:has(.button-card.dragging) .button-card {
 
 .button-card-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.25rem 0.5rem;
 }
 
 .drag-handle {
@@ -110,11 +111,12 @@ body:has(.button-card.dragging) .button-card {
 
 .button-card-header h3 {
   font-size: 1rem;
-  flex: 1;
+  flex: 1 1 6rem;
   min-width: 0;
 }
 
 .button-card-header h3 > span {
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
@@ -129,6 +131,7 @@ body:has(.button-card.dragging) .button-card {
   display: flex;
   gap: 0.25rem;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .button-card-details {

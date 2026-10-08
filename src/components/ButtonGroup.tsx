@@ -168,7 +168,7 @@ export function ButtonGroupSection({
           e.stopPropagation();
           onToggle();
         }}
-        title={`Toggle (${modKey}T)`}
+        title={`Toggle (${modKey}G)`}
         role="button"
         tabIndex={0}
       >
@@ -189,7 +189,7 @@ export function ButtonGroupSection({
           <button
             className="btn-icon"
             onClick={() => onAddButton(group?.id)}
-            title={`Add button (${modKey}N)`}
+            title={`Add button (${modKey}+)`}
           >
             <Plus size={14} />
           </button>

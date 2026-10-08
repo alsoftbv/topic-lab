@@ -9,6 +9,7 @@
 
 /* Layout */
 @import "./setup-wizard.css";
+@import "./connection-picker.css";
 @import "./dashboard.css";
 
 /* Components */

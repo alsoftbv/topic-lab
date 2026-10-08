@@ -53,6 +53,15 @@ describe("Screens", () => {
     await waitForDashboard();
   });
 
+  it("captures the what's new modal", async () => {
+    const modal = await $(".release-notes-modal");
+    await modal.waitForExist({ timeout: 5000 });
+    await browser.pause(400);
+    await browser.saveScreenshot(`${OUT}/release-notes.png`);
+    await (await modal.$("button=OK")).click();
+    await modal.waitForExist({ reverse: true, timeout: 3000 });
+  });
+
   it("captures the dashboard in every dock position", async () => {
     await ensureConnected();
     await showPane("messages");

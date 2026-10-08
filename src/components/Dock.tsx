@@ -101,7 +101,11 @@ export function Dock({ position, fill, children }: DockProps) {
     );
   };
 
-  const style: React.CSSProperties = fill ? {} : position === "top" ? { height } : { width };
+  const style: React.CSSProperties = fill
+    ? {}
+    : position === "top"
+      ? { height, minHeight: DOCK_HEIGHT.min }
+      : { width, minWidth: DOCK_WIDTH.min };
   const grow = (index: number) => (panes.length === 1 ? 1 : index === 0 ? split : 1 - split);
 
   return (

@@ -7,7 +7,7 @@
 .dock {
   position: relative;
   display: flex;
-  flex-shrink: 0;
+  flex-shrink: 1;
   min-width: 0;
   min-height: 0;
 }

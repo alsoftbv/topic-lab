@@ -10,12 +10,15 @@ A desktop application for sending saved MQTT commands via configurable buttons. 
 - **Project Variables**: Define variables like `device_id` once, use them across buttons with `{device_id}` syntax
 - **Multi-send**: Send messages repeatedly at configurable intervals
 - **Message Viewer**: Subscribe to topics and monitor incoming messages in real-time
+- **Publish Pane**: Send ad-hoc messages, with variables, and turn them into buttons
 - **Multiple Connections**: Switch between different MQTT brokers
+- **Multiple Windows**: Open each connection in its own window (and, on macOS, in native tabs) and work with several brokers at once; a connection is only ever open in one window
 - **Button Groups**: Organize buttons into collapsible groups with drag-and-drop reordering
 - **Import/Export**: Share connection configurations as JSON files
-- **Auto-connect**: Automatically connects to your MQTT broker on startup
+- **Auto-connect**: Automatically connects to your MQTT broker on startup and reconnects after the broker or network drops
 - **TLS Support**: Secure connections with TLS/SSL
 - **Automatic Updates**: Opt-in checks for new releases on GitHub, with one-click download & install
+- **What's New**: The release notes are shown once after an update (can be turned off)
 - **Cross-platform**: Works on Windows, Linux, and macOS
 
 ## Variables
@@ -62,26 +65,32 @@ Modifiers are added with `:` after the variable name and can be combined.
 
 | Shortcut | Action |
 |----------|--------|
-| `⌘/Ctrl + 1-9, 0` | Quick send buttons 1-10 |
+| `⌘/Ctrl + 1-9, 0` | Quick send the first 10 visible buttons |
 | `Arrow keys` | Navigate between buttons |
-| `Enter` | Send selected button |
+| `Enter / Space` | Send selected button (or toggle selected group) |
 | `Escape` | Deselect button / Close search |
-| `⌘/Ctrl + N` | New button |
+| `⌘/Ctrl + Plus` | New button |
 | `⌘/Ctrl + E` | Edit selected button |
 | `⌘/Ctrl + C` | Copy selected button |
 | `⌘/Ctrl + V` | Paste copied button |
 | `⌘/Ctrl + D` | Duplicate selected button |
+| `Delete / Backspace` | Delete selected button |
 | `⌘/Ctrl + F` | Search buttons |
-| `⌘/Ctrl + T` | Toggle message viewer |
+| `⌘/Ctrl + G` | Collapse or expand the selected button's group |
+| `⌘/Ctrl + I` | Toggle the Messages pane |
+| `⌘/Ctrl + P` | Toggle the Publish pane |
+| `⌘/Ctrl + N` | New window |
+| `⌘ + T` | New tab (macOS) |
+| `⇧⌘[` / `⇧⌘]` | Previous / next tab (macOS) |
+| `⌘/Ctrl + W` | Close window |
 | `⌘/Ctrl + ,` | Open Preferences |
 | `⌘/Ctrl + .` | Open Connection Settings |
-| `Delete / Backspace` | Delete selected button |
 
 ## Getting Started
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18+)
+- [Node.js](https://nodejs.org/) (v20.19+)
 - [Rust](https://rustup.rs/)
 - Platform-specific dependencies for Tauri (see [Tauri Prerequisites](https://tauri.app/start/prerequisites/))
 

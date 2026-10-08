@@ -1,13 +1,12 @@
 .setup-wizard {
-  min-height: 100vh;
+  height: 100%;
   display: flex;
-  align-items: center;
-  justify-content: center;
   padding: 2rem;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .setup-card {
+  margin: auto;
   background: var(--bg-secondary);
   padding: 2rem;
   border-radius: var(--radius);

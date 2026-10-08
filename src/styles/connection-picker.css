@@ -1,0 +1,43 @@
+.connection-picker-list {
+  display: flex;
+  flex-direction: column;
+  max-height: min(50vh, 360px);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.connection-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s;
+}
+
+.connection-picker-option + .connection-picker-option {
+  border-top: 1px solid var(--border);
+}
+
+.connection-picker-option:hover {
+  background: var(--bg);
+}
+
+.connection-picker-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.connection-picker .btn {
+  gap: 0.4rem;
+}

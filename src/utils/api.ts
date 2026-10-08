@@ -1,18 +1,64 @@
 import { invoke } from "@tauri-apps/api/core";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
-import type { AppData, Connection, Button, QoS, Message } from "@/types";
+import type {
+  AppSettings,
+  Claim,
+  Connection,
+  OpenConnection,
+  Button,
+  DataSnapshot,
+  QoS,
+  Message,
+  ReleaseNotes,
+} from "@/types";
 
-export async function getData(): Promise<AppData> {
-  return invoke<AppData>("get_data");
+export async function getData(): Promise<DataSnapshot> {
+  return invoke<DataSnapshot>("get_data");
 }
 
-export async function saveData(data: AppData): Promise<void> {
-  return invoke("save_data", { data });
+export async function saveConnection(connection: Connection): Promise<DataSnapshot> {
+  return invoke<DataSnapshot>("save_connection", { connection });
 }
 
-export async function deleteData(): Promise<void> {
-  return invoke("delete_data");
+export async function deleteConnection(id: string): Promise<DataSnapshot> {
+  return invoke<DataSnapshot>("delete_connection", { id });
+}
+
+export async function reorderConnections(ids: string[]): Promise<DataSnapshot> {
+  return invoke<DataSnapshot>("reorder_connections", { ids });
+}
+
+export async function setLastConnection(id: string): Promise<DataSnapshot> {
+  return invoke<DataSnapshot>("set_last_connection", { id });
+}
+
+export async function updateSettings(settings: Partial<AppSettings>): Promise<DataSnapshot> {
+  return invoke<DataSnapshot>("update_settings", { settings });
+}
+
+export async function deleteData(): Promise<DataSnapshot> {
+  return invoke<DataSnapshot>("delete_data");
+}
+
+export async function getWindowConnection(): Promise<string | null> {
+  return invoke<string | null>("get_window_connection");
+}
+
+export async function claimConnection(id: string): Promise<Claim> {
+  return invoke<Claim>("claim_connection", { id });
+}
+
+export async function getOpenConnections(): Promise<OpenConnection[]> {
+  return invoke<OpenConnection[]>("open_connections");
+}
+
+export async function focusWindow(label: string): Promise<void> {
+  return invoke("focus_window", { label });
+}
+
+export async function openWindow(connectionId: string | null): Promise<void> {
+  return invoke("open_window", { connectionId });
 }
 
 export async function connect(connection: Connection): Promise<void> {
@@ -56,6 +102,10 @@ export async function resolveTemplates(
 
 export async function getBuiltinNames(): Promise<string[]> {
   return invoke<string[]>("get_builtin_names");
+}
+
+export async function getReleaseNotes(): Promise<ReleaseNotes | null> {
+  return invoke<ReleaseNotes | null>("get_release_notes");
 }
 
 export interface InstallResult {

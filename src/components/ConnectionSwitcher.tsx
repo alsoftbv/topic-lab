@@ -9,6 +9,7 @@ import {
   WifiOff,
   Loader,
   GripVertical,
+  AppWindow,
 } from "lucide-react";
 import type { Connection } from "@/types";
 import { useApp } from "@/contexts/AppContext";
@@ -28,6 +29,8 @@ export function ConnectionSwitcher({ onAddNew, onImport }: ConnectionSwitcherPro
     switchConnection,
     duplicateConnection,
     reorderConnections,
+    isOpenElsewhere,
+    openInNewWindow,
   } = useApp();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -82,6 +85,12 @@ export function ConnectionSwitcher({ onAddNew, onImport }: ConnectionSwitcherPro
     await api.exportConnection(conn);
   };
 
+  const handleOpenInNewWindow = async (e: React.MouseEvent, conn: Connection) => {
+    e.stopPropagation();
+    setIsOpen(false);
+    await openInNewWindow(conn.id);
+  };
+
   const handleDuplicate = async (e: React.MouseEvent, conn: Connection) => {
     e.stopPropagation();
     setIsOpen(false);
@@ -133,9 +142,20 @@ export function ConnectionSwitcher({ onAddNew, onImport }: ConnectionSwitcherPro
             >
               <div className="connection-option-info">
                 <span className="connection-option-name">{conn.name}</span>
-                <span className="connection-option-broker">{conn.broker_url}</span>
+                <span className="connection-option-broker">
+                  {isOpenElsewhere(conn.id) ? "Already open" : conn.broker_url}
+                </span>
               </div>
               <div className="connection-option-actions">
+                {conn.id !== activeConnection.id && !isOpenElsewhere(conn.id) && (
+                  <button
+                    className="connection-action-btn"
+                    onClick={(e) => handleOpenInNewWindow(e, conn)}
+                    title="Open in new window"
+                  >
+                    <AppWindow size={14} />
+                  </button>
+                )}
                 <button
                   className="connection-action-btn"
                   onClick={(e) => handleDuplicate(e, conn)}

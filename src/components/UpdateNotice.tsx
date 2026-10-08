@@ -12,7 +12,7 @@ export function UpdateOptInModal({ updater }: { updater: Updater }) {
         <div className="settings-content">
           <p className="hint" style={{ marginTop: 0 }}>
             MQTT Topic Lab can automatically check GitHub for new versions when it starts and let
-            you install them with one click. You can change this later in Settings.
+            you install them with one click. You can change this later in Preferences.
           </p>
           <div className="button-row" style={{ marginTop: "1.25rem", justifyContent: "flex-end" }}>
             <button

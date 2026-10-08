@@ -4,6 +4,7 @@ import fs from "fs";
 import { spawn, spawnSync, type ChildProcess } from "child_process";
 import { fileURLToPath } from "url";
 import { startBroker, stopBroker } from "./broker.js";
+import { APP_VERSION, RELEASE_NOTES } from "./release-notes.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
@@ -53,7 +54,7 @@ export const config = {
         cwd: path.resolve(__dirname, ".."),
         stdio: "inherit",
         shell: true,
-        env: process.env,
+        env: { ...process.env, TOPIC_LAB_RELEASE_NOTES: RELEASE_NOTES },
       }
     );
 
@@ -65,6 +66,7 @@ export const config = {
   beforeSession: (_config: unknown, _capabilities: unknown, specs: string[]) => {
     const specFile = specs?.[0] || "";
     const dataFile = path.join(testDataDir, "data.json");
+    const showsReleaseNotes = specFile.includes("release-notes") || specFile.includes("screens");
 
     if (specFile.includes("01-setup-wizard")) {
       if (fs.existsSync(dataFile)) fs.unlinkSync(dataFile);
@@ -95,7 +97,25 @@ export const config = {
           },
         ],
         last_connection_id: "e2e-default",
+        settings: {
+          lastSeenVersion: showsReleaseNotes ? "0.0.0" : APP_VERSION,
+        },
       };
+      if (specFile.includes("multi-window")) {
+        defaultData.connections.push({
+          ...defaultData.connections[0],
+          id: "e2e-second",
+          name: "Second Connection",
+          buttons: [],
+        });
+        defaultData.connections.push({
+          ...defaultData.connections[0],
+          id: "e2e-third",
+          name: "Third Connection",
+          client_id: "mqtt-topic-lab-e2e-third",
+          buttons: [],
+        });
+      }
       fs.writeFileSync(dataFile, JSON.stringify(defaultData));
     }
 

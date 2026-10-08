@@ -42,12 +42,31 @@ export interface Connection {
 
 export interface AppSettings {
   autoCheckUpdates?: boolean | null;
+  lastSeenVersion?: string | null;
+  showReleaseNotes?: boolean | null;
+}
+
+export interface ReleaseNotes {
+  version: string;
+  items: string[];
 }
 
 export interface AppData {
   connections: Connection[];
   last_connection_id?: string;
   settings?: AppSettings;
+}
+
+export interface OpenConnection {
+  label: string;
+  connectionId: string;
+}
+
+export type Claim = { status: "claimed" } | { status: "openElsewhere"; label: string };
+
+export interface DataSnapshot {
+  revision: number;
+  data: AppData;
 }
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";

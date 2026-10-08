@@ -4,6 +4,7 @@ import type { Connection } from "@/types";
 import { useApp } from "@/contexts/AppContext";
 import { useEscapeClose } from "@/hooks/useEscapeClose";
 import * as api from "@/utils/api";
+import { generateClientId } from "@/utils/clientId";
 
 interface ConnectionEditorProps {
   isNew?: boolean;
@@ -17,9 +18,7 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
   const [brokerUrl, setBrokerUrl] = useState(isNew ? "" : activeConnection?.broker_url || "");
   const [port, setPort] = useState(isNew ? 1883 : activeConnection?.port || 1883);
   const [clientId, setClientId] = useState(
-    isNew
-      ? `mqtt-topic-lab-${Math.random().toString(36).slice(2, 8)}`
-      : activeConnection?.client_id || ""
+    isNew ? generateClientId() : activeConnection?.client_id || ""
   );
   const [username, setUsername] = useState(isNew ? "" : activeConnection?.username || "");
   const [password, setPassword] = useState(isNew ? "" : activeConnection?.password || "");
@@ -83,8 +82,7 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
         };
         await addConnection(newConnection);
       } else if (activeConnection) {
-        const updated: Connection = {
-          ...activeConnection,
+        await updateConnection(activeConnection.id, {
           name: name.trim(),
           broker_url: brokerUrl.trim(),
           port,
@@ -96,9 +94,7 @@ export function ConnectionEditor({ isNew = false, onClose }: ConnectionEditorPro
           client_cert_path: clientCertPath.trim() || undefined,
           client_key_path: clientKeyPath.trim() || undefined,
           auto_connect: autoConnect,
-        };
-
-        await updateConnection(updated);
+        });
         onClose();
         await disconnect();
         if (autoConnect) {

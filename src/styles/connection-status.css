@@ -1,6 +1,7 @@
 .connection-status {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 0.5rem;
   font-size: 0.875rem;
 }

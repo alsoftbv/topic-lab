@@ -14,7 +14,7 @@ describe("Button CRUD", () => {
     await waitForDashboard();
   });
 
-  it("creates a new button via Ctrl+N", async () => {
+  it("creates a new button via Ctrl+Plus", async () => {
     await openButtonEditor();
 
     await setInputValue("#buttonName", "Test Button 1");

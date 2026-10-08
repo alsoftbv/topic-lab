@@ -181,7 +181,7 @@ export async function openEditorViaShortcut(
 }
 
 export function openButtonEditor(): Promise<void> {
-  return openEditorViaShortcut("n");
+  return openEditorViaShortcut("+");
 }
 
 export function editSelectedButton(): Promise<void> {

@@ -26,6 +26,8 @@ function makeConnection(buttons: Button[]): Connection {
 function setup(activeConnection: Connection, visibleButtons: Button[]) {
   const duplicateButton = vi.fn().mockResolvedValue("new-id");
   const onTogglePane = vi.fn();
+  const onNewButton = vi.fn();
+  const onToggleGroup = vi.fn();
   const hook = renderHook(() =>
     useDashboardKeyboard({
       activeConnection,
@@ -35,12 +37,12 @@ function setup(activeConnection: Connection, visibleButtons: Button[]) {
       duplicateButton,
       onEdit: vi.fn(),
       onDelete: vi.fn(),
-      onNewButton: vi.fn(),
+      onNewButton,
       onTogglePane,
-      onToggleGroup: vi.fn(),
+      onToggleGroup,
     })
   );
-  return { hook, duplicateButton, onTogglePane };
+  return { hook, duplicateButton, onTogglePane, onNewButton, onToggleGroup };
 }
 
 function press(key: string, init: KeyboardEventInit = {}) {
@@ -197,6 +199,49 @@ describe("useDashboardKeyboard pane toggles", () => {
     press("p");
     expect(onTogglePane).toHaveBeenCalledTimes(2);
 
+    hook.unmount();
+  });
+});
+
+describe("useDashboardKeyboard new button", () => {
+  it("opens the new button editor with Cmd/Ctrl+Plus, shifted or not", () => {
+    const { hook, onNewButton } = setup(makeConnection([]), []);
+
+    press("=", { metaKey: true });
+    press("+", { ctrlKey: true, shiftKey: true });
+
+    expect(onNewButton).toHaveBeenCalledTimes(2);
+    hook.unmount();
+  });
+
+  it("leaves Cmd/Ctrl+N to the native New Window menu item", () => {
+    const { hook, onNewButton } = setup(makeConnection([]), []);
+
+    press("n", { metaKey: true });
+
+    expect(onNewButton).not.toHaveBeenCalled();
+    hook.unmount();
+  });
+});
+
+describe("useDashboardKeyboard group toggle", () => {
+  it("toggles the selected button's group with Cmd/Ctrl+G", () => {
+    const a = makeButton("a");
+    const { hook, onToggleGroup } = setup(makeConnection([a]), [a]);
+
+    press("g", { metaKey: true });
+
+    expect(onToggleGroup).toHaveBeenCalledWith("__ungrouped__");
+    hook.unmount();
+  });
+
+  it("leaves Cmd/Ctrl+T to the native New Tab menu item", () => {
+    const a = makeButton("a");
+    const { hook, onToggleGroup } = setup(makeConnection([a]), [a]);
+
+    press("t", { metaKey: true });
+
+    expect(onToggleGroup).not.toHaveBeenCalled();
     hook.unmount();
   });
 });

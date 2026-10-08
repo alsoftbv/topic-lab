@@ -26,7 +26,7 @@ export interface Updater {
 }
 
 export function useUpdater(): Updater {
-  const { data, updateSettings } = useApp();
+  const { data, loading, updateSettings, runsStartupTasks } = useApp();
   const autoCheckPref = data.settings?.autoCheckUpdates;
 
   const [status, setStatus] = useState<UpdateStatus>("idle");
@@ -90,18 +90,19 @@ export function useUpdater(): Updater {
   }
 
   useEffect(() => {
-    if (didInit.current) return;
+    if (loading || didInit.current) return;
     didInit.current = true;
     if (window.__TAURI_E2E__) return;
     getCurrentVersion()
       .then(setCurrentVersion)
       .catch(() => {});
+    if (!runsStartupTasks) return;
     if (autoCheckPref === undefined || autoCheckPref === null) {
       setShowOptIn(true);
     } else if (autoCheckPref === true) {
       check();
     }
-  }, [autoCheckPref]);
+  }, [loading, autoCheckPref]);
 
   return {
     status,

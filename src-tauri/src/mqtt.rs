@@ -10,6 +10,25 @@ use thiserror::Error;
 use tokio::sync::{mpsc, RwLock};
 
 const MAX_MESSAGES: usize = 100;
+const MAX_CONSECUTIVE_ERRORS: u32 = 5;
+const RETRY_BASE: Duration = Duration::from_millis(500);
+const RETRY_MAX: Duration = Duration::from_secs(10);
+const SHUTDOWN_GRACE: Duration = Duration::from_secs(2);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Reconnect {
+    GiveUp,
+    Keep,
+}
+
+fn retry_delay(reconnect: Reconnect, consecutive_errors: u32) -> Duration {
+    match reconnect {
+        Reconnect::GiveUp => RETRY_BASE,
+        Reconnect::Keep => RETRY_BASE
+            .saturating_mul(1 << consecutive_errors.saturating_sub(1).min(5))
+            .min(RETRY_MAX),
+    }
+}
 
 pub trait MqttEvents: Send + Sync {
     fn on_status(&self, status: &str);
@@ -52,6 +71,7 @@ pub struct MqttClient {
     subscriptions: Arc<RwLock<Vec<(String, QoS)>>>,
     events: Option<Arc<dyn MqttEvents>>,
     eventloop_task: Option<tokio::task::JoinHandle<()>>,
+    reconnect: Reconnect,
 }
 
 impl MqttClient {
@@ -65,6 +85,7 @@ impl MqttClient {
             subscriptions: Arc::new(RwLock::new(Vec::new())),
             events: None,
             eventloop_task: None,
+            reconnect: Reconnect::GiveUp,
         }
     }
 
@@ -72,9 +93,13 @@ impl MqttClient {
         self.events = Some(events);
     }
 
+    pub fn set_reconnect(&mut self, reconnect: Reconnect) {
+        self.reconnect = reconnect;
+    }
+
     pub async fn connect(&mut self, config: &Connection) -> Result<(), MqttError> {
         if self.client.is_some() {
-            if self.is_running() {
+            if self.is_running() && self.get_status().await != ConnectionStatus::Error {
                 debug!("Already connected, skipping connect");
                 return Ok(());
             }
@@ -126,17 +151,18 @@ impl MqttClient {
         let subscriptions = Arc::clone(&self.subscriptions);
         let resub_client = self.client.clone().unwrap();
         let events = self.events.clone();
+        let reconnect = self.reconnect;
         let (shutdown_tx, mut shutdown_rx) = mpsc::channel::<()>(1);
         self.shutdown_tx = Some(shutdown_tx);
 
         let task = tokio::spawn(async move {
             let mut consecutive_errors = 0;
-            const MAX_CONSECUTIVE_ERRORS: u32 = 5;
 
-            loop {
+            'events: loop {
                 tokio::select! {
+                    biased;
                     _ = shutdown_rx.recv() => {
-                        break;
+                        break 'events;
                     }
                     event = eventloop.poll() => {
                         match event {
@@ -195,8 +221,8 @@ impl MqttClient {
                             Err(e) => {
                                 consecutive_errors += 1;
                                 warn!(
-                                    "MQTT connection error ({}/{}): {}",
-                                    consecutive_errors, MAX_CONSECUTIVE_ERRORS, e
+                                    "MQTT connection error (attempt {}): {}",
+                                    consecutive_errors, e
                                 );
 
                                 *status.write().await = ConnectionStatus::Error;
@@ -204,12 +230,18 @@ impl MqttClient {
                                     events.on_status("error");
                                 }
 
-                                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                                if reconnect == Reconnect::GiveUp
+                                    && consecutive_errors >= MAX_CONSECUTIVE_ERRORS
+                                {
                                     error!("MQTT: Too many consecutive errors, giving up");
-                                    break;
+                                    break 'events;
                                 }
 
-                                tokio::time::sleep(Duration::from_millis(500)).await;
+                                tokio::select! {
+                                    biased;
+                                    _ = shutdown_rx.recv() => break 'events,
+                                    _ = tokio::time::sleep(retry_delay(reconnect, consecutive_errors)) => {}
+                                }
                             }
                         }
                     }
@@ -256,7 +288,14 @@ impl MqttClient {
             let _ = client.disconnect().await;
         }
 
-        self.eventloop_task = None;
+        if let Some(mut task) = self.eventloop_task.take() {
+            if tokio::time::timeout(SHUTDOWN_GRACE, &mut task)
+                .await
+                .is_err()
+            {
+                task.abort();
+            }
+        }
         self.subscriptions.write().await.clear();
         self.connection_info = None;
         *self.status.write().await = ConnectionStatus::Disconnected;
@@ -818,5 +857,149 @@ VTqsHLmxLZRE29jLYmOk/aumynehRANCAAThUJmXUuWtqQWKoSKFZSYR8Qqe5e8T
             build_tls_transport(&conn),
             Err(MqttError::TlsSetup(_))
         ));
+    }
+
+    #[derive(Default)]
+    struct StatusRecorder {
+        statuses: std::sync::Mutex<Vec<String>>,
+    }
+
+    impl MqttEvents for StatusRecorder {
+        fn on_status(&self, status: &str) {
+            self.statuses.lock().unwrap().push(status.to_string());
+        }
+
+        fn on_message(&self, _message: &Message) {}
+    }
+
+    impl StatusRecorder {
+        fn statuses(&self) -> Vec<String> {
+            self.statuses.lock().unwrap().clone()
+        }
+
+        fn count(&self, status: &str) -> usize {
+            self.statuses()
+                .iter()
+                .filter(|s| s.as_str() == status)
+                .count()
+        }
+    }
+
+    fn closed_port() -> u16 {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.local_addr().unwrap().port()
+    }
+
+    fn recording_client(reconnect: Reconnect) -> (MqttClient, Arc<StatusRecorder>) {
+        let recorder = Arc::new(StatusRecorder::default());
+        let mut client = MqttClient::new();
+        client.set_events(recorder.clone());
+        client.set_reconnect(reconnect);
+        (client, recorder)
+    }
+
+    async fn wait_for(condition: impl Fn() -> bool, timeout: Duration) -> bool {
+        let deadline = tokio::time::Instant::now() + timeout;
+        while tokio::time::Instant::now() < deadline {
+            if condition() {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        condition()
+    }
+
+    #[test]
+    fn test_retry_delay_gives_up_policy_is_flat() {
+        for attempt in 1..=5 {
+            assert_eq!(retry_delay(Reconnect::GiveUp, attempt), RETRY_BASE);
+        }
+    }
+
+    #[test]
+    fn test_retry_delay_keep_policy_backs_off_up_to_the_cap() {
+        let delays: Vec<u64> = (1..=8)
+            .map(|attempt| retry_delay(Reconnect::Keep, attempt).as_millis() as u64)
+            .collect();
+        assert_eq!(
+            delays,
+            vec![500, 1000, 2000, 4000, 8000, 10000, 10000, 10000]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_give_up_policy_stops_after_repeated_errors() {
+        let (mut client, recorder) = recording_client(Reconnect::GiveUp);
+        client
+            .connect(&create_test_connection("127.0.0.1", closed_port()))
+            .await
+            .unwrap();
+
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(8);
+        while client.is_running() && tokio::time::Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+
+        assert!(!client.is_running());
+        assert_eq!(recorder.count("error"), MAX_CONSECUTIVE_ERRORS as usize);
+        client.disconnect().await;
+    }
+
+    #[tokio::test]
+    async fn test_keep_policy_retries_past_the_give_up_point() {
+        let (mut client, recorder) = recording_client(Reconnect::Keep);
+        client
+            .connect(&create_test_connection("127.0.0.1", closed_port()))
+            .await
+            .unwrap();
+
+        assert!(wait_for(|| recorder.count("error") >= 3, Duration::from_secs(6)).await);
+        assert!(client.is_running());
+        assert_eq!(client.get_status().await, ConnectionStatus::Error);
+        client.disconnect().await;
+    }
+
+    #[tokio::test]
+    async fn test_connect_while_retrying_restarts_immediately() {
+        let (mut client, recorder) = recording_client(Reconnect::Keep);
+        let config = create_test_connection("127.0.0.1", closed_port());
+        client.connect(&config).await.unwrap();
+        assert!(wait_for(|| recorder.count("error") >= 1, Duration::from_secs(3)).await);
+
+        client.connect(&config).await.unwrap();
+
+        let statuses = recorder.statuses();
+        let tail: Vec<&str> = statuses
+            .iter()
+            .rev()
+            .take(2)
+            .rev()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(tail, vec!["disconnected", "connecting"]);
+        assert!(client.is_running());
+        client.disconnect().await;
+    }
+
+    #[tokio::test]
+    async fn test_disconnect_during_retry_stops_all_further_events() {
+        let (mut client, recorder) = recording_client(Reconnect::Keep);
+        client
+            .connect(&create_test_connection("127.0.0.1", closed_port()))
+            .await
+            .unwrap();
+        assert!(wait_for(|| recorder.count("error") >= 1, Duration::from_secs(3)).await);
+
+        client.disconnect().await;
+        let after_disconnect = recorder.statuses();
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+
+        assert_eq!(
+            after_disconnect.last().map(String::as_str),
+            Some("disconnected")
+        );
+        assert_eq!(recorder.statuses(), after_disconnect);
+        assert!(!client.is_running());
+        assert_eq!(client.get_status().await, ConnectionStatus::Disconnected);
     }
 }

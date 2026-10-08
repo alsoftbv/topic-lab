@@ -1,10 +1,11 @@
 import { useState } from "react";
 import type { Connection } from "@/types";
 import { useApp } from "@/contexts/AppContext";
-import { importConnection } from "@/utils/api";
+import * as api from "@/utils/api";
+import { generateClientId } from "@/utils/clientId";
 
 export function SetupWizard() {
-  const { addConnection } = useApp();
+  const { addConnection, importConnection } = useApp();
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -12,9 +13,7 @@ export function SetupWizard() {
   const [name, setName] = useState("My Connection");
   const [brokerUrl, setBrokerUrl] = useState("");
   const [port, setPort] = useState(1883);
-  const [clientId, setClientId] = useState(
-    `mqtt-topic-lab-${Math.random().toString(36).slice(2, 8)}`
-  );
+  const [clientId, setClientId] = useState(generateClientId());
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [useTls, setUseTls] = useState(false);
@@ -24,18 +23,12 @@ export function SetupWizard() {
     setError(null);
     setSaving(true);
     try {
-      const imported = await importConnection();
+      const imported = await api.importConnection();
       if (!imported) {
         setSaving(false);
         return;
       }
-
-      const connection: Connection = {
-        ...imported,
-        id: crypto.randomUUID(),
-      };
-
-      await addConnection(connection);
+      await importConnection(imported);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to import connection");
       setSaving(false);

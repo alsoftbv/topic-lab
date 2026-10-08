@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { X, CheckCircle2 } from "lucide-react";
 import { UpdateSettingsSection } from "./UpdateNotice";
+import { ReleaseNotesSettings } from "./ReleaseNotes";
 import * as api from "@/utils/api";
 import { useEscapeClose } from "@/hooks/useEscapeClose";
 import type { Updater } from "@/hooks/useUpdater";
+import type { ReleaseNotesState } from "@/hooks/useReleaseNotes";
 
 interface PreferencesModalProps {
   updater: Updater;
+  releaseNotes: ReleaseNotesState;
   onClose: () => void;
 }
 
@@ -61,7 +64,7 @@ function CliToolSection() {
   );
 }
 
-export function PreferencesModal({ updater, onClose }: PreferencesModalProps) {
+export function PreferencesModal({ updater, releaseNotes, onClose }: PreferencesModalProps) {
   useEscapeClose(onClose);
 
   return (
@@ -76,6 +79,8 @@ export function PreferencesModal({ updater, onClose }: PreferencesModalProps) {
         <div className="settings-content">
           <h3 className="settings-section-title">Updates</h3>
           <UpdateSettingsSection updater={updater} />
+          <h3 className="settings-section-title">What's New</h3>
+          <ReleaseNotesSettings releaseNotes={releaseNotes} />
           <h3 className="settings-section-title">Command Line</h3>
           <CliToolSection />
         </div>

@@ -36,11 +36,15 @@ impl Storage {
             fs::create_dir_all(&app_dir)?;
         }
 
-        Ok(Self {
+        Ok(Self::in_dir(app_dir))
+    }
+
+    pub fn in_dir(app_dir: PathBuf) -> Self {
+        Self {
             data_path: app_dir.join("data.json"),
             legacy_path: app_dir.join("project.json"),
             lock_path: app_dir.join("instance.lock"),
-        })
+        }
     }
 
     pub fn acquire_write_lock(&self) -> Result<Option<File>, StorageError> {
@@ -139,12 +143,7 @@ mod tests {
     use tempfile::TempDir;
 
     fn create_test_storage(temp_dir: &TempDir) -> Storage {
-        let app_dir = temp_dir.path().to_path_buf();
-        Storage {
-            data_path: app_dir.join("data.json"),
-            legacy_path: app_dir.join("project.json"),
-            lock_path: app_dir.join("instance.lock"),
-        }
+        Storage::in_dir(temp_dir.path().to_path_buf())
     }
 
     fn create_test_connection() -> Connection {

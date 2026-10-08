@@ -11,6 +11,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 1rem;
   border-bottom: 1px solid var(--border);
 }
 
@@ -18,6 +19,7 @@
   display: flex;
   align-items: center;
   gap: 1.5rem;
+  min-width: 0;
 }
 
 .header-left h1 {
@@ -27,6 +29,7 @@
 .header-right {
   display: flex;
   gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .search-bar {
@@ -90,7 +93,11 @@
 .workspace.dock-pos-left .button-groups,
 .workspace.dock-pos-right .button-groups {
   flex: 1;
-  min-width: 0;
+  min-width: 240px;
+}
+
+.workspace.dock-pos-top .button-groups {
+  min-height: 120px;
 }
 
 .workspace.dock-pos-right > .dock {
@@ -153,7 +160,7 @@
 
 .buttons-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: 1rem;
   padding: 0.25rem;
   padding-left: 12px;

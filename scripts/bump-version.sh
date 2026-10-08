@@ -13,10 +13,14 @@ fi
 IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
 SUGGESTED="$MAJOR.$MINOR.$((PATCH + 1))"
 
-echo "Current version: $CURRENT"
-echo ""
-vared -p "Update to: " SUGGESTED
-VERSION=$SUGGESTED
+if [[ -n $1 ]]; then
+    VERSION=$1
+else
+    echo "Current version: $CURRENT"
+    echo ""
+    vared -p "Update to: " SUGGESTED
+    VERSION=$SUGGESTED
+fi
 
 if [[ -z $VERSION ]]; then
     echo "Aborted"
@@ -48,4 +52,5 @@ echo "Updating Cargo.lock..."
 
 echo ""
 echo "Done! Updated to v$VERSION"
-echo "Remember to commit and tag: git tag v$VERSION"
+echo "Commit, then create an annotated tag whose message is the \"- \" bullet release notes:"
+echo "  git tag -a v$VERSION -F notes.txt && scripts/release-notes.sh v$VERSION"

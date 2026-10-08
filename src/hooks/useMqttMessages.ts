@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { Message } from "@/types";
 import * as api from "@/utils/api";
 import { useApp } from "@/contexts/AppContext";
@@ -21,7 +21,7 @@ export function useMqttMessages() {
     }
 
     let cancelled = false;
-    const unlisten = listen<Message>("mqtt-message", (event) => {
+    const unlisten = getCurrentWebviewWindow().listen<Message>("mqtt-message", (event) => {
       setMessages((prev) => [...prev, event.payload].slice(-MAX_MESSAGES));
     });
 

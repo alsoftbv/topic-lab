@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type {
   AppData,
   AppSettings,
@@ -7,9 +8,15 @@ import type {
   Button,
   ButtonGroup,
   ConnectionStatus,
+  DataSnapshot,
+  OpenConnection,
 } from "@/types";
 import * as api from "@/utils/api";
 import { setBuiltinNames, templateHasBuiltin } from "@/utils/builtins";
+import { findClientIdClash, generateClientId } from "@/utils/clientId";
+import { confirm } from "@/utils/dialog";
+import { MAIN_WINDOW } from "@/utils/windows";
+import { useSyncedData, EMPTY_DATA } from "@/hooks/useSyncedData";
 
 interface AppContextType {
   data: AppData;
@@ -19,10 +26,14 @@ interface AppContextType {
   error: string | null;
   resolvedButtons: Record<string, { topic: string; payload: string }>;
   resolvedSubscriptions: Record<string, string>;
+  openConnections: OpenConnection[];
+  runsStartupTasks: boolean;
+  isOpenElsewhere: (id: string) => boolean;
+  openInNewWindow: (id: string) => Promise<void>;
   addConnection: (connection: Connection) => Promise<void>;
   importConnection: (connection: Omit<Connection, "id">) => Promise<void>;
   duplicateConnection: (id: string) => Promise<void>;
-  updateConnection: (connection: Connection) => Promise<void>;
+  updateConnection: (id: string, patch: Partial<Connection>) => Promise<void>;
   deleteConnection: (id: string) => Promise<void>;
   switchConnection: (id: string) => Promise<void>;
   reorderConnections: (connections: Connection[]) => Promise<void>;
@@ -47,8 +58,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [data, setData] = useState<AppData>({ connections: [] });
-  const dataRef = useRef(data);
+  const { data, dataRef, load, mutate } = useSyncedData();
   const [activeConnectionId, setActiveConnectionId] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [loading, setLoading] = useState(true);
@@ -57,6 +67,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     Record<string, { topic: string; payload: string }>
   >({});
   const [resolvedSubscriptions, setResolvedSubscriptions] = useState<Record<string, string>>({});
+  const [openConnections, setOpenConnections] = useState<OpenConnection[]>([]);
+  const windowLabel = getCurrentWebviewWindow().label;
+  const runsStartupTasks = windowLabel === MAIN_WINDOW;
 
   const connectionStatusRef = useRef<ConnectionStatus>("disconnected");
 
@@ -92,12 +105,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    dataRef.current = data;
-  }, [data]);
+    const unlisten = getCurrentWebviewWindow().listen<string>("mqtt-status", (event) => {
+      updateConnectionStatus(event.payload as ConnectionStatus);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
 
   useEffect(() => {
-    const unlisten = listen<string>("mqtt-status", (event) => {
-      updateConnectionStatus(event.payload as ConnectionStatus);
+    const unlisten = listen<OpenConnection[]>("open-connections-changed", (event) => {
+      setOpenConnections(event.payload);
     });
     return () => {
       unlisten.then((fn) => fn());
@@ -163,14 +181,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {
         console.error("Fetching builtin names failed:", e);
       }
-      const loaded = await api.getData();
-      setData(loaded);
+      const loaded = await load();
+      const [windowConnectionId, open] = await Promise.all([
+        api.getWindowConnection(),
+        api.getOpenConnections(),
+      ]);
+      setOpenConnections(open);
 
-      const initialConnectionId = loaded.last_connection_id ?? loaded.connections[0]?.id;
-      if (initialConnectionId) {
-        setActiveConnectionId(initialConnectionId);
-        const initialConnection = loaded.connections.find((c) => c.id === initialConnectionId);
-        if (initialConnection?.auto_connect) {
+      const initialConnection = loaded.connections.find((c) => c.id === windowConnectionId);
+      if (initialConnection) {
+        setActiveConnectionId(initialConnection.id);
+        if (initialConnection.auto_connect) {
           try {
             updateConnectionStatus("connecting");
             await api.connect(initialConnection);
@@ -187,101 +208,195 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function saveData(updater: (prev: AppData) => AppData) {
-    const prevData = dataRef.current;
-    const newData = updater(prevData);
-    dataRef.current = newData;
-    setData(newData);
+  async function save(
+    optimistic: (prev: AppData) => AppData,
+    request: (saved: AppData) => Promise<DataSnapshot>
+  ): Promise<AppData | null> {
     try {
-      await api.saveData(newData);
+      const saved = await mutate(optimistic, request);
       setError(null);
+      return saved;
     } catch (e) {
-      dataRef.current = prevData;
-      setData(prevData);
       setError(e instanceof Error ? e.message : "Failed to save data");
+      return null;
     }
   }
 
-  async function updateActiveConnection(updater: (conn: Connection) => Connection) {
-    await saveData((prev) => {
-      const conn = prev.connections.find((c) => c.id === activeConnectionId);
-      if (!conn) return prev;
-      return {
+  function withoutConnection(data: AppData, id: string): AppData {
+    return { ...data, connections: data.connections.filter((c) => c.id !== id) };
+  }
+
+  async function editConnection(id: string, updater: (conn: Connection) => Connection) {
+    await save(
+      (prev) => ({
         ...prev,
-        connections: prev.connections.map((c) => (c.id === conn.id ? updater(c) : c)),
-      };
-    });
+        connections: prev.connections.map((c) => (c.id === id ? updater(c) : c)),
+      }),
+      (saved) => {
+        const conn = saved.connections.find((c) => c.id === id);
+        if (!conn) throw new Error("This connection no longer exists");
+        return api.saveConnection(updater(conn));
+      }
+    );
+  }
+
+  async function updateActiveConnection(updater: (conn: Connection) => Connection) {
+    if (activeConnectionId) await editConnection(activeConnectionId, updater);
+  }
+
+  async function updateConnection(id: string, patch: Partial<Connection>) {
+    await editConnection(id, (conn) => ({ ...conn, ...patch }));
+  }
+
+  function ownerIn(open: OpenConnection[], id: string): OpenConnection | undefined {
+    return open.find((o) => o.connectionId === id && o.label !== windowLabel);
+  }
+
+  function isOpenElsewhere(id: string): boolean {
+    return ownerIn(openConnections, id) !== undefined;
+  }
+
+  async function freshOpenConnections(): Promise<OpenConnection[]> {
+    const open = await api.getOpenConnections();
+    setOpenConnections(open);
+    return open;
+  }
+
+  async function resolveClientIdClash(
+    connection: Connection,
+    open: OpenConnection[],
+    includeOwnWindow: boolean
+  ): Promise<Connection | null> {
+    const others = open
+      .filter((o) => includeOwnWindow || o.label !== windowLabel)
+      .map((o) => dataRef.current.connections.find((c) => c.id === o.connectionId))
+      .filter((c): c is Connection => c !== undefined);
+    const clash = findClientIdClash(connection, others);
+    if (!clash) return connection;
+    const regenerate = await confirm(
+      `“${connection.name}” uses the same client ID as “${clash.name}”, which is already open. ` +
+        `The broker would keep disconnecting one of them.\n\nGive “${connection.name}” a new client ID?`,
+      {
+        title: "Client ID already in use",
+        kind: "warning",
+        okLabel: "New Client ID",
+        cancelLabel: "Cancel",
+      }
+    );
+    if (!regenerate) return null;
+    const clientId = generateClientId();
+    await updateConnection(connection.id, { client_id: clientId });
+    return { ...connection, client_id: clientId };
+  }
+
+  async function claim(id: string): Promise<boolean> {
+    try {
+      const result = await api.claimConnection(id);
+      if (result.status === "claimed") return true;
+      await api.focusWindow(result.label);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    return false;
+  }
+
+  async function activate(connection: Connection): Promise<boolean> {
+    const open = await freshOpenConnections();
+    const owner = ownerIn(open, connection.id);
+    if (owner) {
+      await api.focusWindow(owner.label);
+      return false;
+    }
+    const ready = await resolveClientIdClash(connection, open, false);
+    if (!ready || !(await claim(ready.id))) return false;
+    await tryDisconnect();
+    setActiveConnectionId(ready.id);
+    await save(
+      (prev) => ({ ...prev, last_connection_id: ready.id }),
+      () => api.setLastConnection(ready.id)
+    );
+    await tryAutoConnect(ready);
+    return true;
+  }
+
+  async function openInNewWindow(id: string) {
+    const open = await freshOpenConnections();
+    const owner = ownerIn(open, id);
+    if (owner) {
+      await api.focusWindow(owner.label);
+      return;
+    }
+    const target = dataRef.current.connections.find((c) => c.id === id);
+    if (!target) return;
+    const ready = await resolveClientIdClash(target, open, true);
+    if (!ready) return;
+    await api.openWindow(ready.id);
   }
 
   async function addConnection(connection: Connection) {
-    await tryDisconnect();
-    await saveData((prev) => ({
-      ...prev,
-      connections: [...prev.connections, connection],
-      last_connection_id: connection.id,
-    }));
-    setActiveConnectionId(connection.id);
-    await tryAutoConnect(connection);
+    const saved = await save(
+      (prev) => ({ ...prev, connections: [...prev.connections, connection] }),
+      () => api.saveConnection(connection)
+    );
+    if (!saved) return;
+    await activate(connection);
   }
 
   async function importConnection(connectionData: Omit<Connection, "id">) {
-    const connection: Connection = {
+    await addConnection({
       ...connectionData,
       id: crypto.randomUUID(),
-    };
-    await addConnection(connection);
+      client_id: generateClientId(),
+    });
   }
 
   async function duplicateConnection(id: string) {
-    const source = data.connections.find((c) => c.id === id);
+    const source = dataRef.current.connections.find((c) => c.id === id);
     if (!source) return;
     await addConnection({
       ...structuredClone(source),
       id: crypto.randomUUID(),
       name: `${source.name} Copy`,
+      client_id: generateClientId(),
     });
-  }
-
-  async function updateConnection(connection: Connection) {
-    await saveData((prev) => ({
-      ...prev,
-      connections: prev.connections.map((c) => (c.id === connection.id ? connection : c)),
-    }));
   }
 
   async function deleteConnection(id: string) {
-    let deletedConnections: Connection[] = [];
-    let deletedLastId: string | undefined;
-    await saveData((prev) => {
-      deletedConnections = prev.connections.filter((c) => c.id !== id);
-      deletedLastId =
-        prev.last_connection_id === id ? deletedConnections[0]?.id : prev.last_connection_id;
-      return { ...prev, connections: deletedConnections, last_connection_id: deletedLastId };
-    });
+    const remove = () =>
+      save(
+        (prev) => withoutConnection(prev, id),
+        () => api.deleteConnection(id)
+      );
 
-    if (activeConnectionId === id) {
-      await tryDisconnect();
-      const nextConnection = deletedConnections[0];
-      setActiveConnectionId(nextConnection?.id ?? null);
-      await tryAutoConnect(nextConnection);
+    if (activeConnectionId !== id) {
+      await remove();
+      return;
     }
+
+    const open = await freshOpenConnections();
+    const next = dataRef.current.connections.find(
+      (c) => c.id !== id && !open.some((o) => o.connectionId === c.id)
+    );
+    if (next && (await activate(next))) {
+      await remove();
+      return;
+    }
+
+    await tryDisconnect();
+    if (await remove()) setActiveConnectionId(null);
   }
 
   async function switchConnection(id: string) {
     if (id === activeConnectionId) return;
-
-    await tryDisconnect();
-    let conn: Connection | undefined;
-    await saveData((prev) => {
-      conn = prev.connections.find((c) => c.id === id);
-      return { ...prev, last_connection_id: id };
-    });
-    setActiveConnectionId(id);
-    await tryAutoConnect(conn);
+    const target = dataRef.current.connections.find((c) => c.id === id);
+    if (target) await activate(target);
   }
 
   async function reorderConnections(connections: Connection[]) {
-    await saveData((prev) => ({ ...prev, connections }));
+    await save(
+      (prev) => ({ ...prev, connections }),
+      () => api.reorderConnections(connections.map((c) => c.id))
+    );
   }
 
   async function addButton(button: Button) {
@@ -377,10 +492,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function updateSettings(settings: Partial<AppSettings>) {
-    await saveData((prev) => ({
-      ...prev,
-      settings: { ...prev.settings, ...settings },
-    }));
+    await save(
+      (prev) => ({ ...prev, settings: { ...prev.settings, ...settings } }),
+      () => api.updateSettings(settings)
+    );
   }
 
   async function connect() {
@@ -418,22 +533,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   function resetAll() {
-    setData({ connections: [] });
     setActiveConnectionId(null);
     updateConnectionStatus("disconnected");
     setError(null);
-    (async () => {
-      try {
-        await api.disconnect();
-      } catch (e) {
-        console.error("Disconnect during reset failed:", e);
-      }
-      try {
-        await api.deleteData();
-      } catch (e) {
-        console.error("Delete data during reset failed:", e);
-      }
-    })();
+    mutate(() => EMPTY_DATA, api.deleteData).catch((e) =>
+      console.error("Delete data during reset failed:", e)
+    );
+    api.disconnect().catch((e) => console.error("Disconnect during reset failed:", e));
   }
 
   return (
@@ -446,6 +552,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         error,
         resolvedButtons,
         resolvedSubscriptions,
+        openConnections,
+        runsStartupTasks,
+        isOpenElsewhere,
+        openInNewWindow,
         addConnection,
         importConnection,
         duplicateConnection,

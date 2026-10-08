@@ -1,14 +1,16 @@
 use log::{debug, warn};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::{Manager, PhysicalPosition, Runtime, Window};
+use tauri::{Monitor, PhysicalPosition, Runtime, Window};
 
-pub const MIN_WIDTH: f64 = 550.0;
+pub const MIN_WIDTH: f64 = 720.0;
 pub const MIN_HEIGHT: f64 = 450.0;
 pub const DEFAULT_WIDTH: f64 = 1000.0;
 pub const DEFAULT_HEIGHT: f64 = 700.0;
+pub const CASCADE_OFFSET: f64 = 28.0;
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct WindowState {
@@ -21,7 +23,7 @@ pub struct WindowState {
 #[derive(Default)]
 struct StoreInner {
     cached: Option<WindowState>,
-    frozen: bool,
+    closing: HashSet<String>,
 }
 
 pub struct WindowStateStore {
@@ -51,20 +53,24 @@ impl WindowStateStore {
         Some(state)
     }
 
-    pub fn update(&self, state: WindowState) {
+    pub fn update(&self, label: &str, state: WindowState) {
         let mut inner = self.inner.lock().unwrap();
-        if inner.frozen {
+        if inner.closing.contains(label) {
             return;
         }
         inner.cached = Some(state);
     }
 
-    pub fn flush_and_freeze(&self) {
+    pub fn window_closing(&self, label: &str) {
         let mut inner = self.inner.lock().unwrap();
-        inner.frozen = true;
+        inner.closing.insert(label.to_string());
         if let Some(state) = inner.cached {
             self.write(state);
         }
+    }
+
+    pub fn window_destroyed(&self, label: &str) {
+        self.inner.lock().unwrap().closing.remove(label);
     }
 
     pub fn flush(&self) {
@@ -95,10 +101,7 @@ pub struct InitialPlacement {
     pub position: Option<(f64, f64)>,
 }
 
-pub fn initial_placement<R: Runtime, M: Manager<R>>(
-    app: &M,
-    store: &WindowStateStore,
-) -> InitialPlacement {
+pub fn initial_placement(monitors: &[Monitor], store: &WindowStateStore) -> InitialPlacement {
     let Some(state) = store.load() else {
         return InitialPlacement {
             width: DEFAULT_WIDTH,
@@ -108,13 +111,36 @@ pub fn initial_placement<R: Runtime, M: Manager<R>>(
     };
 
     let (width, height) = clamp_size(state.width, state.height);
-    let position = if position_visible(app, state.x, state.y, width, height) {
+    let position = if position_visible(&monitor_rects(monitors), state.x, state.y, width, height) {
         Some((state.x, state.y))
     } else {
         debug!("Saved position not on any monitor; will center");
         None
     };
 
+    InitialPlacement {
+        width,
+        height,
+        position,
+    }
+}
+
+pub fn cascade_placement(monitors: &[Monitor], from: WindowState) -> InitialPlacement {
+    offset_within(&monitor_rects(monitors), from, CASCADE_OFFSET)
+}
+
+pub fn same_placement(monitors: &[Monitor], from: WindowState) -> InitialPlacement {
+    offset_within(&monitor_rects(monitors), from, 0.0)
+}
+
+fn offset_within(monitors: &[Rect], from: WindowState, offset: f64) -> InitialPlacement {
+    let (width, height) = clamp_size(from.width, from.height);
+    let (x, y) = (from.x + offset, from.y + offset);
+    let position = if position_visible(monitors, x, y, width, height) {
+        Some((x, y))
+    } else {
+        None
+    };
     InitialPlacement {
         width,
         height,
@@ -139,41 +165,39 @@ fn rects_overlap(a: Rect, b: Rect) -> bool {
         && a.y.max(b.y) < (a.y + a.height).min(b.y + b.height)
 }
 
-fn position_visible<R: Runtime, M: Manager<R>>(
-    app: &M,
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-) -> bool {
-    let handle = app.app_handle();
-    let monitors = match handle.available_monitors() {
-        Ok(m) => m,
-        Err(_) => return false,
-    };
+fn monitor_rects(monitors: &[Monitor]) -> Vec<Rect> {
+    monitors
+        .iter()
+        .map(|monitor| {
+            let scale = monitor.scale_factor();
+            let pos: PhysicalPosition<i32> = *monitor.position();
+            let size = monitor.size();
+            Rect {
+                x: pos.x as f64 / scale,
+                y: pos.y as f64 / scale,
+                width: size.width as f64 / scale,
+                height: size.height as f64 / scale,
+            }
+        })
+        .collect()
+}
+
+fn position_visible(monitors: &[Rect], x: f64, y: f64, width: f64, height: f64) -> bool {
     let window = Rect {
         x,
         y,
         width,
         height,
     };
-    monitors.iter().any(|monitor| {
-        let scale = monitor.scale_factor();
-        let pos: PhysicalPosition<i32> = *monitor.position();
-        let size = monitor.size();
-        rects_overlap(
-            window,
-            Rect {
-                x: pos.x as f64 / scale,
-                y: pos.y as f64 / scale,
-                width: size.width as f64 / scale,
-                height: size.height as f64 / scale,
-            },
-        )
-    })
+    monitors
+        .iter()
+        .any(|monitor| rects_overlap(window, *monitor))
 }
 
-pub fn capture(window: &Window) -> Option<WindowState> {
+pub fn capture<R: Runtime>(window: &Window<R>) -> Option<WindowState> {
+    if window.is_fullscreen().unwrap_or(false) || window.is_minimized().unwrap_or(false) {
+        return None;
+    }
     let scale = window.scale_factor().ok()?;
     let size = window.inner_size().ok()?;
 
@@ -250,12 +274,15 @@ mod tests {
     fn store_round_trips_state() {
         let temp = TempDir::new().unwrap();
         let store = store_in(&temp);
-        store.update(WindowState {
-            width: 900.0,
-            height: 650.0,
-            x: 40.0,
-            y: 60.0,
-        });
+        store.update(
+            "main",
+            WindowState {
+                width: 900.0,
+                height: 650.0,
+                x: 40.0,
+                y: 60.0,
+            },
+        );
         store.flush();
         let loaded = store.load().unwrap();
         assert_eq!(loaded.width, 900.0);
@@ -264,26 +291,110 @@ mod tests {
         assert_eq!(loaded.y, 60.0);
     }
 
-    #[test]
-    fn frozen_store_ignores_further_updates() {
-        let temp = TempDir::new().unwrap();
-        let store = store_in(&temp);
-        store.update(WindowState {
-            width: 900.0,
+    fn state(width: f64) -> WindowState {
+        WindowState {
+            width,
             height: 650.0,
             x: 40.0,
             y: 60.0,
-        });
-        store.flush_and_freeze();
-        store.update(WindowState {
-            width: 1.0,
-            height: 1.0,
-            x: 0.0,
-            y: 0.0,
-        });
+        }
+    }
+
+    #[test]
+    fn a_closing_window_writes_the_state_and_its_later_events_are_ignored() {
+        let temp = TempDir::new().unwrap();
+        let store = store_in(&temp);
+        store.update("main", state(900.0));
+
+        store.window_closing("main");
+        assert_eq!(store.load().unwrap().width, 900.0);
+
+        store.update("main", state(1.0));
         store.flush();
-        let loaded = store.load().unwrap();
-        assert_eq!(loaded.width, 900.0);
+        assert_eq!(store.load().unwrap().width, 900.0);
+    }
+
+    #[test]
+    fn other_windows_keep_updating_while_one_closes() {
+        let temp = TempDir::new().unwrap();
+        let store = store_in(&temp);
+        store.update("main", state(900.0));
+        store.window_closing("main");
+
+        store.update("window-1", state(1100.0));
+        store.flush();
+
+        assert_eq!(store.load().unwrap().width, 1100.0);
+    }
+
+    #[test]
+    fn a_destroyed_window_label_can_be_tracked_again() {
+        let temp = TempDir::new().unwrap();
+        let store = store_in(&temp);
+        store.window_closing("window-1");
+        store.window_destroyed("window-1");
+
+        store.update("window-1", state(1200.0));
+        store.flush();
+
+        assert_eq!(store.load().unwrap().width, 1200.0);
+    }
+
+    const SCREEN: Rect = Rect {
+        x: 0.0,
+        y: 0.0,
+        width: 1920.0,
+        height: 1080.0,
+    };
+
+    #[test]
+    fn cascade_offsets_from_the_reference_window_and_keeps_its_size() {
+        let placement = offset_within(
+            &[SCREEN],
+            WindowState {
+                width: 1000.0,
+                height: 700.0,
+                x: 100.0,
+                y: 80.0,
+            },
+            CASCADE_OFFSET,
+        );
+        assert_eq!((placement.width, placement.height), (1000.0, 700.0));
+        assert_eq!(
+            placement.position,
+            Some((100.0 + CASCADE_OFFSET, 80.0 + CASCADE_OFFSET))
+        );
+    }
+
+    #[test]
+    fn cascade_centers_when_the_offset_position_is_off_screen_or_monitors_are_unknown() {
+        let off_screen = WindowState {
+            width: 800.0,
+            height: 600.0,
+            x: 1900.0,
+            y: 1060.0,
+        };
+        assert_eq!(
+            offset_within(&[SCREEN], off_screen, CASCADE_OFFSET).position,
+            None
+        );
+        assert_eq!(
+            offset_within(&[], state(900.0), CASCADE_OFFSET).position,
+            None
+        );
+    }
+
+    #[test]
+    fn a_new_tab_keeps_the_reference_window_frame() {
+        let placement = offset_within(&[SCREEN], state(900.0), 0.0);
+        assert_eq!((placement.width, placement.height), (900.0, 650.0));
+        assert_eq!(placement.position, Some((40.0, 60.0)));
+    }
+
+    #[test]
+    fn cascade_enforces_the_minimum_size() {
+        let placement = offset_within(&[SCREEN], state(100.0), CASCADE_OFFSET);
+        assert_eq!(placement.width, MIN_WIDTH);
     }
 
     #[test]

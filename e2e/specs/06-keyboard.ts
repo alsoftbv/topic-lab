@@ -11,7 +11,7 @@ describe("Keyboard Shortcuts", () => {
     await waitForDashboard();
   });
 
-  it("Ctrl+N opens the new button editor", async () => {
+  it("Ctrl+Plus opens the new button editor", async () => {
     await browser.pause(500);
     await openButtonEditor();
 

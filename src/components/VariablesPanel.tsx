@@ -60,7 +60,7 @@ export function VariablesPanel() {
     const history = { ...variableHistory };
     history[key] = (history[key] || []).filter((v) => v !== value);
     if (history[key].length === 0) delete history[key];
-    await updateConnection({ ...activeConnection, variable_history: history });
+    await updateConnection(activeConnection.id, { variable_history: history });
   };
 
   useEffect(() => {
@@ -170,8 +170,7 @@ export function VariablesPanel() {
               payload: b.payload ? b.payload.split(pattern).join(replacement) : b.payload,
             }));
             const updatedSubs = subscriptions.map((s) => s.split(pattern).join(replacement));
-            await updateConnection({
-              ...activeConnection,
+            await updateConnection(activeConnection.id, {
               variables: updated,
               buttons: updatedButtons,
               subscriptions: updatedSubs,

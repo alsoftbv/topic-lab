@@ -104,6 +104,10 @@ pub struct Connection {
 pub struct AppSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_check_updates: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_seen_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub show_release_notes: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -123,6 +127,14 @@ impl AppData {
             last_connection_id,
             ..Default::default()
         }
+    }
+
+    pub fn initial_connection_id(&self) -> Option<String> {
+        self.last_connection_id
+            .as_ref()
+            .filter(|id| self.connections.iter().any(|c| &c.id == *id))
+            .or_else(|| self.connections.first().map(|c| &c.id))
+            .cloned()
     }
 }
 
@@ -482,5 +494,54 @@ mod tests {
         let conn: Connection = serde_json::from_str(json).unwrap();
         assert_eq!(conn.variable_history.len(), 1);
         assert_eq!(conn.variable_history["mac"], vec!["11:22:33", "44:55:66"]);
+    }
+
+    fn named(id: &str) -> Connection {
+        serde_json::from_value(serde_json::json!({
+            "id": id,
+            "name": id,
+            "broker_url": "localhost",
+            "port": 1883,
+            "client_id": id
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn test_initial_connection_prefers_the_last_connection() {
+        let data = AppData::new(vec![named("a"), named("b")], Some("b".into()));
+        assert_eq!(data.initial_connection_id().as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn test_initial_connection_falls_back_to_the_first_connection() {
+        let stale = AppData::new(vec![named("a"), named("b")], Some("gone".into()));
+        assert_eq!(stale.initial_connection_id().as_deref(), Some("a"));
+        let unset = AppData::new(vec![named("a")], None);
+        assert_eq!(unset.initial_connection_id().as_deref(), Some("a"));
+    }
+
+    #[test]
+    fn test_initial_connection_is_none_without_connections() {
+        assert_eq!(AppData::default().initial_connection_id(), None);
+    }
+
+    #[test]
+    fn test_settings_round_trip_in_camel_case() {
+        let json =
+            r#"{"autoCheckUpdates":true,"lastSeenVersion":"0.5.0","showReleaseNotes":false}"#;
+        let settings: AppSettings = serde_json::from_str(json).unwrap();
+        assert_eq!(settings.auto_check_updates, Some(true));
+        assert_eq!(settings.last_seen_version.as_deref(), Some("0.5.0"));
+        assert_eq!(settings.show_release_notes, Some(false));
+        assert_eq!(serde_json::to_string(&settings).unwrap(), json);
+    }
+
+    #[test]
+    fn test_settings_missing_fields_default_to_none() {
+        let settings: AppSettings = serde_json::from_str("{}").unwrap();
+        assert_eq!(settings.last_seen_version, None);
+        assert_eq!(settings.show_release_notes, None);
+        assert_eq!(serde_json::to_string(&settings).unwrap(), "{}");
     }
 }
